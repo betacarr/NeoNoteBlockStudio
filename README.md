@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="docs/quick-start.md">图文上手</a> ·
   <a href="#features">编辑能力</a> ·
   <a href="#formats">格式支持</a> ·
   <a href="#getting-started">快速开始</a> ·
@@ -35,6 +36,10 @@
 
 ## 为音符盒编曲设计
 
+![工作区布局示意：音色库、编曲区、钢琴卷帘、检查器与混音器入口](docs/assets/guide/workspace.svg)
+
+*界面布局示意。第一次使用可从 [图文上手](docs/quick-start.md) 开始；点击图片可放大查看。*
+
 | 工作区 | 当前能力 |
 | --- | --- |
 | **编曲与片段** | 可调整面板尺寸，独立复制片段、裁剪、拆分与循环；支持跨工程片段剪贴板和轨道整理。 |
@@ -45,12 +50,9 @@
 
 ### 从旋律到 NBS
 
-1. **导入** MIDI，也可从已有 NBS 或支持范围内的 FLP 开始。
-2. **编曲**：整理轨道和片段，在钢琴卷帘中编辑音符、力度与声像。
-3. **试听**：调整混音与 Delay，通过实时试听确认后续发声。
-4. **保存与导出**：用 NBSX 保留可编辑母版，再导出 NBS 供兼容工具使用。
+![图解流程：导入 MIDI／NBS／FLP，编辑片段与音符，加载声音后试听，保存 NBSX 并导出 NBS](docs/assets/guide/workflow.svg)
 
-NBS 导出会自动检查。默认使用 **TPS = BPM ÷ 7.5（每拍 8 tick）**，也可选择 **BPM ÷ 5（每拍 12 tick）**；无法准确表示的细分会提示。详见 [音乐格点与精度](docs/nbs-musical-timing.md)。
+[导入与试听](docs/quick-start.md#import) · [音符手势图解](docs/quick-start.md#piano) · [混音与 Delay](docs/quick-start.md#mixer) · [保存与导出图解](docs/quick-start.md#export)
 
 <a id="formats"></a>
 
@@ -86,7 +88,7 @@ npm ci
 npm run dev
 ```
 
-安装过程会下载并校验当前平台的官方 Electron。启动后，在偏好设置中选择本机 Minecraft 实例并加载声音资源，即可开始试听。
+安装过程会下载并校验当前平台的官方 Electron。启动后的选轨、画音符、加载声音和导出步骤见 [图文上手](docs/quick-start.md)。
 
 <details>
 <summary><strong>开发、验证与打包命令</strong></summary>
@@ -111,6 +113,7 @@ npm run dev
 
 | 想了解什么 | 从这里开始 |
 | --- | --- |
+| 第一次使用，按图完成导入、编辑与导出 | **[图文上手：8 个步骤](docs/quick-start.md)** |
 | 放置、移动、框选、缩放与片段边界 | [编辑操作](docs/editor-interactions.md) · [快捷键](docs/shortcuts.md) |
 | 轨道筛选、实时混音与电平 | [混音器](docs/mixer.md) · [轨道管理](docs/track-management.md) |
 | 回声包络、尾音、左右摆幅与效果导出 | [Delay](docs/delay-effects.md) |
@@ -126,6 +129,6 @@ NeoNBS 使用 **源码可见的自定义许可**，完整条款见 [LICENSE](LIC
 - **未经书面许可，禁止**销售编辑器本体或改版、收费解锁，以及收费提供在线编辑功能。
 - **第三方组件**保留各自许可，见 [第三方说明](THIRD_PARTY_NOTICES.md)。本项目不属于 MIT、GPL 或 OSI 认可的开源许可。
 
-仓库不捆绑 Minecraft 游戏代码、原版声音、贴图、专有插件或私人曲目。嵌入采样的 NBSX 在分享前仍需确认素材权利。README 封面为原创 SVG 装饰图，不含游戏素材。
+仓库不捆绑 Minecraft 游戏代码、原版声音、贴图、专有插件或私人曲目。嵌入采样的 NBSX 在分享前仍需确认素材权利。README 封面和操作示意图均为原创 SVG，不含游戏素材。
 
 > **NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
