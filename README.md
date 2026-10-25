@@ -1,51 +1,131 @@
-# Neo Note Block Studio · NeoNBS
+<p align="center">
+  <img src="docs/assets/readme-cover.svg" alt="NeoNBS — Note Block Workstation" width="100%" />
+</p>
 
-面向 Minecraft Java 版的独立桌面音符盒编辑器。以 MIDI 为主要起点，支持 NBS 互通，使用独立的 **.nbsx** 工程格式保存片段、混音、Delay 和来源信息。
+<h1 align="center">Neo Note Block Studio</h1>
 
-仓库名：**NeoNoteBlockStudio**；软件简称：**NeoNBS**；中文描述：**音符盒音乐工作站**。
+<p align="center">
+  面向 Minecraft Java 版的音符盒音乐工作站<br />
+  从 MIDI 开始，在编曲、钢琴卷帘和混音之间自由创作。
+</p>
 
-> 当前版本 **0.1.53**，首次公开发布源码，不附带旧名称的安装包。
+<p align="center">
+  <a href="https://github.com/betacarr/NeoNoteBlockStudio/releases/latest"><img src="https://img.shields.io/github/v/release/betacarr/NeoNoteBlockStudio?style=flat-square&amp;label=release&amp;color=65b98c" alt="最新发布版本" /></a>
+  <a href="#getting-started"><img src="https://img.shields.io/badge/platform-Windows_first-586e82?style=flat-square" alt="Windows 优先" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Source_Available-7377a8?style=flat-square" alt="源码可见的自定义许可" /></a>
+</p>
 
-**NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
+<p align="center">
+  <a href="#features">编辑能力</a> ·
+  <a href="#formats">格式支持</a> ·
+  <a href="#getting-started">快速开始</a> ·
+  <a href="#documentation">使用文档</a> ·
+  <a href="CHANGELOG.md">变更日志</a> ·
+  <a href="https://github.com/betacarr/NeoNoteBlockStudio/issues">问题反馈</a>
+</p>
 
-## 编辑功能
+---
 
-- 编曲区与钢琴卷帘分栏，可调整面板和两轴缩放；片段副本独立，循环单独设置。
-- MIDI 导入／导出，NBS 导入／导出；FLP 导入保留可解码的音符与片段。FL Studio 插件和自动化不会还原，见 [FLP 范围](docs/flp-import.md)。
-- 默认 FL 操作预设、框选、移动、时值调整、力度／声像、撤销重做和片段剪贴板；空格优先控制播放。
-- 混音器支持轨道筛选与对应高亮，默认实时试听可边改边听，并显示分轨与总输出电平。
-- 轨道 Delay 生成派生音符，不主动改写源 MIDI；支持时值关联包络、独立尾音、相对声像左右交替，随 NBS 导出。
-- NBS 导出自动检查，默认 TPS = BPM ÷ 7.5（每拍 8 tick），可选 BPM ÷ 5（每拍 12 tick）。音乐位置按格点映射，无法准确表示的细分会提示。
-- 偏好设置可启用 Liquid Glass 外观；内置方块图标为原创绘制。
+**NeoNBS** 是独立开发的桌面音符盒编辑器，以 MIDI 导入为主要工作流，支持 Note Block Studio 的 NBS 文件互通。原生 **`.nbsx`** 工程保存片段、混音、Delay 和来源信息，让编曲过程保持可编辑。
 
-当前优先完善编辑流程。原生声音对照仍有版本与设备边界，游戏内结构生成待定。Windows 为主要验证平台；有 macOS 构建入口，尚无同等运行验收。
+> [!NOTE]
+> 当前 **v0.1.53 为源码发布**，尚未提供 NeoNBS 安装包。可按下方步骤在本机运行；游戏声音需从自己的 Minecraft 安装中读取。
 
-## 开发运行
+<a id="features"></a>
 
-需要 Node.js 24+ 与 JDK 9+（建议 JDK 17，用于编译自行编写的 Java 解码适配器），以及 Git。
+## 为音符盒编曲设计
+
+| 工作区 | 当前能力 |
+| --- | --- |
+| **编曲与片段** | 可调整面板尺寸，独立复制片段、裁剪、拆分与循环；支持跨工程片段剪贴板和轨道整理。 |
+| **钢琴卷帘** | 独立横向／纵向缩放，框选、移动、时值、力度、声像与单音符音色覆盖；默认 FL 操作预设，空格优先控制播放。 |
+| **实时混音** | 编辑默认边改边听，显示分轨与总输出电平；轨道按乐器筛选，并与混音器对应高亮。 |
+| **Delay 回声** | 按轨道派生真实音符事件，保留源 MIDI；支持时值关联 ADSR、自由尾音、固定衰减及相对原声像的左右交替，回声可写入 NBS。 |
+| **外观与音色库** | 偏好设置可开启 Liquid Glass 外观；内置原创方块图标，按音符盒垫块识别乐器。 |
+
+### 从旋律到 NBS
+
+1. **导入** MIDI，也可从已有 NBS 或支持范围内的 FLP 开始。
+2. **编曲**：整理轨道和片段，在钢琴卷帘中编辑音符、力度与声像。
+3. **试听**：调整混音与 Delay，通过实时试听确认后续发声。
+4. **保存与导出**：用 NBSX 保留可编辑母版，再导出 NBS 供兼容工具使用。
+
+NBS 导出会自动检查。默认使用 **TPS = BPM ÷ 7.5（每拍 8 tick）**，也可选择 **BPM ÷ 5（每拍 12 tick）**；无法准确表示的细分会提示。详见 [音乐格点与精度](docs/nbs-musical-timing.md)。
+
+<a id="formats"></a>
+
+## 格式支持
+
+| 格式 | 导入／打开 | 导出／保存 | 用途与范围 |
+| --- | :---: | :---: | --- |
+| **NBSX** | ✓ | ✓ | 原生工程格式，保存片段、混音、效果与来源信息；继续编辑时使用。 |
+| **MIDI** | ✓ | ✓ | 主要输入格式；标准 MIDI 导出保留源编曲，不烘焙 Delay 回声。 |
+| **NBS** | ✓ | ✓ | 与 Note Block Studio 生态互通；回声烘焙为音符事件，效果参数仍保存在 NBSX 中。 |
+| **FLP** | ✓ | — | 导入可解码的音符与片段；插件、自动化及音频不重现。[范围说明](docs/flp-import.md) |
+
+## 当前开发重点
+
+**优先完善编辑操作与完整工作流。** 原生声音对照按版本逐步研究，游戏内结构生成待定。
+
+- **Windows** 为主要验证平台；提供 macOS 构建入口，尚无同等运行验收。
+- 默认实时试听支持编辑即时生效；原生离线对照用于声音校对，修改后需重新播放。
+- 实时试听与原版声音仍可能存在差异，版本元数据和数学测试不代表所有版本、设备的游戏录音验收。
+
+具体进度见 [当前状态](docs/status.md)，测试与人工验收边界见 [验证说明](docs/verification.md)。
+
+<a id="getting-started"></a>
+
+## 快速开始
+
+准备 **Git、Node.js 24+ 和 JDK 9+**，建议使用 JDK 17。JDK 用于编译项目自行编写的 Java 解码适配器。
 
 ```powershell
+git clone https://github.com/betacarr/NeoNoteBlockStudio.git
+cd NeoNoteBlockStudio
 npm ci
 npm run dev
 ```
 
-安装会下载并校验当前平台官方 Electron。仅查看 Web 界面可使用 npm run dev:web；读取本机资源与原生渲染依赖桌面运行方式。游戏采样需用户从自己的本机安装中读取，仓库不提供采样下载。
+安装过程会下载并校验当前平台的官方 Electron。启动后，在偏好设置中选择本机 Minecraft 实例并加载声音资源，即可开始试听。
 
-```powershell
-npm run audit:publication
-npm test
-npm run build
-npm run package:win
-```
+<details>
+<summary><strong>开发、验证与打包命令</strong></summary>
 
-首次公开提交前的开发候选需先暂存文件，再运行发布检查；普通 Git 检出可直接检查。可选 npm run install:hooks 安装本仓库的推送检查。它检查即将推送的提交与身份信息，不能代替人工素材审阅。线上自动检查尚未启用；可参考 docs/ci-template.yml 配置。
+| 命令 | 用途 |
+| --- | --- |
+| `npm run dev` | 启动桌面开发环境。 |
+| `npm run dev:web` | 预览 Web 界面；本机资源读取与原生渲染依赖桌面运行方式。 |
+| `npm test` | 运行单元与组件测试。 |
+| `npm run build` | 类型检查并构建前端与桌面代码。 |
+| `npm run package:win` | 构建 Windows 分发包。 |
+| `npm run package:mac` | 构建 macOS 分发包；尚无同等运行验收。 |
+| `npm run audit:publication` | 检查 Git 暂存文件、版本信息与提交身份。 |
+
+发布检查使用 Git 暂存区中的内容，提交前请先暂存计划发布的文件。它不能代替人工素材审阅。线上自动检查尚未启用，可参考 [配置模板](docs/ci-template.yml)。
+
+</details>
+
+<a id="documentation"></a>
+
+## 使用文档
+
+| 想了解什么 | 从这里开始 |
+| --- | --- |
+| 放置、移动、框选、缩放与片段边界 | [编辑操作](docs/editor-interactions.md) · [快捷键](docs/shortcuts.md) |
+| 轨道筛选、实时混音与电平 | [混音器](docs/mixer.md) · [轨道管理](docs/track-management.md) |
+| 回声包络、尾音、左右摆幅与效果导出 | [Delay](docs/delay-effects.md) |
+| NBS 导出与音乐位置换算 | [导出流程](docs/export-workflow.md) · [音乐格点](docs/nbs-musical-timing.md) |
+| 已实现的内容、历史变更与验证范围 | [当前状态](docs/status.md) · [变更日志](CHANGELOG.md) · [验证说明](docs/verification.md) |
+| 版本、隐私、许可与素材 | [版本规则](VERSIONING.md) · [问题报告](SECURITY.md) · [许可说明](docs/licensing.md) · [素材边界](docs/assets-and-rights.md) |
 
 ## 许可与素材
 
-本项目采用 **源码可见的自定义许可**：允许免费使用、修改和免费分发编辑器；禁止未经书面许可收费分发编辑器或收费提供其功能；允许用户靠自己的原创作品、接单、教学及独立服务盈利。它不是 MIT 或 GPL，也不是 OSI 认可的开源许可。完整条款见 [LICENSE](LICENSE) 和 [中文范围说明](docs/licensing.md)。
+NeoNBS 使用 **源码可见的自定义许可**，完整条款见 [LICENSE](LICENSE)，中文范围见 [许可说明](docs/licensing.md)。
 
-第三方组件保留各自许可，见 [第三方说明](THIRD_PARTY_NOTICES.md)。项目不捆绑 Minecraft 游戏代码、声音、贴图、专有插件或私人曲目。嵌入采样的 NBSX 在分享前仍需确认素材权利，详见 [素材边界](docs/assets-and-rights.md)。
+- **允许**免费使用、修改和免费分发编辑器；允许用户靠自己的原创作品、接单、教学与独立服务盈利。
+- **未经书面许可，禁止**销售编辑器本体或改版、收费解锁，以及收费提供在线编辑功能。
+- **第三方组件**保留各自许可，见 [第三方说明](THIRD_PARTY_NOTICES.md)。本项目不属于 MIT、GPL 或 OSI 认可的开源许可。
 
-## 项目资料
+仓库不捆绑 Minecraft 游戏代码、原版声音、贴图、专有插件或私人曲目。嵌入采样的 NBSX 在分享前仍需确认素材权利。README 封面为原创 SVG 装饰图，不含游戏素材。
 
-[操作说明](docs/editor-interactions.md) · [混音器](docs/mixer.md) · [Delay](docs/delay-effects.md) · [变更日志](CHANGELOG.md) · [当前状态](docs/status.md) · [验证范围](docs/verification.md) · [版本规则](VERSIONING.md) · [隐私与报告](SECURITY.md)
+> **NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**

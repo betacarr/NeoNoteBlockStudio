@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">NeoNBS — Note Block Workstation</title>
+  <desc id="description">An original dark cover with mint green piano-roll notes. Decorative artwork, not an application screenshot; no Minecraft assets are used.</desc>
+  <defs>
+    <pattern id="grid" x="724" y="48" width="48" height="24" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V24" stroke="#303C46" stroke-width="1"/>
+    </pattern>
+    <clipPath id="roll"><rect x="724" y="48" width="408" height="184" rx="10"/></clipPath>
+  </defs>
+  <rect x=".5" y=".5" width="1199" height="279" rx="18" fill="#171D24" stroke="#303A45"/>
+  <rect x="48" y="45" width="4" height="18" rx="2" fill="#8BD5B0"/>
+  <text x="64" y="59" fill="#9BAAB7" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="2.5">NOTE BLOCK WORKSTATION</text>
+  <text x="45" y="150" fill="#F2F5F7" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="78" font-weight="650" letter-spacing="-3">Neo<tspan fill="#8BD5B0">NBS</tspan></text>
+  <text x="50" y="190" fill="#B1BDC7" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="19">Compose. Arrange. Shape every note.</text>
+  <path d="M50 221H92" stroke="#8BD5B0" stroke-width="2"/>
+  <text x="106" y="226" fill="#7F929F" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="1.5">MIDI FIRST / NBSX PROJECTS / NBS EXPORT</text>
+  <rect x="724" y="48" width="408" height="184" rx="10" fill="#1D2630"/>
+  <g clip-path="url(#roll)">
+    <rect x="724" y="48" width="408" height="184" fill="url(#grid)"/>
+    <path d="M820 48V232M916 48V232M1012 48V232M1108 48V232" stroke="#3D4B56"/>
+    <rect x="744" y="156" width="68" height="17" rx="3" fill="#82CAA6"/>
+    <rect x="820" y="132" width="42" height="17" rx="3" fill="#82CAA6"/>
+    <rect x="868" y="108" width="86" height="17" rx="3" fill="#A0DFBE"/>
+    <rect x="964" y="84" width="42" height="17" rx="3" fill="#82CAA6"/>
+    <rect x="1012" y="108" width="42" height="17" rx="3" fill="#82CAA6"/>
+    <rect x="1060" y="132" width="54" height="17" rx="3" fill="#82CAA6"/>
+    <rect x="744" y="204" width="164" height="9" rx="2" fill="#596F82"/>
+    <rect x="916" y="204" width="198" height="9" rx="2" fill="#596F82"/>
+    <path d="M960 48V232" stroke="#E5E9ED" stroke-opacity=".65" stroke-width="1.5"/>
+    <path d="M954 48H966L960 55Z" fill="#E5E9ED"/>
+  </g>
+  <rect x="724.5" y="48.5" width="407" height="183" rx="9.5" stroke="#3A4853"/>
+</svg>
