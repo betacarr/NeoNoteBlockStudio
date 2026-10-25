@@ -1,6 +1,6 @@
 {
   "name": "neo-noteblock-studio",
-  "version": "0.1.53",
+  "version": "0.1.54",
   "private": true,
   "description": "A MIDI-first desktop note block editor with NBS interoperability and versioned Minecraft audio research.",
   "type": "module",

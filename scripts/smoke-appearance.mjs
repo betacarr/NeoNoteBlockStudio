@@ -1,9 +1,13 @@
+import { INTERNAL_LIQUID_GLASS } from '../src/core/appearance.ts';
 import { _electron as electron } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import asar from '@electron/asar';
+
+// This optical fixture is for separate internal builds only.
+if (!INTERNAL_LIQUID_GLASS) { console.log('SKIP: Liquid Glass is internal-only; the public build has no appearance entry.'); process.exit(0); }
 
 // This is an application integration fixture. It never synthesizes pointer or keyboard input.
 // The human-facing appearance switch is exercised separately through real UI automation.
