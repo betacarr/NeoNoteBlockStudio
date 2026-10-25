@@ -1,0 +1,179 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { build } from 'esbuild';
+import assert from 'node:assert/strict';
+import { unzipSync } from 'fflate';
+import { digest } from './research-utils.mjs';
+
+const option = name => process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : undefined;
+// Independent gain-placement boundary adapter; no other capture/report is changed.
+const version = option('--version') ?? '1.21.8';
+assert(['1.21.8','1.21.9'].includes(version));
+
+const root = path.resolve('.local/world-volume-boundary', version);
+const selected = option('--capture');
+if (selected && !/^[\w.-]+$/.test(selected)) throw new Error('Invalid capture name');
+const run = JSON.parse(await readFile(selected ? path.join(root, selected, 'provenance.json') : path.join(root, 'latest.json'), 'utf8'));
+if (!path.resolve(run.output).startsWith(root + path.sep)) throw new Error('Capture directory escaped research root');
+if (run.agentSourceSha256) {
+  const sourceFile=run.agentSourceFile??'WorldCaptureAgent.java',agentFile=run.agentFile??'world-capture-agent.jar';
+  assert.equal(path.basename(sourceFile),sourceFile);assert.equal(path.basename(agentFile),agentFile);
+  assert.equal(digest(await readFile(path.join(run.output, sourceFile)), 'sha256'), run.agentSourceSha256);
+  assert.equal(digest(await readFile(path.join(run.output, agentFile)), 'sha256'), run.agentSha256);
+}
+await readFile(path.join(run.output, 'complete.txt'));
+const fixture = JSON.parse(await readFile(`.local/game-fixtures/${version}/fixture.json`, 'utf8'));
+const metadata = JSON.parse(await readFile(`.research/metadata/${version}.json`,'utf8'));
+assert.equal(run.version,version); assert.equal(run.clientSha1,metadata.downloads.client.sha1); assert.equal(fixture.clientSha1,run.clientSha1);
+const modern = true;
+const java = modern ? JSON.parse(await readFile(`.local/runtimes/temurin-${metadata.javaVersion.majorVersion}/runtime.json`,'utf8')).executable : undefined;
+const javaDecoder = modern ? { executable: java, classpath: [path.resolve('dist-electron/java'),...fixture.classpath.filter(filename=>/jorbis-[^/\\]+\.jar$/.test(filename))], kind: 'jorbis' } : undefined;
+const artifacts=metadata.libraries.flatMap(library=>[library.downloads?.artifact,...Object.values(library.downloads?.classifiers??{})]).filter(Boolean);
+async function nativeProvenance(name){
+  const bytes=await readFile(path.join(fixture.nativeDir,name)),sha256=digest(bytes,'sha256');
+  for(const artifact of artifacts.filter(item=>/natives-windows/.test(item.path)&&/lwjgl-(openal|stb)/.test(item.path))){
+    let jar;try{jar=await readFile(path.join(fixture.root,'libraries',artifact.path));}catch(error){if(error.code==='ENOENT')continue;throw error;}
+    assert.equal(digest(jar),artifact.sha1,'Native archive no longer matches official metadata');
+    const entries=unzipSync(jar,{filter:entry=>path.basename(entry.name).toLowerCase()===name.toLowerCase()});
+    if(Object.values(entries).some(entry=>digest(entry,'sha256')===sha256))return{sha256,artifact:artifact.path,artifactSha1:artifact.sha1};
+  }throw new Error(`Native ${name} differs from original official archives`);
+}
+const nativeLibraries={openal:await nativeProvenance('OpenAL.dll'),...(modern?{}:{stb:await nativeProvenance('lwjgl_stb.dll')})};
+const decoder={kind:modern?'jorbis':'stb'};
+if(modern){
+  const filename=javaDecoder.classpath.find(file=>/jorbis-[^/\\]+\.jar$/.test(file)),artifact=artifacts.find(item=>filename.endsWith(item.path.replaceAll('/',path.sep)));
+  assert(artifact,'No original JOrbis archive metadata');assert.equal(digest(await readFile(filename)),artifact.sha1);
+  Object.assign(decoder,{artifact:artifact.path,artifactSha1:artifact.sha1,javaExecutableSha256:digest(await readFile(java),'sha256'),adapterClassSha256:digest(await readFile('dist-electron/java/studio/nbsx/audio/NbsxVorbisDecoder.class'),'sha256')});
+}
+const indexBytes=await readFile(path.join(fixture.root,'assets/indexes',fixture.assetIndex.id+'.json'));assert.equal(digest(indexBytes),metadata.assetIndex.sha1,'Asset index differs from official metadata');
+const index = JSON.parse(indexBytes);
+const instruments = run.instruments??['harp', 'bass', 'basedrum', 'snare', 'hat', 'guitar', 'flute', 'bell', 'chime', 'xylophone', 'iron_xylophone', 'cow_bell', 'didgeridoo', 'bit', 'banjo', 'pling'];
+const rendererFile=path.join(run.output,'editor-renderer.mjs');
+await build({ stdin: { contents: "export {render} from './electron/audio-worker.ts'; export {gameVolumeParameters} from './src/audio/volume.ts'; export {broadcastForProject} from './src/audio/delivery.ts'; export {outputLimiterForProject,hrtfContextForProject} from './src/audio/context.ts'; export {createProject} from './src/core/project.ts';", resolveDir: process.cwd(), sourcefile: 'world-compare.ts' }, outfile: rendererFile, platform: 'node', format: 'esm', bundle: true, external: ['koffi'] });
+const { render,gameVolumeParameters,broadcastForProject,outputLimiterForProject,hrtfContextForProject,createProject } = await import(pathToFileURL(rendererFile).href);
+const project=createProject();project.audio.profileId=`java-${version}`;project.audio.directional=!!run.hrtf;const outputLimiter=outputLimiterForProject(project),hrtfStrategy=hrtfContextForProject(project);assert.equal(hrtfStrategy,'context-attributes');assert.equal(outputLimiter,true);
+if(process.argv.includes('--broadcast')){
+ const project=createProject();project.audio.profileId=`java-${version}`;const broadcast=broadcastForProject(project);
+ assert(broadcast,'The actual project profile must apply the independently reviewed delivery rule');
+ assert.equal(broadcast.range,48);assert.deepEqual(broadcast.listenerPosition,[0,-1.62,0]);
+}
+function properties(text) {
+  return Object.fromEntries(text.split(/\r?\n/).filter(line => line && !line.startsWith('#')).map(line => { const at = line.indexOf('='); return [line.slice(0, at), line.slice(at + 1).replace(/\\([:=\\])/g,'$1')]; }));
+}
+const storedCases = JSON.parse(await readFile(path.join(run.output, 'cases.json'), 'utf8'));
+const scenes = storedCases.map((scene, i) => Array.isArray(scene) ? { name: `single-${i}`, notes: [scene] } : scene);
+const records = await Promise.all(scenes.map((_, i) => readFile(path.join(run.output, `case-${i}.properties`), 'utf8').then(properties)));
+const first = records.find(record => record.delivery === 'played');
+assert(first, 'No original game sound was captured');
+const master=run.masterGain??run.master??Number(first.listenerGain??1),category=run.recordCategoryVolume??run.records??1;
+const volume=gameVolumeParameters(`java-${version}`,3,master,category);
+const vector = (record, prefix, count) => Array.from({ length: count }, (_, i) => Math.fround(Number(record[`${prefix}.${i}`])));
+const hrtf = !!run.hrtf, observations = [], prepared=[];
+for (let n = 0; n < scenes.length; n++) {
+  const scene = scenes[n], record = records[n], state = record.delivery === 'played' ? record : first;
+  const listener = vector(state, 'listener', 3), orientation = vector(state, 'orientation', 6);
+  const captured = record.voiceCount === undefined ? record.delivery === 'played' ? [record] : [] : Array.from({ length: Number(record.voiceCount) }, (_, i) => Object.fromEntries(Object.entries(record).filter(([key]) => key.startsWith(`voice.${i}.`)).map(([key, value]) => [key.slice(`voice.${i}.`.length), value])));
+  const expected = scene.notes.filter(([x, y]) => x * x + (y + 1.5) ** 2 + 4 < 48 ** 2).length;
+  assert.equal(captured.length, expected, `Scene ${n} lost an original game voice`);
+  assert(Number(record.noteEvents) >= scene.notes.length, `Scene ${n} lacks original note-block events`);
+  if (record.hrtfStatus !== undefined) assert.equal(Number(record.hrtfStatus), hrtf ? 1 : 0, 'Actual HRTF status differs from the request');
+  if (record.outputLimiter !== undefined && outputLimiter !== undefined) assert.equal(Number(record.outputLimiter),outputLimiter?1:0,'Original game did not apply its output limiter request');
+  if(['1.21.8','1.21.9'].includes(version)){
+    assert.equal(record.outputLimiterAvailable,'true');assert.equal(record.outputLimiter,'1');
+    assert(record.originalContextAttributes.includes('6554=1'),'Original game must explicitly request its limiter before loopback overrides');
+    assert.equal(record['options.directionalAudio'],String(hrtf));
+    assert.equal(Number(record.hrtfEnabled),hrtf?1:0);assert(Number(record.hrtfProfileCount)>0);assert(record.hrtfProfileZero);
+    assert(record.originalContextAttributes.includes(`6546=${hrtf?1:0}`));assert(record.originalContextAttributes.includes('6550=0'));
+    assert(record.captureContextAttributes.includes(`6546=${hrtf?1:0}`));assert(record.captureContextAttributes.includes('6550=0'));
+    assert.equal(record.hrtfProfile,hrtf?record.hrtfProfileZero:'');
+    for(const [x,y,,instrument]of scene.notes)assert.equal(record[`placed.${x}.${y}.instrument`],instruments[instrument]);
+    assert(record.captureContextAttributes.includes('6554=1'),'Capture must retain the original limiter request');
+  }
+  assert.equal(record.cameraStable,'true');assert.equal(Number(record.cameraSamples),143);assert.equal(record.listenerAtCapture,first.listenerAtCapture);assert.equal(record.cameraAtCapture,first.cameraAtCapture);assert(record.actualContextAttributes);
+  assert.equal(Math.fround(Number(record['options.master'])),Math.fround(master));assert.equal(Math.fround(Number(record['options.records'])),Math.fround(category));assert.equal(Number(record['options.blocks']),0);
+  const voices = captured.map(voice => ({ instrument: voice.instrument ?? 'harp', note: Number(voice.note), sourcePosition: vector(voice, 'source', 3), pitch: Math.fround(Number(voice.pitch)), gain: Math.fround(Number(voice.gain)), maxDistance: Math.fround(Number(voice.range)), originalSourceId: voice.sourceId === undefined ? undefined : Number(voice.sourceId) }));
+  // Retain undelivered notes so the editor must apply the broadcast rule.
+  // Delivered notes follow their actual original play order.
+  for (const [x, y, note, instrument = 0] of scene.notes) {
+    const position = [x + .5, y + 81.5, .5];
+    if (!voices.some(voice => voice.sourcePosition.every((v, i) => v === position[i]))) voices.push({ instrument: instruments[instrument], note, sourcePosition: position, pitch: Math.fround(2 ** ((note - 12) / 12)), gain: volume.gain, maxDistance: 48 });
+  }
+  for (const voice of voices) {
+    assert.equal(voice.pitch, Math.fround(2 ** ((voice.note - 12) / 12)), 'Original note pitch differs from the checked formula');
+    assert.equal(voice.gain, volume.gain, 'Original source gain differs from the independently calculated editor volume model');
+    assert.equal(voice.maxDistance,48,'Unexpected original note-block attenuation range');
+  }
+  assert.equal(Math.fround(Number(state.listenerGain??1)),volume.listenerGain,'Original listener master gain differs from the editor volume model');
+  const encodedSamples = [];
+  for (const instrument of new Set(voices.map(voice => voice.instrument))) {
+    const sample = index.objects[fixture.sounds[instrument].path];
+    const bytes = new Uint8Array(await readFile(path.join(fixture.root, 'assets/objects', sample.hash.slice(0, 2), sample.hash)));
+    assert.equal(digest(bytes), sample.hash, 'Original sample checksum changed');
+    encodedSamples.push({ id: instrument, bytes });
+    for (const voice of voices.filter(voice => voice.instrument === instrument)) voice.sampleSha1 = sample.hash;
+  }
+  const original = await readFile(path.join(run.output, `case-${n}.pcm`));
+  const request = { nativeLibrary: path.join(fixture.nativeDir, 'OpenAL.dll'), nativeDecoder: modern ? undefined : path.join(fixture.nativeDir, 'lwjgl_stb.dll'), javaDecoder, encodedSamples, samples: [], sampleRate: 48000, duration: original.length / (48000 * 4), directional: hrtf, hrtf: hrtfStrategy,
+    listener: { position: listener, orientation, gain: volume.listenerGain }, outputLimiter,
+    events: voices.map(voice => ({ time: 0, instrument: voice.instrument, pitch: Math.fround(2 ** ((voice.note - 12) / 12)), gain: volume.gain, x: voice.sourcePosition[0], y: voice.sourcePosition[1], z: voice.sourcePosition[2], maxDistance: 48 })) };
+  if (process.argv.includes('--broadcast')) request.broadcast = { listenerPosition: [.5, 80, 2.5], range: 48 };
+  prepared.push({n,scene,record,listener,orientation,captured,voices,expected,original,request});
+}
+// The limiter retains lookahead/release state between captured three-second blocks.
+// The game keeps one context throughout a cohort; a fresh context per scene would
+// compare a different state even when both mixers implement the same algorithm.
+let sequenceResult,sequencePcm,sequenceCursor=0;
+if(outputLimiter===true){
+  const first=prepared[0].request,samples=new Map(),events=[];let frames=0;
+  for(const item of prepared){
+    assert.deepEqual(item.request.listener,first.listener,'A continuous context needs the same checked listener pose');
+    for(const sample of item.request.encodedSamples){
+      if(samples.has(sample.id))assert.equal(digest(samples.get(sample.id).bytes),digest(sample.bytes));else samples.set(sample.id,sample);
+    }
+    events.push(...item.request.events.map(event=>({...event,time:frames/48000+event.time})));frames+=item.original.length/4;
+  }
+  sequenceResult=render({...first,encodedSamples:[...samples.values()],events,duration:frames/48000});
+  sequencePcm=Buffer.from(sequenceResult.wav).subarray(44);assert.equal(sequencePcm.length,frames*4);
+}
+for(const item of prepared){
+  const {n,scene,record,listener,orientation,captured,voices,expected,original,request}=item;
+  const nativeResult = sequenceResult??render(request);
+  assert.equal(nativeResult.directional, hrtf, 'Editor did not apply the captured HRTF state');
+  assert.equal(nativeResult.hrtfProfile??'',record.hrtfProfile,'Production worker must independently select original profile zero');
+  assert.equal(nativeResult.hrtfRequestedProfile,record.hrtfProfileZero,'Production request must independently enumerate profile zero');
+  assert.equal(nativeResult.hrtfStatus,Number(record.hrtfStatus));
+  if(outputLimiter!==undefined)assert.equal(nativeResult.outputLimiter,outputLimiter,'Editor did not apply the version-specific output limiter');
+  const rendered = sequencePcm?sequencePcm.subarray(sequenceCursor,sequenceCursor+original.length):Buffer.from(nativeResult.wav).subarray(44);sequenceCursor+=original.length;
+  assert.equal(rendered.length, original.length, 'Capture and editor durations differ');
+  if (n === 0) {
+    const wav = pcm => { const header = Buffer.alloc(44); header.write('RIFF'); header.writeUInt32LE(36 + pcm.length, 4); header.write('WAVEfmt ', 8); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(2, 22); header.writeUInt32LE(48000, 24); header.writeUInt32LE(192000, 28); header.writeUInt16LE(4, 32); header.writeUInt16LE(16, 34); header.write('data', 36); header.writeUInt32LE(pcm.length, 40); return Buffer.concat([header, pcm]); };
+    await writeFile(path.join(run.output, 'reference-center.wav'), wav(original));
+    await writeFile(path.join(run.output, 'editor-center.wav'), wav(rendered));
+  }
+  let changed = 0, maxError = 0, errorEnergy = 0, originalEnergy = 0, renderedEnergy = 0;
+  for (let at = 0; at + 1 < original.length; at += 2) {
+    const a = original.readInt16LE(at), b = rendered.readInt16LE(at), error = Math.abs(a - b);
+    if (error) changed++;
+    maxError = Math.max(maxError, error); errorEnergy += error * error; originalEnergy += a * a; renderedEnergy += b * b;
+  }
+  if (expected) assert(originalEnergy > 0, 'Original game voices produced silence');
+  observations.push({ case: n, scene: scene.name, voices, deliveredSources: captured.length, listenerPosition: listener, listenerOrientation: orientation, listenerGain: request.listener.gain, hrtfStatus: record.hrtfStatus === undefined ? undefined : Number(record.hrtfStatus), editorHrtfApplied: nativeResult.directional, hrtfProfile:record.hrtfProfile,hrtfProfileZero:record.hrtfProfileZero,hrtfProfileCount:Number(record.hrtfProfileCount),editorHrtfRequestedProfile:nativeResult.hrtfRequestedProfile,editorHrtfProfile:nativeResult.hrtfProfile,editorHrtfStatus:nativeResult.hrtfStatus,editorHrtfPolicy:hrtfStrategy,editorGameDevice:nativeResult.hrtfGameDevice,originalDirectionalOption:record["options.directionalAudio"], cameraAtCapture:record.cameraAtCapture,listenerAtCapture:record.listenerAtCapture,cameraSamples:Number(record.cameraSamples),cameraStable:record.cameraStable,actualContextAttributes:record.actualContextAttributes,originalMasterOption:Number(record['options.master']),originalRecordsOption:Number(record['options.records']),originalContextAttributes:record.originalContextAttributes,captureContextAttributes:record.captureContextAttributes,outputLimiter:record.outputLimiter===undefined?undefined:Number(record.outputLimiter),editorOutputLimiter:nativeResult.outputLimiter,delivery: record.delivery, noteEvents: Number(record.noteEvents), recordingSha256: digest(original, 'sha256'), renderedSha256: digest(rendered, 'sha256'), exact: original.equals(rendered), changedSamples: changed, maxPcmError: maxError, normalizedRmsError: originalEnergy ? Math.sqrt(errorEnergy / originalEnergy) : errorEnergy ? null : 0, originalEnergy, renderedEnergy });
+}
+const report = { schema: 2, version, clientSha1: run.clientSha1, agentSha256: run.agentSha256, agentSourceSha256: run.agentSourceSha256, recordingMethod: run.recordingMethod, context: 'actual integrated world and original note-block events', nativeLibraries, decoder, broadcast: process.argv.includes('--broadcast'), rendererSha256: digest(await readFile('electron/audio-worker.ts'), 'sha256'), observations, exact: observations.every(o => o.exact),
+  contextComparison:sequenceResult?'One continuous editor context in original capture order, preserving limiter lookahead/release state across scenes.':'Independent scene rendering; original game does not explicitly request an output limiter.',
+  settings: { sampleRate: 48000, channels: 2, hrtf, masterGain: master, recordCategoryVolume: category, listenerPose: 'standing', standingEyeHeight: 1.62, sourceVolume: 3, captureBlockFrames: 1024 },
+  parameterEvidence:'Source/listener gain and source pitch/range independently derived by editor code then asserted against the original client; original play order and camera pose retained for deterministic spatial comparison.',
+  scopeLimitations: [`Windows x64 / Java ${version}`, run.polyphony ? 'simultaneous batches, up to 64 note blocks; excludes musical onset scheduling' : 'single note at a time', 'loopback capture from the actual game mixer, not hardware-output recording', 'aligned after original Channel.play calls; excludes server/network scheduling latency'], rendererSources: {} };
+for (const file of ['electron/audio-worker.ts', 'electron/java-decoder.ts', 'src/core/project.ts', 'src/core/time.ts', 'electron/vorbis.ts', 'electron/java/NbsxVorbisDecoder.java', 'src/audio/legacy.ts', 'src/audio/delivery.ts', 'src/audio/parameters.ts', 'src/audio/volume.ts', 'src/audio/context.ts', 'src/audio/profiles.ts', 'src/audio/engine.ts', 'src/core/reference.ts', 'src/core/transport.ts', 'src/core/recording.ts', 'src/data/audio-facts.json', 'src/data/early-audio-facts.json', 'src/data/legacy-audio-facts.json', 'src/data/world-audio-facts.json','scripts/capture-volume-boundary-world.mjs','scripts/java/VolumeBoundaryWorldAgent.java','scripts/verify-volume-boundary-world.mjs']) report.rendererSources[file] = digest(await readFile(file), 'sha256');
+report.capture={directory:run.output,provenanceSha256:digest(await readFile(path.join(run.output,'provenance.json')),'sha256'),casesSha256:digest(await readFile(path.join(run.output,'cases.json')),'sha256'),captureScriptSha256:run.captureScriptSha256};report.sourceEvidence={path:`docs/evidence/java-${version}-volume-boundary-source.json`,sha256:digest(await readFile(`docs/evidence/java-${version}-volume-boundary-source.json`),'sha256')};
+const name = process.argv.includes('--broadcast') ? 'comparison-with-broadcast.json' : 'comparison-baseline.json';
+await writeFile(path.join(run.output, name), JSON.stringify(report, null, 2));
+console.log(JSON.stringify({ cases: observations.length, hrtf, maxVoices: Math.max(...observations.map(o => o.deliveredSources)), exact: report.exact, mismatches: observations.filter(o => !o.exact).map(o => ({ scene: o.scene, changedSamples: o.changedSamples, maxPcmError: o.maxPcmError, normalizedRmsError: o.normalizedRmsError })), report: path.join(run.output, name) }));
+assert(report.exact, 'Actual in-game note-block recording differs from editor rendering');
+if (process.argv.includes('--write-evidence')) {
+  const custom = option('--evidence-name') ?? `java-${version}-single-note-world`;
+  if (!/^[\w.-]+$/.test(custom)) throw new Error('Invalid evidence name');
+  await mkdir('docs/evidence', { recursive: true });
+  await writeFile(`docs/evidence/${custom}.json`, JSON.stringify(report, null, 2));
+}

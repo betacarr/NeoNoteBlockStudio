@@ -1,0 +1,96 @@
+{
+  "name": "neo-noteblock-studio",
+  "version": "0.1.53",
+  "private": true,
+  "description": "A MIDI-first desktop note block editor with NBS interoperability and versioned Minecraft audio research.",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "postinstall": "node scripts/install-electron.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build && node scripts/build-electron.mjs",
+    "build:electron": "node scripts/build-electron.mjs",
+    "test": "vitest run",
+    "test:desktop": "node scripts/smoke-desktop.mjs",
+    "test:lifecycle": "node scripts/smoke-file-lifecycle.mjs",
+    "start": "electron .",
+    "package:win": "npm run build && electron-builder --win --x64",
+    "package:mac": "npm run build && electron-builder --mac",
+    "research:audio": "node scripts/research-audio.mjs",
+    "audit:publication": "node scripts/check-publication.mjs",
+    "install:hooks": "git config core.hooksPath .githooks"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "2.1.10",
+    "@tonejs/midi": "2.0.28",
+    "fflate": "0.8.3",
+    "immer": "11.2.9",
+    "koffi": "3.3.3",
+    "midi-file": "1.2.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@nbsjs/core": "6.1.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "latest",
+    "playwright": "1.64.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  },
+  "build": {
+    "appId": "studio.exnoteblock.desktop",
+    "productName": "NeoNBS",
+    "directories": {
+      "output": "release/${version}"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "third_party/**/*",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**/*",
+      "dist-electron/java/**/*"
+    ],
+    "electronDist": "node_modules/electron/dist",
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ]
+    },
+    "portable": {
+      "artifactName": "NeoNBS-${version}-${arch}-portable.exe"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.music"
+    },
+    "nsis": {
+      "artifactName": "NeoNBS-${version}-${arch}-setup.exe",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "fileAssociations": [
+      {
+        "ext": "nbsx",
+        "name": "Note Block Studio X Project",
+        "role": "Editor"
+      }
+    ]
+  },
+  "license": "SEE LICENSE IN LICENSE"
+}

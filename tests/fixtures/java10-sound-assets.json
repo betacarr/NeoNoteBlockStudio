@@ -1,0 +1,61 @@
+{
+  "map_to_resources": true,
+  "objects": {
+    "newsound/note/bass.ogg": {
+      "hash": "e28d844995368de1d45c724a5d371c9952ae5ed4",
+      "size": 5479
+    },
+    "newsound/note/bassattack.ogg": {
+      "hash": "037b9fb7f74381f354739d015193dc4a6897f620",
+      "size": 5574
+    },
+    "newsound/note/bd.ogg": {
+      "hash": "1afefaa39a53606d2737bab9cb3409350cb2dc9f",
+      "size": 3850
+    },
+    "newsound/note/harp.ogg": {
+      "hash": "46244605b8663a29cdce7bccc5b2d038241e32ee",
+      "size": 6137
+    },
+    "newsound/note/hat.ogg": {
+      "hash": "fd2b6f745b05a2cf44a4e010f72631de2e5099f6",
+      "size": 3880
+    },
+    "newsound/note/pling.ogg": {
+      "hash": "20d06589bd5ab81a73989bdac8ca59ecd4d66932",
+      "size": 6274
+    },
+    "newsound/note/snare.ogg": {
+      "hash": "6967f0af60f480e81d32f1f8e5f88ccafec3a40c",
+      "size": 3969
+    },
+    "sound3/note/bass.ogg": {
+      "hash": "e28d844995368de1d45c724a5d371c9952ae5ed4",
+      "size": 5479
+    },
+    "sound3/note/bassattack.ogg": {
+      "hash": "037b9fb7f74381f354739d015193dc4a6897f620",
+      "size": 5574
+    },
+    "sound3/note/bd.ogg": {
+      "hash": "1afefaa39a53606d2737bab9cb3409350cb2dc9f",
+      "size": 3850
+    },
+    "sound3/note/harp.ogg": {
+      "hash": "46244605b8663a29cdce7bccc5b2d038241e32ee",
+      "size": 6137
+    },
+    "sound3/note/hat.ogg": {
+      "hash": "fd2b6f745b05a2cf44a4e010f72631de2e5099f6",
+      "size": 3880
+    },
+    "sound3/note/pling.ogg": {
+      "hash": "20d06589bd5ab81a73989bdac8ca59ecd4d66932",
+      "size": 6274
+    },
+    "sound3/note/snare.ogg": {
+      "hash": "6967f0af60f480e81d32f1f8e5f88ccafec3a40c",
+      "size": 3969
+    }
+  }
+}

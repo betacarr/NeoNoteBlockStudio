@@ -1,0 +1,179 @@
+{
+  "schema": 1,
+  "defaultDomainRoot": {
+    "assetIndexSha1s": [
+      "f6cf726f4747128d13887010c2cbc44ba83504d9",
+      "545510a60f526b9aa8a38f9c0bc7a74235d21675"
+    ],
+    "clients": {
+      "feaf10fa9da94c388f2c53a2cf31a14406d0c532": "1.7.3",
+      "900950d8e3217b3a42405d1ecf767dcc31239d69": "1.7.4",
+      "77aa70ac5054cbf1140b6449b579e950d5050c4a": "1.7.5",
+      "6b2c5827994e17f904f0852f962dd6fccfbb8bdc": "1.7.6",
+      "e520f254a2b496d61839b816d712e238b1243f30": "1.7.7",
+      "83ae44189888a873f46f7509a87ebdb6dc785741": "1.7.8",
+      "fbbaae784b1de315a8d08a82c6c345a583fb676b": "1.7.9"
+    }
+  },
+  "legacyNewsound": {
+    "clients": {
+      "b679fea27f2284836202e9365e13a82552092e5d": "1.0",
+      "f690d4136b0026d452163538495b9b0e8513d718": "1.1",
+      "c7662ac43dd04bfd677694a06972a2aaaf426505": "1.2.1",
+      "1dadfc4de6898751f547f24f72c7271218e4e28f": "1.2.2",
+      "5134e433afeba375c00bbdcd8aead1d3222813ee": "1.2.3",
+      "ad6d1fe7455857269d4185cb8f24e62cc0241aaf": "1.2.4",
+      "4a2fac7504182a97dcbcd7560c6392d7c8139928": "1.2.5",
+      "33167e71e85ab8e6ddbe168bc67f6ec19d708d62": "1.3.1",
+      "c2efd57c7001ddf505ca534e54abf3d006e48309": "1.3.2"
+    },
+    "assetIndexSha1s": [
+      "3d8e55480977e32acd9844e545177e69a52f594b"
+    ],
+    "events": {
+      "harp": "harp",
+      "bass": "bassattack",
+      "basedrum": "bd",
+      "snare": "snare",
+      "hat": "hat",
+      "pling": "pling"
+    },
+    "sourceEvidence": {
+      "path": "docs/evidence/java-1.0-resource-selection.json",
+      "sha256": "6613dec57a41d35b0d50a79ee29e741b74b4ce1e96b5cdbe08543454f58fcd5c"
+    },
+    "sourceEvidenceByClient": {
+      "f690d4136b0026d452163538495b9b0e8513d718": {
+        "path": "docs/evidence/java-1.1-resource-selection.json",
+        "sha256": "3dd314fe60a3f9274e3c2cd1793729bf4f6ede3852a56bb9f2577e2defcb653d"
+      },
+      "c7662ac43dd04bfd677694a06972a2aaaf426505": {
+        "path": "docs/evidence/java-1.2.1-resource-selection.json",
+        "sha256": "bc11f5a0b1f3b4942ffb820ff6817130505ba77cb6cd8b837a7ca351103e391e"
+      },
+      "1dadfc4de6898751f547f24f72c7271218e4e28f": {
+        "path": "docs/evidence/java-1.2.2-resource-selection.json",
+        "sha256": "0ad3c5f355bb47bc8d66b401f6ff7c0136108507a9e6d059e54dac44f4cb8ff2"
+      },
+      "5134e433afeba375c00bbdcd8aead1d3222813ee": {
+        "path": "docs/evidence/java-1.2.3-resource-selection.json",
+        "sha256": "4f1aa800b1cab952631f73832ec5b7d79bbca605ccb6100e9bbd21c1addef2d0"
+      },
+      "ad6d1fe7455857269d4185cb8f24e62cc0241aaf": {
+        "path": "docs/evidence/java-1.2.4-resource-selection.json",
+        "sha256": "cf1d69d093b697e93be4bb48fd16b6bbbbc76557f14e754599038d02683d90c4"
+      },
+      "4a2fac7504182a97dcbcd7560c6392d7c8139928": {
+        "path": "docs/evidence/java-1.2.5-resource-selection.json",
+        "sha256": "e10511966f7bb21cdbffeae269fa1ee2702c55cbe87b7c41aa3bc455189e13f2"
+      },
+      "33167e71e85ab8e6ddbe168bc67f6ec19d708d62": {
+        "path": "docs/evidence/java-1.3.1-resource-selection.json",
+        "sha256": "647c8e67849dca2eec36ae010102770d8cea9db0156488dc15619443496fad5b"
+      },
+      "c2efd57c7001ddf505ca534e54abf3d006e48309": {
+        "path": "docs/evidence/java-1.3.2-resource-selection.json",
+        "sha256": "9f731048c53667ee87b6460a6286fade35873fb1d753dbdb8e27e925acbcef55"
+      }
+    }
+  },
+  "virtualLegacyRoot": {
+    "clients": {
+      "0c8689f904922af71c7144dcfb81bce976cadd49": "1.7.2"
+    },
+    "assetIndexSha1s": [
+      "770572e819335b6c0a053f8378ad88eda189fc14"
+    ],
+    "sourceEvidenceByClient": {
+      "0c8689f904922af71c7144dcfb81bce976cadd49": {
+        "path": "docs/evidence/java-1.7.2-resource-selection.json",
+        "sha256": "f0f0fe766004f826b6810eb452ceeea7ade8457583482ae122fd7ac73e57a84d",
+        "selection": "original-file-root-default-pack-virtual-legacy-directory"
+      }
+    }
+  },
+  "legacySound3": {
+    "clients": {
+      "42d6744cfbbd2958f9e6688dd6e78d86d658d0d4": "1.4.2",
+      "b9b2a9e9adf1bc834647febc93a4222b4fd6e403": "1.4.4",
+      "7a8a963ababfec49406e1541d3a87198e50604e5": "1.4.5",
+      "116758f41b32e8d1a71a4ad6236579acd724bca7": "1.4.6",
+      "53ed4b9d5c358ecfff2d8b846b4427b888287028": "1.4.7",
+      "047136381a552f34b1963c43304a1ad4dc0d2d8e": "1.5.1",
+      "465378c9dc2f779ae1d6e8046ebc46fb53a57968": "1.5.2"
+    },
+    "assetIndexSha1s": [
+      "3d8e55480977e32acd9844e545177e69a52f594b"
+    ],
+    "events": {
+      "harp": "harp",
+      "bass": "bassattack",
+      "basedrum": "bd",
+      "snare": "snare",
+      "hat": "hat",
+      "pling": "pling"
+    },
+    "sourceEvidenceByClient": {
+      "42d6744cfbbd2958f9e6688dd6e78d86d658d0d4": {
+        "path": "docs/evidence/java-1.4.2-resource-selection.json",
+        "sha256": "ac4899fbb10896acba4390675d954594a8d9c5052b53c56e8f65e8a3fefacf1c"
+      },
+      "b9b2a9e9adf1bc834647febc93a4222b4fd6e403": {
+        "path": "docs/evidence/java-1.4.4-resource-selection.json",
+        "sha256": "c613128ed93f0b2dcc06821224bf0b8e315c00cd64ec7803d1141e848d3ad062"
+      },
+      "7a8a963ababfec49406e1541d3a87198e50604e5": {
+        "path": "docs/evidence/java-1.4.5-resource-selection.json",
+        "sha256": "83deb1a01166fd96a98944a9105690b544ff64591eb357112b7efe8263f8dac4"
+      },
+      "116758f41b32e8d1a71a4ad6236579acd724bca7": {
+        "path": "docs/evidence/java-1.4.6-resource-selection.json",
+        "sha256": "d0fd1b501f69f800a4882dcf814772e6956c9bbd83c13852ccb79bc8268cbf7b"
+      },
+      "53ed4b9d5c358ecfff2d8b846b4427b888287028": {
+        "path": "docs/evidence/java-1.4.7-resource-selection.json",
+        "sha256": "4a45f50a8061bd17fcbf3b5e7a39b1a071130fd592665d45d1e72d8e74bdcf49"
+      },
+      "047136381a552f34b1963c43304a1ad4dc0d2d8e": {
+        "path": "docs/evidence/java-1.5.1-resource-selection.json",
+        "sha256": "0a7a5a12aaeef734bb3ef8dcad8fe3ff2198f43ad21370151e4f472c4bac2503"
+      },
+      "465378c9dc2f779ae1d6e8046ebc46fb53a57968": {
+        "path": "docs/evidence/java-1.5.2-resource-selection.json",
+        "sha256": "4ad5f5cb470cac4433a0c9945f839eb1c504eafc7a430310e7b95852e4ca630b"
+      }
+    }
+  },
+  "legacySound": {
+    "clients": {
+      "17e2c28fb54666df5640b2c822ea8042250ef592": "1.6.1",
+      "b6cb68afde1d9cf4a20cbf27fa90d0828bf440a4": "1.6.2",
+      "1703704407101cf72bd88e68579e3696ce733ecd": "1.6.4"
+    },
+    "assetIndexSha1s": [
+      "770572e819335b6c0a053f8378ad88eda189fc14"
+    ],
+    "events": {
+      "harp": "harp",
+      "bass": "bassattack",
+      "basedrum": "bd",
+      "snare": "snare",
+      "hat": "hat",
+      "pling": "pling"
+    },
+    "sourceEvidenceByClient": {
+      "17e2c28fb54666df5640b2c822ea8042250ef592": {
+        "path": "docs/evidence/java-1.6.1-resource-selection.json",
+        "sha256": "aa84c54362954567b92ae5f540f1ea19f7b635c1d2e0cccbc1e16d2f5296b872"
+      },
+      "b6cb68afde1d9cf4a20cbf27fa90d0828bf440a4": {
+        "path": "docs/evidence/java-1.6.2-resource-selection.json",
+        "sha256": "d28073ec33a2e0f440fd9e7fbc63d3042410a8389d1c0f00518681fc4e11ac6b"
+      },
+      "1703704407101cf72bd88e68579e3696ce733ecd": {
+        "path": "docs/evidence/java-1.6.4-resource-selection.json",
+        "sha256": "d45968628489e40e2f1a89e58057c90bcdb36cd84ebb0e69daff7af65df8e29e"
+      }
+    }
+  }
+}

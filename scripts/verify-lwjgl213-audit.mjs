@@ -1,0 +1,32 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+import {digest} from './research-utils.mjs';
+import {main213} from './lwjgl213-execution.mjs';
+import {lwjgl213Versions} from './audit-lwjgl213-source.mjs';
+import {verifiedLwjgl213Components} from './review-lwjgl213-components.mjs';
+
+const sha=b=>digest(b,'sha256'),json=o=>Buffer.from(JSON.stringify(o,null,2)+'\n'),clone=o=>JSON.parse(JSON.stringify(o));
+const cache=new Map();async function cached(file){const k=path.resolve(file);if(!cache.has(k))cache.set(k,await readFile(file));return cache.get(k);}
+
+await main213('reader-validation',async root=>{
+ const results=[];
+ for(const version of lwjgl213Versions){
+  const accepted=await verifiedLwjgl213Components(version,{read:cached}),sourceFile=accepted.sourceEvidence.path,numericFile=accepted.numericEvidence.path,s0=JSON.parse(await cached(sourceFile)),n0=JSON.parse(await cached(numericFile));
+  const cases=[];
+  const source=(label,mutate)=>cases.push({label,prepare:()=>{const overlays=new Map(),s=clone(s0);mutate(s);const body={...s};delete body.rawEvidence;const b=json(body);s.rawEvidence.sha256=sha(b);overlays.set(path.resolve(s.rawEvidence.path),b);overlays.set(path.resolve(sourceFile),json(s));return overlays;}});
+  const numeric=(label,mutate)=>cases.push({label,prepare:async()=>{const overlays=new Map(),n=clone(n0);await mutate(n,overlays);const body={...n};delete body.rawReport;const b=json(body);n.rawReport.sha256=sha(b);overlays.set(path.resolve(n.rawReport.path),b);overlays.set(path.resolve(numericFile),json(n));return overlays;}});
+  const corrupt=(label,file)=>cases.push({label,prepare:async()=>{const b=Buffer.from(await cached(file));b[Math.floor(b.length/2)]^=1;return new Map([[path.resolve(file),b]]);}});
+  source('wrong release identity',s=>s.version='1.7.2');source('wrong original class hash',s=>s.classes[0].classSha256='0'.repeat(64));source('changed Code binding',s=>s.bindings[0].codeSha256='0'.repeat(64));source('wrong packet scale',s=>s.facts.pitchTransport.scale=63.5);source('invented HRTF game control',s=>s.facts.hrtfControl=true);source('invented world scene',s=>s.worldScenesAdded=1);source('invented category scan result',s=>s.clientControls.category.push({owner:'fake',value:'soundCategory_record'}));source('changed field declaration',s=>s.classes.find(c=>c.roles.includes('Source')).fields[0].descriptor='D');
+  numeric('unpassed process report',n=>n.status='failed');numeric('invented native measurement',n=>n.nativeMeasurementsAdded=1);numeric('invented live context',n=>n.nativeContextOpened=true);numeric('wrong requested pool',n=>n.requestedNormalPool=64);numeric('wrong note count',n=>n.notes.count=126);numeric('wrong frozen resource path',n=>n.resources[0].name='sounds/note/harp.ogg');numeric('wrong selected resource URL',n=>n.resources[0].url='file:///fake.ogg');numeric('invented decoder origin',n=>n.origins.CodecJOrbis='file:/other.jar');numeric('changed pure builder contents',n=>n.attributes.values[1]=48000);numeric('wrong parser signed zero',n=>n.options[0].bits='00000000');numeric('changed PCM description',n=>n.decoder[0].sha1='0'.repeat(40));numeric('changed supplied input file',async(n,map)=>{const f=n.rawOutputs['inputs.json'].path,b=json({math:[],packet:[]});map.set(path.resolve(f),b);n.rawOutputs['inputs.json'].sha256=sha(b);});
+  numeric('nonterminal original JVM',async(n,map)=>{const f=n.rawOutputs['java.process.json'].path,p=JSON.parse(await cached(f));p.terminal=false;const b=json(p);map.set(path.resolve(f),b);n.rawOutputs['java.process.json'].sha256=sha(b);});
+  numeric('different release in actual JVM classpath',async(n,map)=>{const f=n.rawOutputs['java.process.json'].path,p=JSON.parse(await cached(f));p.args[p.args.indexOf('-cp')+1]=p.args[p.args.indexOf('-cp')+1].replace(path.resolve(`.research/clients/${version}.jar`),path.resolve('.research/clients/1.7.2.jar'));const b=json(p);map.set(path.resolve(f),b);n.rawOutputs['java.process.json'].sha256=sha(b);});
+  for(const[name,mutate]of [['changed binary magic',b=>b[0]^=1],['packet constructor versus real wire mismatch',b=>b[8+8]^=1]])numeric(name,async(n,map)=>{const key=name==='changed binary magic'?'math.bin':'packet.bin',f=n.rawOutputs[key].path,b=Buffer.from(await cached(f));mutate(b);map.set(path.resolve(f),b);n.rawOutputs[key].sha256=sha(b);});
+  numeric('changed original note volume',async(n,map)=>{const f=n.rawOutputs['notes.bin'].path,b=Buffer.from(await cached(f));b.writeFloatLE(2,8+12);map.set(path.resolve(f),b);n.rawOutputs['notes.bin'].sha256=sha(b);});
+  corrupt('modified original Ogg object',fileURLToPath(n0.resources[0].url));corrupt('modified compiled boundary recorder',Object.keys(n0.compiledClasses).find(f=>f.endsWith('$Recorder.class')));corrupt('modified original client class bytes',s0.classes[0].rawClass);corrupt('modified original disassembly',s0.classes[0].rawDisassembly);corrupt('modified original native dependency archive',s0.windowsNative.file);
+  for(const item of cases){const overlays=await item.prepare();let error;try{await verifiedLwjgl213Components(version,{read:async file=>overlays.get(path.resolve(file))??cached(file)});}catch(e){error=e;}assert(error,`${version}: corruption accepted: ${item.label}`);results.push({version,label:item.label,rejected:true,error:String(error).split('\n')[0]});}
+  console.log(JSON.stringify({version,accepted:accepted.componentCounts,corruptionsRejected:cases.length}));
+ }
+ const sources={};for(const f of ['scripts/verify-lwjgl213-audit.mjs','scripts/review-lwjgl213-components.mjs','scripts/review-lwjgl213-source.mjs','scripts/audit-lwjgl213-source.mjs','scripts/probe-lwjgl213-methods.mjs','scripts/java/Lwjgl213MethodProbe.java','scripts/lwjgl213-execution.mjs'])sources[f]=sha(await readFile(f));const report={schema:1,status:'passed',nodePid:process.pid,versions:lwjgl213Versions,positiveReads:2,negativeFixtures:results.length,results,sources,scope:'Read-only validation of frozen local evidence and in-memory corruption overlays; no original JVM, native device, decoder, or game rerun.',worldScenesAdded:0,nativeMeasurementsAdded:0};await writeFile(root+'/report.json',json(report));report.rawReport={path:root+'/report.json',sha256:sha(await readFile(root+'/report.json'))};await writeFile('docs/evidence/java-1.3-reader-validation.json',json(report));console.log(JSON.stringify({status:'passed',negativeFixtures:results.length,rawReport:report.rawReport}));
+});

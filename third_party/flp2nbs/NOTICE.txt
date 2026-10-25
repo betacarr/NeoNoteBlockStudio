@@ -1,0 +1,18 @@
+FLP2NBS integration
+
+Copyright (c) 2026 FLP2NBS contributors
+License: MIT (full text in LICENSE)
+
+The FLP binary decoder, format checks, instrument aliases, sample fingerprint
+catalog and pitch/pan conversion in src/core/flp-parser.ts and flp-import.ts
+are adapted from a separately supplied MIT-licensed FLP2NBS source snapshot.
+The TypeScript implementation runs directly in this editor; it does not require
+the source checkout, Python, Tk or an FL Studio installation at runtime.
+
+Read-only source snapshot SHA-256:
+flp2nbs/flp.py         9f10440c150335693eee9bcccc82310934ae6d389d7209cd4b141c6239795164
+flp2nbs/formats.py     c8f88d08bbcfd282600778dae3c42e19f1f2b947eca475577e63a3ae7dc75fd9
+flp2nbs/instruments.py 7c0533f2253707a85b63760cc536e870a70a3bff73f8e33ac86ecf61d2ab29c6
+flp2nbs/_catalog.py    9e1602d6027748ca92974451793ad4ff2971009f8fdb142220382ccb952edfb1
+
+This notice does not assert endorsement or full FL Studio playback compatibility.

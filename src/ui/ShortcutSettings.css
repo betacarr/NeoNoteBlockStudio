@@ -1,0 +1,14 @@
+.shortcut-settings .shortcut-row { margin-bottom: 8px; }
+.shortcut-settings .shortcut-row .field { margin-bottom: 0; }
+.shortcut-settings input[aria-invalid="true"] { border-color: #d68772; }
+.shortcut-error { color: #e1a393; font-size: 11px; line-height: 1.5; margin: 5px 0 10px; }
+.shortcut-problems { border: 1px solid #a57563; border-radius: 6px; background: #463831; color: #f0c5b5; padding: 11px 13px; line-height: 1.6; white-space: pre-line; }
+.shortcut-problems ul { margin: 7px 0 0; padding-left: 18px; }
+.shortcut-pending { color: #d6c799; }
+.shortcut-notice { color: #a6d8bd; line-height: 1.6; }
+.shortcut-actions { flex-wrap: wrap; }
+.shortcut-file-input { display: none; }
+.shortcut-fixed { border-top: 1px solid #505661; padding-top: 12px; color: #bac0c9; }
+.shortcut-fixed summary { cursor: pointer; }
+.shortcut-fixed dl > div { display: flex; justify-content: space-between; gap: 16px; padding: 5px 0; }
+.shortcut-fixed dd { margin: 0; font: 11px Consolas, monospace; text-align: right; }

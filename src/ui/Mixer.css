@@ -1,0 +1,53 @@
+.mixer-console { flex: 0 0 328px; height: 328px; min-height: 328px; display: flex; flex-direction: column; min-width: 0; background: #292d32; border-top: 1px solid #11171b; color: #b7c1c8; }
+.mixer-toolbar { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 4px 12px; background: #32373d; border-bottom: 1px solid #1c2227; font-size: 11px; }
+.mixer-toolbar > strong { font-size: 11px; font-weight: 600; }
+.mixer-toolbar .track-instrument-filter { display: flex; align-items: center; gap: 7px; }
+.mixer-toolbar select { max-width: 155px; height: 23px; font-size: 10px; }
+.mixer-toolbar button, .mixer-hidden-selection button, .mixer-empty button { font-size: 10px; padding: 2px 6px; }
+.mixer-hidden-selection { margin-left: auto; color: #c8b78c; font-size: 10px; }
+.mixer-body { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.mixer-scroll { flex: 1; min-width: 0; overflow: auto; scrollbar-color: #697780 #20272c; scrollbar-width: auto; position: relative; }
+.mixer-scroll::-webkit-scrollbar { height: 14px; }
+.mixer-scroll::-webkit-scrollbar-track { background: #20272c; }
+.mixer-scroll::-webkit-scrollbar-thumb { background: #697780; border: 3px solid #20272c; border-radius: 6px; }
+.mixer-strips { display: flex; min-width: 100%; min-height: 100%; width: max-content; align-items: stretch; }
+.mixer-strip { position: relative; flex: 0 0 110px; width: 110px; padding: 5px 8px 7px; background: #2d3238; border-right: 1px solid #1e252a; border-top: 3px solid var(--mixer-track-color); box-shadow: inset 0 0 0 1px transparent; }
+.mixer-strip.active { background: #343e42; box-shadow: inset 0 0 0 2px #a8ccbc; }
+.mixer-track-heading { display: flex; align-items: center; gap: 4px; padding: 0; background: transparent; border: 0; width: 100%; height: 25px; text-align: left; color: #d2dcd7; }
+.mixer-track-number { font-size: 9px; color: #8a9ba7; }
+.mixer-track-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.mixer-instrument-name { display: block; height: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; color: #8f9da8; }
+.mixer-control-heading { display: flex; align-items: center; justify-content: space-between; min-height: 15px; font-size: 9px; color: #8d9ca7; }
+.mixer-control-heading > span { cursor: default; }
+.mixer-reset { padding: 0 3px; font-size: 8px; line-height: 13px; min-height: 13px; background: #303940; border: 1px solid #526068; border-radius: 2px; color: #b7c5c9; }
+.mixer-range-wrap { position: relative; }
+.mixer-parameter.horizontal .mixer-range-wrap { height: 15px; }
+.mixer-parameter.horizontal input[type="range"] { margin: 0; width: 100%; height: 15px; accent-color: #90bda7; }
+.mixer-parameter.horizontal .mixer-level-value { display: none; }
+.mixer-number { display: flex; align-items: center; gap: 2px; width: 100%; font-size: 9px; color: #9caeb8; }
+.mixer-number input { width: 100%; min-width: 0; height: 19px; padding: 1px 4px; font-size: 10px; text-align: right; }
+.mixer-number input:disabled, .mixer-parameter input:disabled { opacity: .45; }
+.mixer-fader { display: flex; gap: 8px; justify-content: center; align-items: stretch; margin-top: 4px; }
+.mixer-parameter.vertical { flex: 1; min-width: 0; }
+.mixer-parameter.vertical .mixer-range-wrap { height: 71px; width: 100%; }
+.mixer-parameter.vertical input[type="range"] { writing-mode: vertical-lr; direction: rtl; display: block; margin: 0 auto; width: 22px; height: 71px; accent-color: #c1cbd0; }
+.mixer-unity-mark { position: absolute; right: 0; transform: translateY(50%); pointer-events: none; font-size: 7px; color: #8d9ba5; }
+.mixer-level-value { display: block; min-height: 15px; color: #c1cec7; text-align: center; font-size: 9px; font-variant-numeric: tabular-nums; }
+.mixer-meter { position: relative; overflow: hidden; align-self: flex-start; width: 9px; height: 86px; margin-top: 15px; background: repeating-linear-gradient(to top,#151d1a 0,#151d1a 5px,#26342c 6px); border: 1px solid #161c19; }
+.mixer-meter i { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top,#5cb280,#a3c863 75%,#e4bb5c 92%,#dd735e); }
+.mixer-meter.quiet i { opacity: .28; }
+.mixer-meter.clipped { border-top-color: #f38b70; }
+.mixer-meter > span { display: block; text-align: center; margin-top: 34px; font-size: 8px; color: #75817e; }
+.mixer-channel-buttons { display: flex; gap: 5px; margin-top: 4px; }
+.mixer-channel-buttons button { flex: 1; font-size: 10px; height: 19px; padding: 0; background: #424950; border: 1px solid #1d262c; border-radius: 2px; color: #a8b5bf; }
+.mixer-channel-buttons button[aria-pressed="true"] { background: #bca75a; color: #26281d; border-color: #d5c783; }
+.mixer-master { flex: 0 0 124px; width: 124px; min-height: 0; overflow-y: auto; padding: 7px 14px; background: #383b40; border-left: 2px solid #141b20; }
+.mixer-master-heading { height: 59px; color: #d2dbd6; font-size: 11px; font-weight: 600; }
+.mixer-master-heading small { display: block; margin-top: 3px; color: #8f9da8; font-size: 9px; font-weight: 400; }
+.mixer-scope-note { padding: 4px 12px; min-height: 22px; border-top: 1px solid #1d252a; color: #8e9ea8; font-size: 9px; }
+.mixer-empty { min-width: 240px; margin: auto; padding: 20px; text-align: center; color: #99a9b5; font-size: 11px; }
+.mixer-console button:focus-visible, .mixer-console input:focus-visible, .mixer-console select:focus-visible { outline: 2px solid #a4d1b8; outline-offset: 1px; }
+@media (max-height: 800px) {
+  .mixer-console { flex-basis: 252px; height: 252px; min-height: 252px; }
+  .mixer-meter { height: 71px; }
+}

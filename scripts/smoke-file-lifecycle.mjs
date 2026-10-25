@@ -1,0 +1,78 @@
+import { _electron as electron } from 'playwright';
+import { build } from 'esbuild';
+import { mkdir, mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { spawn } from 'node:child_process';
+import electronExecutable from 'electron';
+import assert from 'node:assert/strict';
+const packaged = process.argv.includes('--packaged') ? path.resolve(process.argv[process.argv.indexOf('--packaged') + 1]) : undefined;
+const base=path.resolve('.local/file-lifecycle'); await mkdir(base,{recursive:true});
+const root=await mkdtemp(path.join(base,packaged?'packaged-':'development-')),profile=path.join(root,'profile');await mkdir(profile);
+const helper=path.join(root,'helper.mjs');
+await build({ stdin: { contents: "export { createProject, newNote } from './src/core/project.ts'; export { saveNbsx, openNbsx } from './src/core/container.ts';", resolveDir: process.cwd(), sourcefile: 'lifecycle-helper.ts' }, outfile: helper, bundle: true, platform: 'node', format: 'esm' });
+const { createProject, newNote, saveNbsx, openNbsx } = await import(pathToFileURL(helper).href);
+const first = createProject('启动文件检查'), recovered = createProject('恢复内容检查'), second = createProject('再次打开检查');
+first.patterns[0].notes = [newNote(0, 60, 240)]; second.patterns[0].notes = [newNote(0, 67, 240)];
+const startup = path.join(root,'startup.nbsx'), secondFile = path.join(root,'second.nbsx'), saved = path.join(root,'recovered.nbsx');
+await Promise.all([writeFile(startup, saveNbsx(first)), writeFile(secondFile, saveNbsx(second)), writeFile(path.join(profile, 'recovery.nbsx'), saveNbsx(recovered))]);
+const env = { ...process.env, NBSX_TEST_USER_DATA: profile }; delete env.ELECTRON_RUN_AS_NODE; delete env.NBSX_DEV_URL;
+const baseArguments = packaged ? [] : ['.'];
+const desktop = await electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...baseArguments, startup, '--mute-audio', `--user-data-dir=${profile}`], env });
+const errors = [];
+try {
+  const page = await desktop.firstWindow(); page.on('pageerror', error => errors.push(error.message));
+  assert.equal(await desktop.evaluate(({ app }) => app.getPath('userData')), profile);
+  const applicationVersion=await desktop.evaluate(({app})=>app.getVersion());
+  await page.waitForFunction(() => document.title.includes('启动文件检查'));
+  await page.getByRole('dialog', { name: '发现恢复副本' }).waitFor();
+  await desktop.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.webContents.send('menu', 'select-all'); window.webContents.send('menu', 'duplicate'); });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await page.locator('[data-testid=region]').count(), 1, 'Recovery workflow must still block edits to the project behind it');
+  assert.match(await page.locator('.status-bar').textContent(), /1\s*音符/, 'Recovery workflow must preserve its single source note');
+  assert((await page.title()).startsWith('启动文件检查'));
+  await page.evaluate(async () => window.desktop.clearRecovery('unrelated-project'));
+  assert(await page.evaluate(async () => !!await window.desktop.recover()), 'Unrelated save must not delete another project recovery');
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'recover-project'));
+  await page.waitForFunction(() => document.title.startsWith('● 恢复内容检查'));
+  await desktop.evaluate(({ dialog }, filename) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename }); }, saved);
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'save'));
+  await page.waitForFunction(() => document.querySelector('.status-message').textContent.includes('已保存'));
+  assert.equal(openNbsx(new Uint8Array(await readFile(saved))).id, recovered.id);
+  assert.equal(await page.evaluate(async () => window.desktop.recover()), null);
+  const secondProcess = spawn(packaged ?? electronExecutable, [...baseArguments, secondFile, `--user-data-dir=${profile}`], { env, windowsHide: true, stdio: 'pipe' });
+  const secondaryExit = new Promise((resolve, reject) => { secondProcess.on('error', reject); secondProcess.on('exit', resolve); });
+  await page.waitForFunction(() => document.title.includes('再次打开检查'));
+  assert.equal(await secondaryExit, 0);
+  assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'select-all'));
+  await page.waitForFunction(() => document.querySelector('.editor-heading')?.textContent.includes('已选择 1 个音符'));
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'duplicate'));
+  await page.waitForFunction(() => document.title.startsWith('● '));
+  await desktop.evaluate(({ dialog, BrowserWindow }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); BrowserWindow.getAllWindows()[0].close(); });
+  assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+  const closed = desktop.waitForEvent('close');
+  await desktop.evaluate(({ dialog, BrowserWindow }) => { dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false }); BrowserWindow.getAllWindows()[0].close(); });
+  await closed;
+  const final = openNbsx(new Uint8Array(await readFile(secondFile))); assert.equal(final.regions.length, 1); assert.equal(final.patterns[0].notes.length, 2);
+  const original = second.patterns[0].notes[0], clone = final.patterns[0].notes.find(note => note.id !== original.id);
+  assert.deepEqual(final.patterns[0].notes.find(note => note.id === original.id), original);
+  const { id: cloneId, ...cloneProperties } = clone, { id: originalId, ...originalProperties } = original;
+  assert.deepEqual(cloneProperties, { ...originalProperties, tick: original.tick + original.duration });
+  const normalize = value => { const copy = structuredClone(value); delete copy.modifiedAt; return copy; }, restoredPatterns = structuredClone(final.patterns); restoredPatterns[0].notes = second.patterns[0].notes;
+  assert.deepEqual(restoredPatterns, second.patterns); assert.deepEqual(final.regions, second.regions); assert.deepEqual(final.tracks, second.tracks);
+  assert.deepEqual(normalize(openNbsx(new Uint8Array(await readFile(startup)))), normalize(first)); assert.deepEqual(errors, []);
+  const report={schema:1,status:'passed',packaged:!!packaged,root,profile,applicationVersion,startupFileOpen:'passed',secondaryInstanceForwarding:'passed',recoveryDirtyAndSaveCleanup:'passed',recoveryModalBlocksBackgroundEdit:'passed',unrelatedRecoveryPreserved:'passed',cancelClose:'passed',saveAndClose:'passed',noteDuplicatePreservesOriginal:'passed',savedRegions:final.regions.length,savedNotes:final.patterns[0].notes.length,rendererErrors:errors};
+  await writeFile(path.join(root,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({...report,report:path.join(root,'report.json')}));
+} catch (error) {
+  const page = desktop.windows()[0];
+  const failure={schema:1,status:'failed',packaged:!!packaged,root,profile,error:String(error),rendererErrors:errors};
+  if (page) {
+    Object.assign(failure,{title:await page.title(),message:await page.locator('.status-message').textContent().catch(()=>''),dialogs:await page.getByRole('dialog').allTextContents().catch(()=>[])});
+    await page.screenshot({ path: path.join(root,'failure.png') }).catch(() => {});
+  }
+  console.error(JSON.stringify({lifecycleFailure:failure,root}));await writeFile(path.join(root,'report.json'),JSON.stringify(failure,null,2));
+  throw error;
+} finally {
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(window => window.destroy())).catch(() => {}); await desktop.close().catch(() => {});
+}

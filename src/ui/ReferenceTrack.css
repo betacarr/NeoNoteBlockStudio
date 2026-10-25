@@ -1,0 +1,14 @@
+.reference-header { height: 52px; flex-shrink: 0; padding: 5px 8px; background: #293940; border-bottom: 1px solid #17262d; color: #b0d0da; }
+.reference-header > div { display: flex; align-items: center; gap: 6px; height: 20px; }
+.reference-header strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 500; }
+.reference-header button { border: 0; padding: 2px; background: none; }
+.reference-header label { display: flex; gap: 4px; align-items: center; font-size: 9px; }
+.reference-header input[type=number] { width: 49px; height: 19px; padding: 1px 3px; font-size: 9px; }
+.reference-header input[type=range] { width: 62px; height: 16px; }
+.reference-lane { position: relative; height: 52px; border-bottom: 1px solid #17262d; background: #24353b55; overflow: hidden; }
+.reference-clip { position: absolute; top: 1px; bottom: 2px; border: 1px solid #709ba9; background: #365c6b66; overflow: hidden; }
+.reference-clip > span { position: absolute; top: 0; left: 0; right: 0; height: 16px; padding: 1px 5px; background: #33515f; color: #d3e4e7; font-size: 9px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; cursor: grab; touch-action: none; z-index: 1; }
+.reference-clip > span:active { cursor: grabbing; }
+.reference-clip > span:focus-visible { outline: 2px solid #c4e6cf; outline-offset: -2px; }
+.reference-lane .reference-waveform { position: absolute; top: 0; min-width: 0; background: none; pointer-events: none; }
+.arrangement-ruler { overflow: hidden; }

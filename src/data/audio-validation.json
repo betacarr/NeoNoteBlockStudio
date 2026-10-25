@@ -1,0 +1,308 @@
+{
+  "schema": 2,
+  "profiles": [
+    {
+      "id": "java-1.13",
+      "clientSha1": "c0b970952cdd279912da384cdbfc0c26e6c6090b",
+      "singleNoteWorldCases": 81,
+      "simultaneousWorldCases": 8,
+      "maxSimultaneousVoices": 24,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 24 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.13-single-note-world.json",
+        "docs/evidence/java-1.13-master-07-world.json",
+        "docs/evidence/java-1.13-polyphony-world.json",
+        "docs/evidence/java-1.13-hrtf-world.json",
+        "docs/evidence/java-1.13-polyphony-hrtf-world.json"
+      ]
+    },
+    {
+      "id": "java-1.14",
+      "clientSha1": "7a762a59345c13af7d87111207a93f5a8607f6c0",
+      "singleNoteWorldCases": 117,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.14-single-note-world.json",
+        "docs/evidence/java-1.14-master-gain-world.json",
+        "docs/evidence/java-1.14-polyphony-world.json",
+        "docs/evidence/java-1.14-hrtf-world.json",
+        "docs/evidence/java-1.14-polyphony-hrtf-world.json"
+      ]
+    },
+    {
+      "id": "java-1.14.3",
+      "clientSha1": "af100b34ec7ef2b8b9cf7775b544d21d690dddec",
+      "singleNoteWorldCases": 117,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.14.3-single-note-world.json",
+        "docs/evidence/java-1.14.3-master-gain-world.json",
+        "docs/evidence/java-1.14.3-polyphony-world.json",
+        "docs/evidence/java-1.14.3-hrtf-world.json",
+        "docs/evidence/java-1.14.3-polyphony-hrtf-world.json"
+      ]
+    },
+    {
+      "id": "java-1.14.4",
+      "clientSha1": "8c325a0c5bd674dd747d6ebaa4c791fd363ad8a9",
+      "singleNoteWorldCases": 117,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.14.4-single-note-world.json",
+        "docs/evidence/java-1.14.4-master-gain-world.json",
+        "docs/evidence/java-1.14.4-polyphony-world.json",
+        "docs/evidence/java-1.14.4-hrtf-world.json",
+        "docs/evidence/java-1.14.4-polyphony-hrtf-world.json"
+      ]
+    },
+    {
+      "id": "java-1.16.5",
+      "clientSha1": "37fd3c903861eeff3bc24b71eed48f828b5269c8",
+      "singleNoteWorldCases": 117,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.16.5-single-note-world.json",
+        "docs/evidence/java-1.16.5-master-gain-world.json",
+        "docs/evidence/java-1.16.5-polyphony-world.json",
+        "docs/evidence/java-1.16.5-hrtf-world.json",
+        "docs/evidence/java-1.16.5-polyphony-hrtf-world.json"
+      ]
+    },
+    {
+      "id": "java-1.19",
+      "clientSha1": "c0898ec7c6a5a2eaa317770203a1554260699994",
+      "singleNoteWorldCases": 117,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.19-single-note-world.json",
+        "docs/evidence/java-1.19-master-gain-world.json",
+        "docs/evidence/java-1.19-polyphony-world.json",
+        "docs/evidence/java-1.19-hrtf-world.json",
+        "docs/evidence/java-1.19-polyphony-hrtf-world.json"
+      ]
+    },
+    {
+      "id": "java-1.19.2",
+      "clientSha1": "055b30d860ead928cba3849ba920c88b6950b654",
+      "singleNoteWorldCases": 135,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.19.2-single-note-world.json",
+        "docs/evidence/java-1.19.2-master-gain-world.json",
+        "docs/evidence/java-1.19.2-polyphony-world.json",
+        "docs/evidence/java-1.19.2-hrtf-world.json",
+        "docs/evidence/java-1.19.2-polyphony-hrtf-world.json",
+        "docs/evidence/java-1.19.2-game-forced-on-option-off-world.json",
+        "docs/evidence/java-1.19.2-game-forced-off-option-on-world.json"
+      ]
+    },
+    {
+      "id": "java-1.20.2",
+      "clientSha1": "82d1974e75fc984c5ed4b038e764e50958ac61a0",
+      "singleNoteWorldCases": 126,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.20.2-single-note-world.json",
+        "docs/evidence/java-1.20.2-master-gain-world.json",
+        "docs/evidence/java-1.20.2-polyphony-world.json",
+        "docs/evidence/java-1.20.2-hrtf-world.json",
+        "docs/evidence/java-1.20.2-polyphony-hrtf-world.json",
+        "docs/evidence/java-1.20.2-game-option-on-default-world.json"
+      ]
+    },
+    {
+      "id": "java-1.20.5",
+      "clientSha1": "c6b92b2374a629f20802bb284f98a4ee790e950a",
+      "singleNoteWorldCases": 126,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.20.5-single-note-world.json",
+        "docs/evidence/java-1.20.5-master-gain-world.json",
+        "docs/evidence/java-1.20.5-polyphony-world.json",
+        "docs/evidence/java-1.20.5-hrtf-world.json",
+        "docs/evidence/java-1.20.5-polyphony-hrtf-world.json",
+        "docs/evidence/java-1.20.5-game-option-on-default-world.json"
+      ]
+    },
+    {
+      "id": "java-1.21.5",
+      "clientSha1": "b88808bbb3da8d9f453694b5d8f74a3396f1a533",
+      "singleNoteWorldCases": 117,
+      "simultaneousWorldCases": 10,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.21.5-single-note-world.json",
+        "docs/evidence/java-1.21.5-master-gain-world.json",
+        "docs/evidence/java-1.21.5-polyphony-world.json",
+        "docs/evidence/java-1.21.5-hrtf-world.json",
+        "docs/evidence/java-1.21.5-polyphony-hrtf-world.json"
+      ]
+    },
+    {
+      "id": "java-1.21.8",
+      "clientSha1": "a19d9badbea944a4369fd0059e53bf7286597576",
+      "singleNoteWorldCases": 18,
+      "simultaneousWorldCases": 5,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, selected gain-boundary scenes at category .5/master 1 and category .2/master .7, single notes and simultaneous batches up to 64 voices, HRTF off only; HRTF-on not measured; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.21.8-volume-category05-world.json",
+        "docs/evidence/java-1.21.8-volume-category02-master07-world.json",
+        "docs/evidence/java-1.21.8-volume-category02-master07-polyphony-world.json"
+      ]
+    },
+    {
+      "id": "java-1.21.9",
+      "clientSha1": "ce92fd8d1b2460c41ceda07ae7b3fe863a80d045",
+      "singleNoteWorldCases": 18,
+      "simultaneousWorldCases": 5,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, selected gain-boundary scenes at category .5/master 1 and category .2/master .7, single notes and simultaneous batches up to 64 voices, HRTF off only; HRTF-on not measured; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-1.21.9-volume-category05-world.json",
+        "docs/evidence/java-1.21.9-volume-category02-master07-world.json",
+        "docs/evidence/java-1.21.9-volume-category02-master07-polyphony-world.json"
+      ]
+    },
+    {
+      "id": "java-26.3",
+      "clientSha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+      "singleNoteWorldCases": 150,
+      "simultaneousWorldCases": 15,
+      "maxSimultaneousVoices": 64,
+      "hrtf": [
+        false,
+        true
+      ],
+      "hrtfUnsupported": false,
+      "status": "partially-measured",
+      "scope": "Windows x64, actual integrated world, canonical instruments, single notes and simultaneous batches up to 64 voices, controlled backend HRTF off/on; excludes onset scheduling, complete editor-to-world camera projection and hardware output",
+      "evidence": [
+        "docs/evidence/java-26.3-single-note-world.json",
+        "docs/evidence/java-26.3-master-gain-world.json",
+        "docs/evidence/java-26.3-polyphony-world.json",
+        "docs/evidence/java-26.3-hrtf-world.json",
+        "docs/evidence/java-26.3-polyphony-hrtf-world.json",
+        "docs/evidence/java-26.3-category-gain-world.json",
+        "docs/evidence/java-26.3-polyphony-category-gain-world.json"
+      ]
+    }
+  ],
+  "excludedProfiles": [
+    {
+      "id": "java-1.12.2",
+      "status": "excluded-normalized-candidate",
+      "reason": "original-context-equivalence-unproved",
+      "singleNoteCandidateCases": 45,
+      "simultaneousCandidateCases": 4,
+      "evidence": {
+        "path": "docs/evidence/java-1.12.2-context-audit.json",
+        "sha256": "804dc0f0aa75b385cb3248cf742ebafd2b8f05a410485979796b8ce850dc6843"
+      },
+      "historicalReports": [
+        {
+          "path": "docs/evidence/java-1.12.2-single-note-world.json",
+          "sha256": "a3f4d0605e4df4ac5d463c8879f340e9aaad6910b062334dbc42729fd82db6f4",
+          "cases": 36
+        },
+        {
+          "path": "docs/evidence/java-1.12.2-master-07-world.json",
+          "sha256": "f4dbf653a3b3c74accc39093d049b7015e1faba331fb9ce97fa7b98acbd857df",
+          "cases": 9
+        },
+        {
+          "path": "docs/evidence/java-1.12.2-polyphony-world.json",
+          "sha256": "245c2265eaa14d759ec3f54384ca2e41e24f1a3495a38aa0a434ee6488d2810a",
+          "cases": 4
+        }
+      ]
+    }
+  ]
+}

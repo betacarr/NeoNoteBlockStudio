@@ -1,0 +1,822 @@
+[
+  {
+    "id": "rd-132211",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "393e8d4b4d708587e2accd7c5221db65365e1075"
+  },
+  {
+    "id": "rd-132328",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "12dace5a458617d3f90337a7ebde86c0593a6899"
+  },
+  {
+    "id": "rd-20090515",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "6323bd14ed7f83852e17ebc8ec418e55c97ddfe4"
+  },
+  {
+    "id": "rd-160052",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "b100be8097195b6c9112046dc6a80d326c8df839"
+  },
+  {
+    "id": "rd-161348",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "6323bd14ed7f83852e17ebc8ec418e55c97ddfe4"
+  },
+  {
+    "id": "c0.0.11a",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "3a799f179b6dcac5f3a46846d687ebbd95856984"
+  },
+  {
+    "id": "c0.0.13a_03",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "7ba9e63aec8a15a99ecd47900c848cdce8a51a03"
+  },
+  {
+    "id": "c0.0.13a",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "936d575b1ab1a04a341ad43d76e441e88d2cd987"
+  },
+  {
+    "id": "c0.30_01c",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "54622801f5ef1bcc1549a842c5b04cb5d5583005"
+  },
+  {
+    "id": "inf-20100618",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "89eab2c1a353707cc00f074dffba9cb7a4f5e304"
+  },
+  {
+    "id": "a1.0.4",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "e5838277b3bb193e58408713f1fc6e005c5f3c0c"
+  },
+  {
+    "id": "a1.0.5_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "73f569bf5556580979606049204835ae1a54f04d"
+  },
+  {
+    "id": "a1.0.11",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "d7ceb02909d0e1031a99ff4d8053d3f4abfbb2da"
+  },
+  {
+    "id": "a1.0.14",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "9b4b90d8def2a680b7c9eca40dd03e2266c8977a"
+  },
+  {
+    "id": "a1.0.15",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "03edaff812bedd4157a90877e779d7b7ecf78e97"
+  },
+  {
+    "id": "a1.0.16",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "98ce80c7630ccb3bb38687ff98bfd18935d49a57"
+  },
+  {
+    "id": "a1.0.17_02",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "39f20ee472a40322e034643a8d1668836f5052bd"
+  },
+  {
+    "id": "a1.0.17_04",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "61cb4c717981f34bf90e8502d2eb8cf2aa6db0cd"
+  },
+  {
+    "id": "a1.1.0",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "d58d1db929994ff383bdbe6fed31887e04b965c3"
+  },
+  {
+    "id": "a1.1.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f9b4b66f9c18bf4800d80f1c8865a837f92c6105"
+  },
+  {
+    "id": "a1.1.2_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "daa4b9f192d2c260837d3b98c39432324da28e86"
+  },
+  {
+    "id": "a1.2.0",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "8632ea716fd083c2975f16d612306fd80bee46db"
+  },
+  {
+    "id": "a1.2.0_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "332bfe7bf26f6a5cc93ee85e6759ce33784409d0"
+  },
+  {
+    "id": "a1.2.0_02",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "b99da0a683e6dc1ade4df1bf159e021ad07d4fca"
+  },
+  {
+    "id": "a1.2.1",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "e4226f9ba622634e3101681bc641eec7ee9e72fd"
+  },
+  {
+    "id": "a1.2.1_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "e4226f9ba622634e3101681bc641eec7ee9e72fd"
+  },
+  {
+    "id": "a1.2.2a",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "7d9d85eaca9627d3a40e6d122182f2d22d39dbf9"
+  },
+  {
+    "id": "a1.2.2b",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "1c28c8431392641045b59e98a81877d7c94ff0ca"
+  },
+  {
+    "id": "a1.2.3",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f4be258122cb62208b350cd2068685ad859bb447"
+  },
+  {
+    "id": "a1.2.3_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "1d46e65022f3a7cf4b8ad30ee5a8d52b3b2b9486"
+  },
+  {
+    "id": "a1.2.3_02",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "dc61158e1df763f87483abb6ab540dc1c42e63c4"
+  },
+  {
+    "id": "a1.2.3_04",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "7f60cb9d0d40af20001d15287b78aa26a217a910"
+  },
+  {
+    "id": "a1.2.4_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "7be6298b05d1b0832ab45467a87a425640bc6bf0"
+  },
+  {
+    "id": "a1.2.5",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f48c7b6442ad8d01099ecee1c7c7332f1b1a80da"
+  },
+  {
+    "id": "a1.2.6",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "a68c817afd6c05c253ba5462287c2c19bbb57935"
+  },
+  {
+    "id": "b1.0",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "93faf3398ebf8008d59852dc3c2b22b909ca8a49"
+  },
+  {
+    "id": "b1.0_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "4caf69885b64132e42d3ce49996dbdb1691d7111"
+  },
+  {
+    "id": "b1.0.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "76d35cb452e739bd4780e835d17faf0785d755f9"
+  },
+  {
+    "id": "b1.1_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "6d778940f48389a2741f03c9f17f3c57476fb208"
+  },
+  {
+    "id": "b1.1_02",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "e1c682219df45ebda589a557aadadd6ed093c86c"
+  },
+  {
+    "id": "b1.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "ba05d7a97926c61c03cf956f7ae92f3bede9474e"
+  },
+  {
+    "id": "b1.2_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f71a5b58c9bd0e458878d78a34c9fb35e97d5222"
+  },
+  {
+    "id": "b1.2_02",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "093f371e1a05d89664cfb8068d607953687d5d94"
+  },
+  {
+    "id": "b1.3b",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "e19cfb3a2043f185c44237ef05eac80e8ad2d8e7"
+  },
+  {
+    "id": "b1.3_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "add3809d2c075e985d4b583632dac3d9c3872945"
+  },
+  {
+    "id": "b1.4",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f6dbca5223ea2a7e89806e93d0b18162b2d58c20"
+  },
+  {
+    "id": "b1.4_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "6f157f26955c35006c1afa8b0479e0ce785fb864"
+  },
+  {
+    "id": "b1.5",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f5ce1699cd728213c21054fa2f1490d162b002b4"
+  },
+  {
+    "id": "b1.5_01",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "e2a692e5e8160c84b29c834ecbf398618db9749c"
+  },
+  {
+    "id": "b1.6",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "ecc0288d218fd7479027a17c150cbf283fa950a1"
+  },
+  {
+    "id": "b1.6.1",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "63a66d6d145696296bdaaeaba0a42f738b87a362"
+  },
+  {
+    "id": "b1.6.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "e8aa50949b077b672be2e651ea3f7b1bbd9020e1"
+  },
+  {
+    "id": "b1.6.3",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "924e36dbb7c64abb30a95fe35f5affb5176f6cbc"
+  },
+  {
+    "id": "b1.6.4",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "b5d3bdb8a7b12d163651f4787ac6ca14689aab9e"
+  },
+  {
+    "id": "b1.6.5",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "90ed9854b43c4d031ed07381ea3ae3071a8bba6f"
+  },
+  {
+    "id": "b1.6.6",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f95fe05711d09553ca2a9089f981741c13d6b8c4"
+  },
+  {
+    "id": "b1.7",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "ad7960853437bcab86bd72c4a1b95f6fe19f4258"
+  },
+  {
+    "id": "b1.7.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "7dc50cc5e2ff204a7283f0c7d38cd0370b49875b"
+  },
+  {
+    "id": "b1.7.3",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "43db9b498cb67058d2e12d394e6507722e71bb45"
+  },
+  {
+    "id": "b1.8",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "3139e9c29b2c74f59ea04de760ac2af5bc21b410"
+  },
+  {
+    "id": "b1.8.1",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "6b562463ccc2c7ff12ff350a2b04a67b3adcd37b"
+  },
+  {
+    "id": "1.0",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "b679fea27f2284836202e9365e13a82552092e5d"
+  },
+  {
+    "id": "1.1",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "f690d4136b0026d452163538495b9b0e8513d718"
+  },
+  {
+    "id": "1.2.1",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "c7662ac43dd04bfd677694a06972a2aaaf426505"
+  },
+  {
+    "id": "1.2.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "1dadfc4de6898751f547f24f72c7271218e4e28f"
+  },
+  {
+    "id": "1.2.3",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "5134e433afeba375c00bbdcd8aead1d3222813ee"
+  },
+  {
+    "id": "1.2.4",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "ad6d1fe7455857269d4185cb8f24e62cc0241aaf"
+  },
+  {
+    "id": "1.2.5",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "4a2fac7504182a97dcbcd7560c6392d7c8139928"
+  },
+  {
+    "id": "1.3.1",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "33167e71e85ab8e6ddbe168bc67f6ec19d708d62"
+  },
+  {
+    "id": "1.3.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "c2efd57c7001ddf505ca534e54abf3d006e48309"
+  },
+  {
+    "id": "1.4.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "42d6744cfbbd2958f9e6688dd6e78d86d658d0d4"
+  },
+  {
+    "id": "1.4.4",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "b9b2a9e9adf1bc834647febc93a4222b4fd6e403"
+  },
+  {
+    "id": "1.4.5",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "7a8a963ababfec49406e1541d3a87198e50604e5"
+  },
+  {
+    "id": "1.4.6",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "116758f41b32e8d1a71a4ad6236579acd724bca7"
+  },
+  {
+    "id": "1.4.7",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "53ed4b9d5c358ecfff2d8b846b4427b888287028"
+  },
+  {
+    "id": "1.5.1",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "047136381a552f34b1963c43304a1ad4dc0d2d8e"
+  },
+  {
+    "id": "1.5.2",
+    "assetIndex": "pre-1.6",
+    "clientSha1": "465378c9dc2f779ae1d6e8046ebc46fb53a57968"
+  },
+  {
+    "id": "1.6.1",
+    "assetIndex": "legacy",
+    "clientSha1": "17e2c28fb54666df5640b2c822ea8042250ef592"
+  },
+  {
+    "id": "1.6.2",
+    "assetIndex": "legacy",
+    "clientSha1": "b6cb68afde1d9cf4a20cbf27fa90d0828bf440a4"
+  },
+  {
+    "id": "1.6.4",
+    "assetIndex": "legacy",
+    "clientSha1": "1703704407101cf72bd88e68579e3696ce733ecd"
+  },
+  {
+    "id": "1.7.2",
+    "assetIndex": "legacy",
+    "clientSha1": "0c8689f904922af71c7144dcfb81bce976cadd49"
+  },
+  {
+    "id": "1.7.3",
+    "assetIndex": "1.7.3",
+    "clientSha1": "feaf10fa9da94c388f2c53a2cf31a14406d0c532"
+  },
+  {
+    "id": "1.7.4",
+    "assetIndex": "1.7.4",
+    "clientSha1": "900950d8e3217b3a42405d1ecf767dcc31239d69"
+  },
+  {
+    "id": "1.7.5",
+    "assetIndex": "1.7.4",
+    "clientSha1": "77aa70ac5054cbf1140b6449b579e950d5050c4a"
+  },
+  {
+    "id": "1.7.6",
+    "assetIndex": "1.7.4",
+    "clientSha1": "6b2c5827994e17f904f0852f962dd6fccfbb8bdc"
+  },
+  {
+    "id": "1.7.7",
+    "assetIndex": "1.7.4",
+    "clientSha1": "e520f254a2b496d61839b816d712e238b1243f30"
+  },
+  {
+    "id": "1.7.8",
+    "assetIndex": "1.7.4",
+    "clientSha1": "83ae44189888a873f46f7509a87ebdb6dc785741"
+  },
+  {
+    "id": "1.7.9",
+    "assetIndex": "1.7.4",
+    "clientSha1": "fbbaae784b1de315a8d08a82c6c345a583fb676b"
+  },
+  {
+    "id": "1.7.10",
+    "assetIndex": "1.7.10",
+    "clientSha1": "e80d9b3bf5085002218d4be59e668bac718abbc6"
+  },
+  {
+    "id": "1.8",
+    "assetIndex": "1.8",
+    "clientSha1": "d722504db9de2b47f46cc592b8528446272ae648"
+  },
+  {
+    "id": "1.8.1",
+    "assetIndex": "1.8",
+    "clientSha1": "6edd2a3e3d76a7602c52f319f87cf11f7720b43b"
+  },
+  {
+    "id": "1.8.2",
+    "assetIndex": "1.8",
+    "clientSha1": "a8e71f6c81acfa834d249579a242f5b0852075c1"
+  },
+  {
+    "id": "1.8.3",
+    "assetIndex": "1.8",
+    "clientSha1": "69d14463ddc22e581bc66c66ef5eb72a8b452c46"
+  },
+  {
+    "id": "1.8.4",
+    "assetIndex": "1.8",
+    "clientSha1": "459204fabee3fd9976a6c942b24cbd8382d02d6e"
+  },
+  {
+    "id": "1.8.5",
+    "assetIndex": "1.8",
+    "clientSha1": "5d39957c61d19042f8bd669a6faa99989cf37083"
+  },
+  {
+    "id": "1.8.6",
+    "assetIndex": "1.8",
+    "clientSha1": "faa55e34ded35089d34fe921ea83d317fc152e93"
+  },
+  {
+    "id": "1.8.7",
+    "assetIndex": "1.8",
+    "clientSha1": "d546a6a092060c85f1eb1d9213ff823c558b1255"
+  },
+  {
+    "id": "1.8.8",
+    "assetIndex": "1.8",
+    "clientSha1": "0983f08be6a4e624f5d85689d1aca869ed99c738"
+  },
+  {
+    "id": "1.8.9",
+    "assetIndex": "1.8",
+    "clientSha1": "3870888a6c3d349d3771a3e9d16c9bf5e076b908"
+  },
+  {
+    "id": "1.9",
+    "assetIndex": "1.9",
+    "clientSha1": "2f67dfe8953299440d1902f9124f0f2c3a2c940f"
+  },
+  {
+    "id": "1.9.1",
+    "assetIndex": "1.9",
+    "clientSha1": "9bc7f02323d90b9385c1a5dbd47fb144a3fb8835"
+  },
+  {
+    "id": "1.9.2",
+    "assetIndex": "1.9",
+    "clientSha1": "19106fd5e222dca0f2dde9f66db8384c9a7db957"
+  },
+  {
+    "id": "1.9.3",
+    "assetIndex": "1.9",
+    "clientSha1": "b6985b0d3a0520dfb6f17eeb1e8ba58ce9577061"
+  },
+  {
+    "id": "1.9.4",
+    "assetIndex": "1.9",
+    "clientSha1": "4a61c873be90bb1196d68dac7b29870408c56969"
+  },
+  {
+    "id": "1.10",
+    "assetIndex": "1.10",
+    "clientSha1": "ba038efbc6d9e4a046927a7658413d0276895739"
+  },
+  {
+    "id": "1.10.1",
+    "assetIndex": "1.10",
+    "clientSha1": "44b389fff90324c4ca18796d4428a7b8ec6c2eb0"
+  },
+  {
+    "id": "1.10.2",
+    "assetIndex": "1.10",
+    "clientSha1": "dc8e75ac7274ff6af462b0dcec43c307de668e40"
+  },
+  {
+    "id": "1.11",
+    "assetIndex": "1.11",
+    "clientSha1": "780e46b3a96091a7f42c028c615af45974629072"
+  },
+  {
+    "id": "1.11.1",
+    "assetIndex": "1.11",
+    "clientSha1": "0935745a11806d6b4cf00221938e7560c23f9291"
+  },
+  {
+    "id": "1.11.2",
+    "assetIndex": "1.11",
+    "clientSha1": "db5aa600f0b0bf508aaf579509b345c4e34087be"
+  },
+  {
+    "id": "1.12",
+    "assetIndex": "1.12",
+    "clientSha1": "909823f9c467f9934687f136bc95a667a0d19d7f"
+  },
+  {
+    "id": "1.12.1",
+    "assetIndex": "1.12",
+    "clientSha1": "83385d346cf7f97d1e447b888750fb88e9928b93"
+  },
+  {
+    "id": "1.12.2",
+    "assetIndex": "1.12",
+    "clientSha1": "0f275bc1547d01fa5f56ba34bdc87d981ee12daf"
+  },
+  {
+    "id": "1.13",
+    "assetIndex": "1.13",
+    "clientSha1": "c0b970952cdd279912da384cdbfc0c26e6c6090b"
+  },
+  {
+    "id": "1.13.1",
+    "assetIndex": "1.13.1",
+    "clientSha1": "8de235e5ec3a7fce168056ea395d21cbdec18d7c"
+  },
+  {
+    "id": "1.13.2",
+    "assetIndex": "1.13.1",
+    "clientSha1": "30bfe37a8db404db11c7edf02cb5165817afb4d9"
+  },
+  {
+    "id": "1.14",
+    "assetIndex": "1.14",
+    "clientSha1": "7a762a59345c13af7d87111207a93f5a8607f6c0"
+  },
+  {
+    "id": "1.14.1",
+    "assetIndex": "1.14",
+    "clientSha1": "55ba86ddcbc3579397f41910463ffd4056e1e523"
+  },
+  {
+    "id": "1.14.2",
+    "assetIndex": "1.14",
+    "clientSha1": "ca6c5a139045967229975c0c0b7f93e78b4314c2"
+  },
+  {
+    "id": "1.14.3",
+    "assetIndex": "1.14",
+    "clientSha1": "af100b34ec7ef2b8b9cf7775b544d21d690dddec"
+  },
+  {
+    "id": "1.14.4",
+    "assetIndex": "1.14",
+    "clientSha1": "8c325a0c5bd674dd747d6ebaa4c791fd363ad8a9"
+  },
+  {
+    "id": "1.15",
+    "assetIndex": "1.15",
+    "clientSha1": "7b07fd09d1e3aae1bc7a1304fedc73bfe5d81800"
+  },
+  {
+    "id": "1.15.1",
+    "assetIndex": "1.15",
+    "clientSha1": "8b11614bea9293592a947ea8f4fd72981ea66677"
+  },
+  {
+    "id": "1.15.2",
+    "assetIndex": "1.15",
+    "clientSha1": "e3f78cd16f9eb9a52307ed96ebec64241cc5b32d"
+  },
+  {
+    "id": "1.16",
+    "assetIndex": "1.16",
+    "clientSha1": "228fdf45541c4c2fe8aec4f20e880cb8fcd46621"
+  },
+  {
+    "id": "1.16.1",
+    "assetIndex": "1.16",
+    "clientSha1": "c9abbe8ee4fa490751ca70635340b7cf00db83ff"
+  },
+  {
+    "id": "1.16.2",
+    "assetIndex": "1.16",
+    "clientSha1": "653e97a2d1d76f87653f02242d243cdee48a5144"
+  },
+  {
+    "id": "1.16.3",
+    "assetIndex": "1.16",
+    "clientSha1": "1321521b2caf934f7fc9665aab7e059a7b2bfcdf"
+  },
+  {
+    "id": "1.16.4",
+    "assetIndex": "1.16",
+    "clientSha1": "1952d94a0784e7abda230aae6a1e8fc0522dba99"
+  },
+  {
+    "id": "1.16.5",
+    "assetIndex": "1.16",
+    "clientSha1": "37fd3c903861eeff3bc24b71eed48f828b5269c8"
+  },
+  {
+    "id": "1.17",
+    "assetIndex": "1.17",
+    "clientSha1": "1cf89c77ed5e72401b869f66410934804f3d6f52"
+  },
+  {
+    "id": "1.17.1",
+    "assetIndex": "1.17",
+    "clientSha1": "8d9b65467c7913fcf6f5b2e729d44a1e00fde150"
+  },
+  {
+    "id": "1.18",
+    "assetIndex": "1.18",
+    "clientSha1": "d49eb6caed53d23927648c97451503442f9e26fd"
+  },
+  {
+    "id": "1.18.1",
+    "assetIndex": "1.18",
+    "clientSha1": "7e46fb47609401970e2818989fa584fd467cd036"
+  },
+  {
+    "id": "1.18.2",
+    "assetIndex": "1.18",
+    "clientSha1": "2e9a3e3107cca00d6bc9c97bf7d149cae163ef21"
+  },
+  {
+    "id": "1.19",
+    "assetIndex": "1.19",
+    "clientSha1": "c0898ec7c6a5a2eaa317770203a1554260699994"
+  },
+  {
+    "id": "1.19.1",
+    "assetIndex": "1.19",
+    "clientSha1": "90d438c3e432add8848a9f9f368ce5a52f6bc4a7"
+  },
+  {
+    "id": "1.19.2",
+    "assetIndex": "1.19",
+    "clientSha1": "055b30d860ead928cba3849ba920c88b6950b654"
+  },
+  {
+    "id": "1.19.3",
+    "assetIndex": "2",
+    "clientSha1": "977727ec9ab8b4631e5c12839f064092f17663f8"
+  },
+  {
+    "id": "1.19.4",
+    "assetIndex": "3",
+    "clientSha1": "958928a560c9167687bea0cefeb7375da1e552a8"
+  },
+  {
+    "id": "1.20",
+    "assetIndex": "5",
+    "clientSha1": "e575a48efda46cf88111ba05b624ef90c520eef1"
+  },
+  {
+    "id": "1.20.1",
+    "assetIndex": "5",
+    "clientSha1": "0c3ec587af28e5a785c0b4a7b8a30f9a8f78f838"
+  },
+  {
+    "id": "1.20.2",
+    "assetIndex": "8",
+    "clientSha1": "82d1974e75fc984c5ed4b038e764e50958ac61a0"
+  },
+  {
+    "id": "1.20.3",
+    "assetIndex": "12",
+    "clientSha1": "b178a327a96f2cf1c9f98a45e5588d654a3e4369"
+  },
+  {
+    "id": "1.20.4",
+    "assetIndex": "12",
+    "clientSha1": "fd19469fed4a4b4c15b2d5133985f0e3e7816a8a"
+  },
+  {
+    "id": "1.20.5",
+    "assetIndex": "16",
+    "clientSha1": "c6b92b2374a629f20802bb284f98a4ee790e950a"
+  },
+  {
+    "id": "1.20.6",
+    "assetIndex": "16",
+    "clientSha1": "05b6f1c6b46a29d6ea82b4e0d42190e42402030f"
+  },
+  {
+    "id": "1.21",
+    "assetIndex": "17",
+    "clientSha1": "0e9a07b9bb3390602f977073aa12884a4ce12431"
+  },
+  {
+    "id": "1.21.1",
+    "assetIndex": "17",
+    "clientSha1": "30c73b1c5da787909b2f73340419fdf13b9def88"
+  },
+  {
+    "id": "1.21.2",
+    "assetIndex": "18",
+    "clientSha1": "c7ac2d0d86f4ca416cab9064ff8a281852ad0c7b"
+  },
+  {
+    "id": "1.21.3",
+    "assetIndex": "18",
+    "clientSha1": "6f67d19b4467240639cb2c368ffd4b94ba889705"
+  },
+  {
+    "id": "1.21.4",
+    "assetIndex": "19",
+    "clientSha1": "a7e5a6024bfd3cd614625aa05629adf760020304"
+  },
+  {
+    "id": "1.21.5",
+    "assetIndex": "24",
+    "clientSha1": "b88808bbb3da8d9f453694b5d8f74a3396f1a533"
+  },
+  {
+    "id": "1.21.6",
+    "assetIndex": "26",
+    "clientSha1": "740a125b83dd3447feaa3c5e891ead7fbb21ae28"
+  },
+  {
+    "id": "1.21.7",
+    "assetIndex": "26",
+    "clientSha1": "a2db1ea98c37b2d00c83f6867fb8bb581a593e07"
+  },
+  {
+    "id": "1.21.8",
+    "assetIndex": "26",
+    "clientSha1": "a19d9badbea944a4369fd0059e53bf7286597576"
+  },
+  {
+    "id": "1.21.9",
+    "assetIndex": "27",
+    "clientSha1": "ce92fd8d1b2460c41ceda07ae7b3fe863a80d045"
+  },
+  {
+    "id": "1.21.10",
+    "assetIndex": "27",
+    "clientSha1": "d3bdf582a7fa723ce199f3665588dcfe6bf9aca8"
+  },
+  {
+    "id": "1.21.11",
+    "assetIndex": "29",
+    "clientSha1": "ba2df812c2d12e0219c489c4cd9a5e1f0760f5bd"
+  },
+  {
+    "id": "26.1",
+    "assetIndex": "30",
+    "clientSha1": "191771837687b766537a8c4607cb6fad79c533a1"
+  },
+  {
+    "id": "26.1.1",
+    "assetIndex": "30",
+    "clientSha1": "377031a9e733ba8ab4d355959a8f6fb8eb707556"
+  },
+  {
+    "id": "26.1.2",
+    "assetIndex": "30",
+    "clientSha1": "4e618f09a0c649dde3fdf829df443ce0b8831e65"
+  },
+  {
+    "id": "26.2",
+    "assetIndex": "32",
+    "clientSha1": "2dc72797acbc1b63fc16a11c4ac393605f453754"
+  },
+  {
+    "id": "26.3",
+    "assetIndex": "34",
+    "clientSha1": "e877b6a07acd633fb3bb475002175cec036e7b87"
+  }
+]

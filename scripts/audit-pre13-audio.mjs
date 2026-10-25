@@ -1,0 +1,47 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+import {unzipSync} from 'fflate';
+import {historicalClassfile} from './historical-classfile.mjs';
+import {methodCodeHashes} from './audit-early-world.mjs';
+import {digest,verifiedArtifact} from './research-utils.mjs';
+
+export const pre13Versions=['1.0','1.1','1.2.1','1.2.2','1.2.3','1.2.4','1.2.5'];
+export const shaPre13=b=>digest(b,'sha256');
+export const pre13Sources=['scripts/audit-pre13-audio.mjs','scripts/historical-classfile.mjs','scripts/audit-early-world.mjs','scripts/research-utils.mjs'];
+export const allowedPre13=l=>{let ok=!l.rules;for(const r of l.rules??[])if(!r.os||r.os.name==='windows')ok=r.action==='allow';return ok;};
+export async function executePre13(executable,args,root,label){
+ await mkdir(root,{recursive:true});const file=path.join(root,label+'.process.json'),child=spawn(executable,args,{windowsHide:true,stdio:['ignore','pipe','pipe']}),record={executable,args,cwd:process.cwd(),parentPid:process.pid,pid:child.pid,startedAt:new Date().toISOString(),terminal:false};
+ await writeFile(file,JSON.stringify(record,null,2));let stdout='',stderr='';child.stdout.on('data',b=>stdout+=b);child.stderr.on('data',b=>stderr+=b);const timer=setInterval(()=>console.log(JSON.stringify({observing:true,label,pid:child.pid,process:file})),30000);
+ try{Object.assign(record,await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal}));}));}catch(e){record.error=String(e);throw e;}finally{clearInterval(timer);Object.assign(record,{terminal:true,finishedAt:new Date().toISOString(),stdoutFile:path.join(root,label+'.stdout.log'),stderrFile:path.join(root,label+'.stderr.log')});await writeFile(record.stdoutFile,stdout);await writeFile(record.stderrFile,stderr);await writeFile(file,JSON.stringify(record,null,2));}
+ assert.equal(record.code,0,label+': '+stderr+'\n'+stdout);return{record,file,stdout,stderr};
+}
+export async function discoverPre13(version,{download=true}={}){
+ assert(pre13Versions.includes(version));const catalog=JSON.parse(await readFile('src/data/java-releases.json')),release=catalog.versions.find(r=>r.id===version);assert(release&&release.type==='release');
+ const resource=JSON.parse(await readFile('docs/evidence/java-'+version+'-resource-selection.json')),metadataFile=resource.metadata.path,metadataBytes=await readFile(metadataFile),metadata=JSON.parse(metadataBytes),metadataSha1=/packages\/([a-f0-9]{40})\//.exec(release.metadataUrl)[1];assert.equal(shaPre13(metadataBytes),resource.metadata.sha256);assert.equal(digest(metadataBytes),metadataSha1);assert.equal(metadata.id,version);assert.equal(metadata.downloads.client.sha1,release.clientSha1);assert(!metadata.downloads.client_mappings);
+ const clientFile='.research/clients/'+version+'.jar',client=await readFile(clientFile);assert.equal(digest(client),release.clientSha1);assert.equal(client.length,metadata.downloads.client.size);
+ const lwjgl=metadata.libraries.filter(allowedPre13).find(l=>/^org.lwjgl.lwjgl:lwjgl:/.test(l.name));assert(lwjgl?.downloads?.artifact);const artifact=lwjgl.downloads.artifact,lwjglFile=path.join('.research/libraries',artifact.path);if(download)await verifiedArtifact(artifact,lwjglFile);const lwjglBytes=await readFile(lwjglFile);assert.equal(digest(lwjglBytes),artifact.sha1);
+ const archives=[{file:clientFile,artifact:metadata.downloads.client,bytes:client},{file:lwjglFile,artifact,bytes:lwjglBytes}],classes=new Map();for(const archive of archives)for(const[name,b]of Object.entries(unzipSync(archive.bytes)))if(name.endsWith('.class'))classes.set(name.slice(0,-6),{...historicalClassfile(b),bytes:b,archive});
+ const unique=(label,p)=>{const rows=[...classes.values()].filter(p);assert.equal(rows.length,1,version+' '+label+': '+rows.map(c=>c.name));return rows[0].name;};
+ const roles={Minecraft:'net/minecraft/client/Minecraft',SoundManager:unique('SoundManager',c=>c.refs.some(r=>r.owner==='paulscode/sound/SoundSystem'&&r.name==='newSource')),NoteBlock:unique('NoteBlock',c=>c.strings.includes('bassattack')&&c.strings.includes('harp')&&c.strings.includes('note.')),TileEntityNote:unique('TileEntityNote',c=>c.strings.includes('note')&&c.fields.some(f=>f.descriptor==='B')),Options:unique('Options',c=>c.strings.includes('invertYMouse')&&c.strings.includes('sound'))};
+ const tile=classes.get(roles.TileEntityNote),triggers=tile.methods.filter(m=>/^\(L[^;]+;III\)V$/.test(m.descriptor));assert.equal(triggers.length,1);roles.World=/^\(L([^;]+);/.exec(triggers[0].descriptor)[1];
+ const material=tile.refs.find(r=>r.kind==='field'&&r.owner!==roles.TileEntityNote&&r.descriptor===`L${r.owner};`);assert(material);roles.Material=material.owner;
+ const ancestors=new Set();for(let n=roles.NoteBlock;classes.has(n);n=classes.get(n).parent)ancestors.add(n);roles.Block=unique('Block',c=>ancestors.has(c.name)&&c.fields.filter(f=>(f.access&8)&&f.descriptor===`L${c.name};`).length>100);
+ const manager=classes.get(roles.SoundManager),pools=manager.fields.filter(f=>f.descriptor.startsWith('L')&&classes.get(f.descriptor.slice(1,-1))?.methods.some(m=>m.descriptor.startsWith('(Ljava/lang/String;Ljava/io/File;)L')));assert.equal(pools.length,3);assert(pools.every(f=>f.descriptor===pools[0].descriptor));roles.SoundPool=pools[0].descriptor.slice(1,-1);
+ const entry=classes.get(roles.SoundPool).methods.filter(m=>m.descriptor.startsWith('(Ljava/lang/String;Ljava/io/File;)L'));assert.equal(entry.length,1);roles.SoundEntry=/\)L([^;]+);/.exec(entry[0].descriptor)[1];
+ const listener=manager.methods.filter(m=>/^\(L[^;]+;F\)V$/.test(m.descriptor)&&classes.get(/^\(L([^;]+);/.exec(m.descriptor)[1])?.strings.includes('Health'));assert.equal(listener.length,1);roles.ListenerEntity=/^\(L([^;]+);/.exec(listener[0].descriptor)[1];roles.Entity=classes.get(roles.ListenerEntity).parent;
+ roles.WorldListener=unique('WorldListener',c=>(c.access&512)&&classes.get(roles.World).refs.some(r=>r.owner===c.name&&r.descriptor==='(Ljava/lang/String;DDDFF)V'));
+ roles.ClientWorldListener=unique('ClientWorldListener',c=>c.interfaces.includes(roles.WorldListener)&&c.refs.some(r=>r.owner===roles.SoundManager));roles.ClientWorld=unique('ClientWorld',c=>c.parent===roles.World);
+ const namedPacketCandidates=[...classes.values()].filter(c=>c.methods.some(m=>m.name==='<init>'&&m.descriptor==='(Ljava/lang/String;DDDFF)V')).map(c=>c.name);assert.deepEqual(namedPacketCandidates,[]);
+ Object.assign(roles,{SoundSystem:'paulscode/sound/SoundSystem',BaseLibrary:'paulscode/sound/Library',Library:'paulscode/sound/libraries/LibraryLWJGLOpenAL',BaseSource:'paulscode/sound/Source',Source:'paulscode/sound/libraries/SourceLWJGLOpenAL',Config:'paulscode/sound/SoundSystemConfig',CodecJOrbis:'paulscode/sound/codecs/CodecJOrbis',LwjglAL:'org/lwjgl/openal/AL',LwjglContext:'org/lwjgl/openal/ALCcontext'});for(const name of Object.values(roles))assert(classes.has(name),name);
+ return{version,release,metadataFile,metadataSha1,metadata,clientFile,archives,classes,roles,namedPacketCandidates};
+}
+export async function inventoryPre13(version,root){
+ await mkdir(root,{recursive:true});const found=await discoverPre13(version),sources=Object.fromEntries(await Promise.all(pre13Sources.map(async f=>[f,shaPre13(await readFile(f))]))),records=[];
+ for(const name of new Set(Object.values(found.roles))){const c=found.classes.get(name),prefix=name.replaceAll('/','_'),classFile=path.join(root,prefix+'.class');await writeFile(classFile,c.bytes);const run=await executePre13('javap',['-J-XX:ActiveProcessorCount=2','-p','-s','-c','-classpath',path.resolve(c.archive.file),name.replaceAll('/','.')],root,prefix);records.push({name,roles:Object.entries(found.roles).filter(([,n])=>n===name).map(([r])=>r),archive:c.archive.file,artifact:c.archive.artifact,sha1:digest(c.bytes),sha256:shaPre13(c.bytes),classFile,fields:c.fields.map(({name,descriptor,access})=>({name,descriptor,access})),methods:methodCodeHashes(c.bytes),disassembly:{path:run.record.stdoutFile,sha256:shaPre13(Buffer.from(run.stdout))},process:{path:run.file,sha256:shaPre13(await readFile(run.file))}});}
+ for(const[f,h]of Object.entries(sources))assert.equal(shaPre13(await readFile(f)),h);const report={schema:1,status:'inventory-only',version,official:{metadataUrl:found.release.metadataUrl,metadataSha1:found.metadataSha1,metadataFile:found.metadataFile,client:found.metadata.downloads.client,assetIndex:found.metadata.assetIndex},roles:found.roles,classes:records,namedPacketConstructorCandidates:found.namedPacketCandidates,sources,nativeExecutions:0,worldScenesAdded:0};await writeFile(path.join(root,'inventory.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({version,classes:records.length,roles:found.roles,report:path.join(root,'inventory.json')}));return report;
+}
+async function cli(){const version=process.argv[2];assert(pre13Versions.includes(version));const root=path.resolve('.local/pre13-audio-inventory',version,'run-'+Date.now());await mkdir(root,{recursive:true});const args=[fileURLToPath(import.meta.url),'--execute-inventory',version,root],run=await executePre13(process.execPath,args,root,'node');console.log(run.stdout);}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){if(process.argv[2]==='--execute-inventory')await inventoryPre13(process.argv[3],process.argv[4]);else await cli();}

@@ -1,0 +1,10 @@
+import {readFile,writeFile,mkdir,readdir} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {digest} from './research-utils.mjs';
+const stages={inventory:'scripts/audit-lwjgl215-source.mjs',source:'scripts/review-lwjgl215-source.mjs',components:'scripts/probe-lwjgl215-methods.mjs',verify:'scripts/verify-lwjgl215-audit.mjs'},stage=process.argv[2];assert(stages[stage]);
+const extra=process.argv.slice(3);assert(extra.every(s=>['1.5.1','1.5.2','--write-evidence'].includes(s)));const root=path.resolve('.local/lwjgl215-executions',`run-${Date.now()}-${stage}`);await mkdir(root,{recursive:true});
+const command=[process.execPath,stages[stage],...extra],start=new Date().toISOString(),sources={};for(const entry of await readdir('scripts'))if(entry.includes('lwjgl215')&&entry.endsWith('.mjs'))sources['scripts/'+entry]=digest(await readFile('scripts/'+entry),'sha256');
+const child=spawn(command[0],command.slice(1),{cwd:process.cwd(),windowsHide:true,stdio:['ignore','pipe','pipe']});let stdout='',stderr='';child.stdout.on('data',v=>{stdout+=v;process.stdout.write(v);});child.stderr.on('data',v=>{stderr+=v;process.stderr.write(v);});const running={stage,command,pid:child.pid,start,running:true,sources};await writeFile(path.join(root,'process.json'),JSON.stringify(running,null,2));console.log(JSON.stringify({stage,pid:child.pid,root,running:true}));
+const terminal=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(exitCode,signal)=>resolve({exitCode,signal}));});await writeFile(path.join(root,'stdout.log'),stdout);await writeFile(path.join(root,'stderr.log'),stderr);const result={...running,...terminal,running:false,finish:new Date().toISOString(),stdoutSha256:digest(Buffer.from(stdout),'sha256'),stderrSha256:digest(Buffer.from(stderr),'sha256')};await writeFile(path.join(root,'terminal.json'),JSON.stringify(result,null,2));await writeFile(path.join(root,'process.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({stage,pid:child.pid,root,...terminal,running:false}));process.exitCode=terminal.exitCode??1;

@@ -1,0 +1,26 @@
+{
+  "source": "Official 1.7.3 / 1.7.4 asset-index metadata and their shared sounds.json; no sample bytes are included.",
+  "indexes": [
+    { "id": "1.7.3", "sha1": "f6cf726f4747128d13887010c2cbc44ba83504d9" },
+    { "id": "1.7.4", "sha1": "545510a60f526b9aa8a38f9c0bc7a74235d21675" }
+  ],
+  "objects": {
+    "sounds.json": { "hash": "fce0bb3e14ade7b292a7c1d5fa785533d8106d82", "size": 34020 },
+    "sounds/note/bass.ogg": { "hash": "e28d844995368de1d45c724a5d371c9952ae5ed4", "size": 5479 },
+    "sounds/note/bassattack.ogg": { "hash": "037b9fb7f74381f354739d015193dc4a6897f620", "size": 5574 },
+    "sounds/note/bd.ogg": { "hash": "1afefaa39a53606d2737bab9cb3409350cb2dc9f", "size": 3850 },
+    "sounds/note/harp.ogg": { "hash": "46244605b8663a29cdce7bccc5b2d038241e32ee", "size": 6137 },
+    "sounds/note/hat.ogg": { "hash": "fd2b6f745b05a2cf44a4e010f72631de2e5099f6", "size": 3880 },
+    "sounds/note/pling.ogg": { "hash": "20d06589bd5ab81a73989bdac8ca59ecd4d66932", "size": 6274 },
+    "sounds/note/snare.ogg": { "hash": "6967f0af60f480e81d32f1f8e5f88ccafec3a40c", "size": 3969 }
+  },
+  "definitions": {
+    "note.bass": { "category": "record", "sounds": ["note/bass"] },
+    "note.bassattack": { "category": "record", "sounds": ["note/bassattack"] },
+    "note.bd": { "category": "record", "sounds": ["note/bd"] },
+    "note.harp": { "category": "record", "sounds": ["note/harp"] },
+    "note.hat": { "category": "record", "sounds": ["note/hat"] },
+    "note.pling": { "category": "record", "sounds": ["note/pling"] },
+    "note.snare": { "category": "record", "sounds": ["note/snare"] }
+  }
+}

@@ -1,0 +1,83 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+import {unzipSync} from 'fflate';
+import {discoverLwjgl219} from './audit-lwjgl219-source.mjs';
+import {originalSection} from './review-lwjgl219-source.mjs';
+import {verifiedLwjgl219ContextControl} from './review-lwjgl219-context-control.mjs';
+import {methodCodeHashes} from './audit-early-world.mjs';
+import {digest,verifiedArtifact} from './research-utils.mjs';
+
+export async function reviewLwjgl219PatchChains(versions=['1.9.1','1.9.2','1.9.3','1.9.4'],writePublic=true){
+ const reports=[];
+ for(const version of versions){
+  const f=await discoverLwjgl219(version),cs=f.classes,r={...f.roles},root=`.research/lwjgl219-patch-chains/${version}`;await mkdir(root,{recursive:true});
+  const one=(role,list)=>{assert.equal(list.length,1,`${version} ${role}: ${list.map(c=>c.name??c)}`);return list[0].name??list[0];};
+  const trigger=cs.get(r.TileEntityNote).methods.filter(m=>/^\(L[^;]+;L[^;]+;\)V$/.test(m.descriptor));assert.equal(trigger.length,1);[,r.World,r.BlockPos]=/^\(L([^;]+);L([^;]+);\)V$/.exec(trigger[0].descriptor);
+  const queue=cs.get(r.TileEntityNote).refs.find(ref=>ref.owner===r.World&&ref.descriptor.endsWith(';II)V'));r.Block=/^\(L[^;]+;L([^;]+);II\)V$/.exec(queue.descriptor)[1];
+  const state=cs.get(r.TileEntityNote).refs.filter(ref=>ref.owner===r.World&&new RegExp(`^\\(L${r.BlockPos};\\)L[^;]+;$`).test(ref.descriptor));assert.equal(state.length,1);r.BlockState=/\)L([^;]+);$/.exec(state[0].descriptor)[1];
+  const soundDispatch=cs.get(r.NoteBlock).refs.find(ref=>ref.owner===r.World&&ref.descriptor.endsWith(`L${r.SoundEvent};L${r.Category};FF)V`));r.Player=/^\(L([^;]+);/.exec(soundDispatch.descriptor)[1];
+  r.WorldListener=one('WorldListener',cs.get(r.World).refs.filter(ref=>ref.kind==='method'&&ref.descriptor===`(L${r.Player};L${r.SoundEvent};L${r.Category};DDDFF)V`).map(ref=>ref.owner));
+  r.ServerWorldListener=one('ServerWorldListener',[...cs.values()].filter(c=>c.interfaces.includes(r.WorldListener)&&c.refs.some(ref=>ref.owner===r.RegisteredSoundPacket&&ref.name==='<init>')));
+  const delivery=cs.get(r.ServerWorldListener).refs.find(ref=>ref.kind==='method'&&new RegExp(`^\\(L${r.Player};DDDDIL[^;]+;\\)V$`).test(ref.descriptor));assert(delivery);r.PlayerList=delivery.owner;
+  r.ServerPlayer=one('ServerPlayer',[...cs.values()].filter(c=>c.parent===r.Player&&c.refs.some(ref=>ref.owner===r.RegisteredSoundPacket&&ref.name==='<init>')));
+  r.ClientPacketHandler=one('ClientPacketHandler',[...cs.values()].filter(c=>!(c.access&0x200)&&c.methods.some(m=>m.descriptor===`(L${r.RegisteredSoundPacket};)V`)));
+  r.ClientWorld=one('ClientWorld',cs.get(r.ClientPacketHandler).refs.filter(ref=>ref.descriptor===`(L${r.Player};DDDL${r.SoundEvent};L${r.Category};FF)V`).map(ref=>ref.owner));
+  r.ServerWorld=one('ServerWorld',cs.get(r.ServerWorldListener).fields.filter(field=>field.descriptor.startsWith('L')).map(field=>cs.get(field.descriptor.slice(1,-1))).filter(c=>c?.parent===r.World));
+  r.SoundManager=one('SoundManager',[...cs.values()].filter(c=>c.strings.includes('Invalid sounds.json')));
+  r.EngineLoader=one('EngineLoader',[...cs.values()].filter(c=>c.name.startsWith(r.SoundEngine+'$')&&c.interfaces.includes('java/lang/Runnable')));
+  r.EngineSoundSystem=one('EngineSoundSystem',[...cs.values()].filter(c=>c.name.startsWith(r.SoundEngine+'$')&&c.parent==='paulscode/sound/SoundSystem'));
+  r.SoundEvents=one('SoundEvents',[...cs.values()].filter(c=>c.strings.includes('Accessed Sounds before Bootstrap!')));
+  for(const item of f.metadata.libraries.filter(item=>item.name.startsWith('com.paulscode:'))){const a=item.downloads.artifact,file=path.join('.research/libraries',a.path);await verifiedArtifact(a,file);const files=unzipSync(await readFile(file));for(const name of ['paulscode/sound/libraries/LibraryLWJGLOpenAL','paulscode/sound/libraries/SourceLWJGLOpenAL','paulscode/sound/codecs/CodecJOrbis','paulscode/sound/SoundSystemConfig'])if(files[name+'.class'])cs.set(name,{name,bytes:files[name+'.class'],archive:{filename:file,artifact:a}});}
+  Object.assign(r,{Library:'paulscode/sound/libraries/LibraryLWJGLOpenAL',Source:'paulscode/sound/libraries/SourceLWJGLOpenAL',CodecJOrbis:'paulscode/sound/codecs/CodecJOrbis',SoundSystemConfig:'paulscode/sound/SoundSystemConfig'});
+  const classes=[],texts=new Map();
+  for(const name of new Set(Object.values(r))){const c=cs.get(name);assert(c,name);const result=spawnSync('javap',['-p','-s','-c','-classpath',c.archive.filename,name.replaceAll('/','.')],{windowsHide:true,encoding:'utf8',maxBuffer:8e6});assert.equal(result.status,0,result.stderr);const raw=`${root}/${name.replaceAll('/','_')}.javap.txt`;await writeFile(raw,result.stdout);texts.set(name,result.stdout);classes.push({originalClass:name,roles:Object.entries(r).filter(([,n])=>n===name).map(([role])=>role),classSha256:digest(c.bytes,'sha256'),artifact:c.archive.artifact,methods:methodCodeHashes(c.bytes),rawDisassembly:raw,disassemblySha256:digest(Buffer.from(result.stdout),'sha256')});}
+  const bindings=[];const add=(label,role,key,tokens=[])=>{const c=classes.find(c=>c.originalClass===r[role]);assert(c.methods[key],`${version} ${label} ${key}`);const t=originalSection(texts.get(c.originalClass),c.originalClass,key);for(const token of tokens)assert(t.includes(token),`${version} ${label}: ${token}`);const at=key.indexOf('(');bindings.push({label,role,owner:c.originalClass,member:key.slice(0,at),descriptor:key.slice(at),codeSha256:c.methods[key],semanticInstructionChecks:tokens});return t;};
+  const choose=(label,role,predicate,tokens=[])=>{const c=classes.find(c=>c.originalClass===r[role]),matches=Object.keys(c.methods).filter(key=>predicate(key,originalSection(texts.get(c.originalClass),c.originalClass,key)));assert.equal(matches.length,1,`${version} ${label}: ${matches}`);return add(label,role,matches[0],tokens);};
+  add('tile-original-queued-event','TileEntityNote',trigger[0].name+trigger[0].descriptor,[`${r.World}.${queue.name}:${queue.descriptor}`,'iconst_4']);
+  choose('actual-note-pow-record-volume','NoteBlock',(key,t)=>key.endsWith(';II)Z')&&t.includes('java/lang/Math.pow:'),['d2f','float 3.0f',`${r.World}.${soundDispatch.name}:${soundDispatch.descriptor}`]);
+  add('five-event-identities','SoundEvents','<clinit>()V',['String block.note.harp','String block.note.basedrum','String block.note.snare','String block.note.hat','String block.note.bass']);
+  add('note-event-table','NoteBlock','<clinit>()V',['iconst_5']);
+  add('world-half-block-center','World',`a(L${r.Player};L${r.BlockPos};L${r.SoundEvent};L${r.Category};FF)V`,['double 0.5d',`a:(L${r.Player};DDDL${r.SoundEvent};L${r.Category};FF)V`]);
+  add('world-listener-dispatch','World',`a(L${r.Player};DDDL${r.SoundEvent};L${r.Category};FF)V`,[`${r.WorldListener}.a:(L${r.Player};L${r.SoundEvent};L${r.Category};DDDFF)V`]);
+  add('server-real-registered-dispatch','ServerWorldListener',`a(L${r.Player};L${r.SoundEvent};L${r.Category};DDDFF)V`,['float 16.0f','fmul',`class ${r.RegisteredSoundPacket}`,`${r.PlayerList}.${delivery.name}:${delivery.descriptor}`]);
+  const strict=add('player-entity-strict-delivery','PlayerList',delivery.name+delivery.descriptor,['dcmpg','ifge']);assert((strict.match(new RegExp(`Field ${r.ServerPlayer}\\.\\w+:D`,'g'))??[]).length>=3);assert(new RegExp(`Field ${r.ServerPlayer}\\.\\w+:I`).test(strict));
+  add('client-real-registered-handler','ClientPacketHandler',`a(L${r.RegisteredSoundPacket};)V`,[`${r.RegisteredSoundPacket}.g:()F`,`${r.ClientWorld}.a:(L${r.Player};DDDL${r.SoundEvent};L${r.Category};FF)V`]);
+  add('client-player-guard-no-raw-note-duplicate','ClientWorld',`a(L${r.Player};DDDL${r.SoundEvent};L${r.Category};FF)V`,['if_acmpne',`a:(DDDL${r.SoundEvent};L${r.Category};FFZ)V`]);
+  add('client-original-positioned-instance','ClientWorld',`a(DDDL${r.SoundEvent};L${r.Category};FFZ)V`,[`class ${r.PositionedSound}`,`${r.PositionedSound}."<init>":(L${r.SoundEvent};L${r.Category};FFFFF)V`]);
+  const positioned=choose('instance-volume-pitch-fields','PositionedSound',key=>key.startsWith(`<init>(L${r.ResourceLocation};L${r.Category};FFZIL`),['putfield']);assert((positioned.match(/putfield[^\n]+Field \w+:F/g)??[]).length>=5);
+  const gain=choose('engine-category-float-before-clamp','SoundEngine',(key,t)=>key.endsWith(`(L${r.SoundInstance};)F`)&&t.includes('fmul')&&t.includes('(FFF)F'),['fconst_0','fconst_1']);
+  const pitch=choose('engine-float-pitch-clamp','SoundEngine',(key,t)=>key.endsWith(`(L${r.SoundInstance};)F`)&&t.includes('float 0.5f'),['fconst_2','(FFF)F']);
+  for(const [label,t]of [['volume',gain],['pitch',pitch]]){const getter=new RegExp(`${r.SoundInstance}\\.(\\w+):\\(\\)F`).exec(t)[1];add('original-instance-event-'+label,'AbstractSound',getter+'()F',[`${r.SoundDefinition}.`,'fmul','()F']);}
+  add('category-source-master-unity','SoundEngine',`a(L${r.Category};)F`,[`Field ${r.Category}.a:L${r.Category};`,'fconst_1',`${r.Options}.a:(L${r.Category};)F`]);
+  add('category-options-float','Options',`a(L${r.Category};)F`,['java/lang/Float.floatValue:()F']);
+  add('master-listener-update','SoundEngine',`a(L${r.Category};F)V`,['setMasterVolume:(F)V']);
+  add('loader-original-master','EngineLoader','run()V',['setMasterVolume:(F)V']);
+  const listener=add('listener-interpolation-and-eye-getter','SoundEngine',`a(L${r.Player};F)V`,['dsub','dmul','dadd','d2f','setListenerPosition:(FFF)V']);
+  const eye=new RegExp(`${r.Player}\\.(\\w+):\\(\\)F`).exec(listener)[1];add('standing-original-eye','Player',eye+'()F',['float 1.62f']);
+  choose('original-source-range','SoundEngine',(key,t)=>key.endsWith(`(L${r.SoundInstance};)V`)&&t.includes('newSource:'),['float 16.0f','fmul',`${r.SoundInstance}.g:()F`]);
+  const engineCtor=Object.keys(classes.find(c=>c.originalClass===r.SoundEngine).methods).find(key=>key.startsWith('<init>('));add('codec-library-registration','SoundEngine',engineCtor,['class paulscode/sound/libraries/LibraryLWJGLOpenAL','class paulscode/sound/codecs/CodecJOrbis','SoundSystemConfig.setCodec:']);
+  add('original-jorbis-readall','CodecJOrbis','readAll()Lpaulscode/sound/SoundBuffer;');assert(texts.get(r.CodecJOrbis).includes('com/jcraft/jorbis/'));
+  add('library-decode-upload','Library','loadSound(Lpaulscode/sound/FilenameURL;)Z',['readAll:','alBufferData:']);
+  add('library-master-al-listener','Library','setMasterVolume(F)V',['alListenerf:(IF)V']);
+  add('original-source-linear-gain','Source','calculateGain()V',['fdiv','fsub']);
+  add('original-requested-pool','SoundSystemConfig','<clinit>()V',['bipush        28','iconst_4']);
+  const scale=['1.9.1','1.9.2'].includes(version)?63.5:63;
+  for(const [role,factor]of [['RegisteredSoundPacket',scale],['NamedSoundPacket',63]]){choose(role+'-stored-scaled-pitch',role,key=>key.startsWith('<init>(')&&key.includes('DDDFF'),[`float ${factor.toFixed(1)}f`,'fmul','f2i']);add(role+'-wire-read',role,`a(L${r.PacketBuffer};)V`,['readUnsignedByte:()S']);add(role+'-wire-write',role,`b(L${r.PacketBuffer};)V`,['writeByte:']);add(role+'-pitch-decode',role,'g()F',[`float ${factor.toFixed(1)}f`,'fdiv']);}
+  const assetRoot=`${root}/assets`;await mkdir(assetRoot,{recursive:true});await verifiedArtifact(f.metadata.assetIndex,`${assetRoot}/index.json`);const index=JSON.parse(await readFile(`${assetRoot}/index.json`)),def=index.objects['minecraft/sounds.json'];assert(def);await verifiedArtifact({url:`https://resources.download.minecraft.net/${def.hash.slice(0,2)}/${def.hash}`,sha1:def.hash},`${assetRoot}/sounds.json`);const sounds=JSON.parse(await readFile(`${assetRoot}/sounds.json`)),instruments=[];
+  for(const[instrument,event]of [['harp','harp'],['basedrum','basedrum'],['snare','snare'],['hat','hat'],['bass','bass']]){const eventName='block.note.'+event,entry=sounds[eventName];assert.equal(entry.sounds.length,1);const item=typeof entry.sounds[0]==='string'?{name:entry.sounds[0]}:entry.sounds[0],key=`minecraft/sounds/${item.name}.ogg`,sample=index.objects[key];assert(sample);assert.equal(item.volume??1,1);assert.equal(item.pitch??1,1);instruments.push({instrument,eventId:instruments.length,event:eventName,sample:key,sampleSha1:sample.hash,eventVolume:1,eventPitch:1});}
+  const facts={soundEventArithmetic:'float-event-scalars',volumeRule:'category-before-clamp',minPitch:.5,maxPitch:2,noteBlockVolume:3,pitchTransport:{kind:'unsigned-byte',scale,minimum:0,maximum:255,overflow:'wrap'},namedPitchTransport:{kind:'unsigned-byte',scale:63,minimum:0,maximum:255,overflow:'wrap'},masterVolumePlacement:'listener',decoder:'legacy-jorbis',attenuationModel:'paulscode-linear',attenuationDistance:16,broadcastRange:48,broadcastOrigin:'server-player-entity-position',comparison:'strict-distance-squared-less-than-range-squared',sameDimensionRequired:true,listenerPositionModel:'interpolated-client-player-position-plus-original-player-eye-height-getter',standingEyeHeightJavaFloat:Math.fround(1.62),originalRequestedVoicePool:{normal:28,streaming:4,notePool:'normal',actualAllocatedCapacityMeasured:false}};
+  const report={schema:1,version,officialSources:{metadataUrl:f.metadataUrl,metadataSha1:f.metadataSha1,clientUrl:f.metadata.downloads.client.url,clientSha1:f.metadata.downloads.client.sha1},mappings:{officialClientMappingsAvailable:false,kind:'independent-per-release-original-class-caller-descriptor-and-Code-review'},roles:r,classes,bindings,facts,instruments,resources:{assetIndex:f.metadata.assetIndex,soundsDefinitionSha1:def.hash},fullDispatchChainReviewed:true,individuallyUnreviewedFields:['specific support-block/material identities beyond tile branch/table structure','native capability/actual context/actual allocated voices','world recordings and original component execution for these four patches'],numericComponentsExecuted:false,integratedWorldScenesAdded:0};
+  await writeFile(`${root}/evidence.json`,JSON.stringify(report,null,2));report.rawEvidence={path:`${root}/evidence.json`,sha256:digest(await readFile(`${root}/evidence.json`),'sha256')};reports.push(report);console.log(JSON.stringify({version,classes:classes.length,bindings:bindings.length,fullRegisteredDispatch:true,scale}));
+ }
+ const report={schema:1,scope:'Independent1.9 patch original source/call-chain review. No numeric component or world execution added.',reports,sources:Object.fromEntries(await Promise.all(['scripts/review-lwjgl219-patch-chains.mjs','scripts/audit-lwjgl219-source.mjs','scripts/review-lwjgl219-source.mjs','scripts/review-lwjgl219-context-control.mjs','scripts/historical-classfile.mjs','scripts/audit-early-world.mjs','scripts/research-utils.mjs'].map(async file=>[file,digest(await readFile(file),'sha256')])))};if(writePublic)await writeFile('docs/evidence/java-1.9-patch-chains.json',JSON.stringify(report,null,2)+'\n');return report;
+}
+export async function verifiedLwjgl219PatchEvidence(version){
+ const file='docs/evidence/java-1.9-patch-chains.json',bytes=await readFile(file),all=JSON.parse(bytes),r=all.reports.find(r=>r.version===version);assert(r,version);for(const[file,hash]of Object.entries(all.sources))assert.equal(digest(await readFile(file),'sha256'),hash,file);assert.equal(digest(await readFile(r.rawEvidence.path),'sha256'),r.rawEvidence.sha256);
+ const methods=new Map();for(const c of r.classes){const file=c.artifact.path?path.join('.research/libraries',c.artifact.path):`.research/clients/${version}.jar`,bytes=await readFile(file);assert.equal(digest(bytes),c.artifact.sha1);const code=unzipSync(bytes,{filter:e=>e.name===c.originalClass+'.class'})[c.originalClass+'.class'];assert.equal(digest(code,'sha256'),c.classSha256);methods.set(c.originalClass,methodCodeHashes(code));assert.equal(digest(await readFile(c.rawDisassembly),'sha256'),c.disassemblySha256);}
+ for(const b of r.bindings)assert.equal(methods.get(b.owner)[b.member+b.descriptor],b.codeSha256,b.label);const context=await verifiedLwjgl219ContextControl(version);
+ return{version,facts:{...r.facts,...context.facts},instruments:r.instruments,fullDispatchChainReviewed:true,individuallyUnreviewedFields:r.individuallyUnreviewedFields,sourceEvidence:{path:file,sha256:digest(bytes,'sha256')},contextEvidence:context.sourceEvidence,bindings:r.bindings,numericComponentsExecuted:false,integratedWorldScenesAdded:0};
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))await reviewLwjgl219PatchChains(process.argv.includes('--version')?[process.argv[process.argv.indexOf('--version')+1]]:undefined,!process.argv.includes('--raw-only'));

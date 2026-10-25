@@ -1,0 +1,61 @@
+NeoNBS Source-Available License 1.0
+Version 1.0 - 2026-10-25
+
+Copyright (c) 2026 betacarr and the respective contributors.
+
+This is a custom source-available license, not an OSI-approved open-source
+license. It applies only to the first-party software and documentation in
+this repository (the Software), to the extent the licensors hold rights in
+them. Separately licensed third-party components retain their own licenses.
+
+1. Permission
+You may use, study, copy and modify the Software, including for internal
+business use. You may redistribute the Software and modified versions free
+of charge, provided that you retain this license, applicable attribution
+and notices, and clearly identify your modifications and their origin.
+Recipients must receive the same permissions under this license.
+
+2. Paid distribution of the editor
+Without a separate written agreement with the relevant rights holders, you
+may not charge for copies, licenses, subscriptions or feature unlocks of
+the Software or a modified version. You may not require payment for access
+to the covered editor functionality in a hosted service or paid bundle.
+These restrictions concern the editor itself, not work created using it.
+
+3. User-created work and professional services
+You may use the Software to create, edit, convert, render and export your
+own music, arrangements, project data and construction designs for any
+lawful purpose, including paid commissions, sales and professional work.
+This license claims no rights in such output merely because the Software
+was used. You need not license your own output under this license or
+publish it. Copyright and licenses in input material, samples, game assets
+and other third-party content remain separate and must still be respected.
+
+4. Donations and assistance
+Genuinely voluntary donations that are not required for software access,
+features, updates or redistribution are permitted. Charging for teaching,
+support, creative commissions or consulting is permitted when payment is
+for that independent service and free access to the covered Software is
+not withheld or made conditional on buying the service.
+
+5. Assets and names
+No rights in Minecraft, Mojang, Microsoft, FL Studio or other third-party
+names, logos, game software, textures, sounds or music are granted here.
+This license does not grant permission to present a modified version as
+an official NeoNBS release or to claim another party's endorsement.
+Accurate attribution and descriptive references remain permitted.
+
+6. No warranty
+To the extent permitted by applicable law, the Software is provided as is,
+without warranties or conditions of any kind. The licensors are not liable
+for losses arising from use or distribution of the Software, except where
+applicable law does not allow that exclusion.
+
+7. Compliance
+Permission depends on compliance with these terms. If a violation is
+identified, stop the violating distribution or service and contact the
+rights holder to resolve it. Rights not expressly granted are reserved.
+This license does not limit statutory rights that cannot lawfully be waived.
+
+The English text states the terms. docs/licensing.md explains the intended
+scope in Chinese but does not expand the rights granted by this license.

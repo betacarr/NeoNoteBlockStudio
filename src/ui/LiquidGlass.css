@@ -1,0 +1,79 @@
+/* The theme is scoped to .studio[data-appearance="liquid-glass"]. Classic UI has no theme overrides. */
+.appearance-settings h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: #d2ded7; }
+.appearance-choice { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px; border: 1px solid #515c56; border-radius: 8px; background: #282e2b; cursor: pointer; }
+.appearance-choice > span { display: flex; flex-direction: column; gap: 7px; }
+.appearance-choice strong { font-size: 14px; font-weight: 600; color: #e0ece5; }
+.appearance-choice small { font-size: 11px; line-height: 1.7; color: #a4b1aa; }
+.appearance-choice input[role="switch"] { appearance: none; flex-shrink: 0; position: relative; width: 40px; height: 24px; margin: 0; padding: 0; border: 1px solid #78847d; border-radius: 14px; background: #434b46; cursor: pointer; }
+.appearance-choice input[role="switch"]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #f0f5f2; transition: transform 140ms ease; }
+.appearance-choice input[role="switch"]:checked { background: #608a71; border-color: #a4d2b6; }
+.appearance-choice input[role="switch"]:checked::after { transform: translateX(16px); }
+.appearance-state { margin: 14px 0 7px; color: #bdd0c3; font-size: 11px; }
+
+/* Only chrome surfaces receive optical backdrops. The musical canvases keep their original pixels. */
+.studio[data-appearance="liquid-glass"] {
+  --glass-border: #d9f2e740;
+  background:
+    radial-gradient(ellipse at 16% 8%, #527d6777 0, #1c2c2700 46%),
+    radial-gradient(ellipse at 94% 75%, #4c717577 0, #23302c00 47%),
+    repeating-linear-gradient(124deg, #b1ddc90d 0 1px, transparent 1px 36px), #18231f;
+}
+.studio[data-appearance="liquid-glass"] :is(.control-bar, .toolbar, .library, .inspector, .modal, .menu-items, .section-heading, .editor-heading, .status-bar) {
+  color: #e1ece6; background: #293a32fa; border-color: var(--glass-border);
+  box-shadow: inset 0 1px #e9fff52b, inset 0 -1px #0b181d77;
+}
+.studio[data-appearance="liquid-glass"] .liquid-glass-surface { isolation: isolate; background: transparent; }
+.studio[data-appearance="classic"] .liquid-glass-backdrop { display: none; }
+.liquid-glass-definitions { position: fixed; top: 0; left: 0; pointer-events: none; overflow: visible; }
+.studio[data-appearance="liquid-glass"] .liquid-glass-backdrop {
+  position: absolute; top: 0; left: 0; z-index: -1; pointer-events: none; overflow: hidden; border-radius: inherit;
+  background: linear-gradient(125deg, #c9ffdf1f, #e0eff10b 45%, #80a7a51c), #1b2b25b3;
+  box-shadow: inset 0 1px #e9fff54d, inset 1px 0 #d5f9e421, inset -1px 0 #c7e9ed21, inset 0 -1px #d7eae52b;
+}
+.studio[data-appearance="liquid-glass"] .liquid-glass-backdrop::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(115deg, #f1fff536, #f1fff500 28% 70%, #d9ffff1c);
+  box-shadow: inset 0 0 0 1px #dcfff320, inset 0 3px 5px -4px #fff;
+}
+.studio[data-appearance="liquid-glass"] .liquid-glass-backdrop::after {
+  content: ""; position: absolute; inset: 1px; pointer-events: none; border-radius: inherit;
+  border-top: 1px solid #ebfff947; border-bottom: 1px solid #d9eaff20;
+}
+.studio[data-appearance="liquid-glass"] .modal-backdrop { background: #08140e94; backdrop-filter: none; }
+.studio[data-appearance="liquid-glass"] .modal { border-color: #c9e6d877; box-shadow: 0 22px 80px #071a14a6, inset 0 1px #f1fff533; }
+.studio[data-appearance="liquid-glass"] .modal > header { background: #c6e9d610; border-color: #bad2c32e; }
+.studio[data-appearance="liquid-glass"] :is(.settings-tabs, .panel-title, .resource-card) { background: #111f1a33; border-color: #cce0d01f; }
+.studio[data-appearance="liquid-glass"] :is(.panel-title, .section-heading > span, .editor-heading strong, .inspector-heading) { color: #d0e3d7; }
+.studio[data-appearance="liquid-glass"] :is(.field, .modal-intro, .instrument-item small, .field-hint, .status-bar) { color: #acbfb3; }
+.studio[data-appearance="liquid-glass"] :is(.section-heading button, .editor-heading button, .quiet-button, .preset-label) { color: #c0d5c8; }
+.studio[data-appearance="liquid-glass"] :is(.tool-select, .search) { background: #0b17164d; border-color: #b1d8bc3d; }
+.studio[data-appearance="liquid-glass"] :is(.icon-button, .quiet-button, .instrument-item, .section-heading button, .editor-heading button):hover { background: #d6ffe51a; color: #f0fff5; }
+.studio[data-appearance="liquid-glass"] :is(.icon-button.active, .tool-select .icon-button.active, .instrument-item.selected, .settings-tabs button.active) { background: #b5e8ce2e; border-color: #bce8cb66; color: #e8fff2; }
+.studio[data-appearance="liquid-glass"] :is(input:not([type="range"]):not([type="checkbox"]), select, textarea) { background-color: #12211cd9; border-color: #adc7b44d; color: #e3f0e8; }
+.studio[data-appearance="liquid-glass"] .project-title input, .studio[data-appearance="liquid-glass"] .lcd input, .studio[data-appearance="liquid-glass"] .search input { background: transparent; }
+.studio[data-appearance="liquid-glass"] .lcd { background: #14231eeb; border-color: #a9c9b536; box-shadow: inset 0 1px 5px #09181299, 0 1px #e8fff329; }
+.studio[data-appearance="liquid-glass"] .editor-splitter { background: #2d4037; border-color: #cee3d72b; }
+.studio[data-appearance="liquid-glass"] .editor-splitter:hover, .studio[data-appearance="liquid-glass"] .editor-splitter:focus-visible, .studio[data-appearance="liquid-glass"] .resizing .editor-splitter { background: #557562; }
+.studio[data-appearance="liquid-glass"] .editor-scrollbar-thumb { background: #a7bdb0; }
+.studio[data-appearance="liquid-glass"] .editor-scrollbar.dragging .editor-scrollbar-thumb { background: #d4ffe5; }
+.studio[data-appearance="liquid-glass"] .editor-scrollbar.inactive .editor-scrollbar-thumb { background: #405248; }
+.studio[data-appearance="liquid-glass"][data-glass-mode="solid"] :is(.control-bar, .toolbar, .library, .inspector, .modal, .menu-items, .section-heading, .editor-heading, .status-bar) { background: #293a32; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .studio[data-appearance="liquid-glass"] .liquid-glass-backdrop { backdrop-filter: none; background: #293a32; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .appearance-choice input[role="switch"]::after { transition: none; }
+  .studio[data-appearance="liquid-glass"] *, .studio[data-appearance="liquid-glass"] *::before, .studio[data-appearance="liquid-glass"] *::after { animation: none !important; transition: none !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .studio[data-appearance="liquid-glass"] :is(.control-bar, .toolbar, .library, .inspector, .modal, .menu-items, .section-heading, .editor-heading, .status-bar) { background: #293a32; }
+  .studio[data-appearance="liquid-glass"] .liquid-glass-backdrop { display: none; }
+}
+@media (forced-colors: active) {
+  .studio[data-appearance="liquid-glass"], .studio[data-appearance="liquid-glass"] :is(.control-bar, .toolbar, .library, .inspector, .modal, .menu-items, .section-heading, .editor-heading, .status-bar) { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
+  .studio[data-appearance="liquid-glass"] .liquid-glass-backdrop { display: none; }
+  .appearance-choice { color: CanvasText; background: Canvas; border-color: ButtonText; }
+  .appearance-choice strong, .appearance-choice small, .appearance-settings h3, .appearance-state { color: CanvasText; }
+  .appearance-choice input[role="switch"] { appearance: auto; width: 24px; accent-color: auto; }
+  .appearance-choice input[role="switch"]::after { display: none; }
+}

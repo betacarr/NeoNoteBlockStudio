@@ -1,0 +1,26 @@
+Liquid Glass web material adaptation
+
+Upstream: https://github.com/shuding/liquid-glass
+Pinned commit: a2d2e847f793430e3409a52927af815a23f4d372
+Copyright (c) 2025 Shu Ding
+License: MIT (complete license in LICENSE)
+Retrieved: 2026-10-24
+
+Original source: upstream/liquid-glass.js (reference only; never imported or executed)
+Source SHA256: f922ff104fa565cb51f2566155d30da1bfc40e126a30603f6760a50c9fdbdc2a
+License SHA256: 30677f167845a6aa93e5f8a239a9de7d62f63f2b7fd351466e8fe25fe54ed0ec
+
+Adaptation: src/ui/LiquidGlassTheme.tsx and src/ui/LiquidGlass.css
+The smoothStep, rounded-rectangle signed distance and RG displacement-map
+approach were adapted for the editor. Refraction follows a bounded edge-normal
+vector in CSS pixels. Map resolution is capped; map values use a neutral 0.5 and
+a complete signed displacement range. feImage has an explicit filter result.
+Maps are cached by surface dimensions and corner radius, rebuilt on resize only.
+The upstream console IIFE, global Shader/window.liquidGlass, movable overlay,
+document mouse handlers and window resize handler were not incorporated.
+React owns mounting and teardown, including observers, media-query listeners,
+pending frame callbacks, filter definitions and decorative backdrop layers.
+Text, icons, piano grid, notes and input targets are not filtered.
+Reduced motion, reduced transparency, forced colors and unsupported filters
+have static or solid-color fallbacks. This is a web approximation of glass
+material, not an implementation of Apple's native platform APIs.

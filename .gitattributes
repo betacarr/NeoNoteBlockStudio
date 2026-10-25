@@ -1,0 +1,6 @@
+* text=auto eol=lf
+# Keep the vendored MIT source/license bytes identical to their recorded hashes.
+third_party/liquid-glass/** -text
+# The untouched upstream snapshot includes whitespace; it is reference material.
+third_party/liquid-glass/upstream/liquid-glass.js -whitespace
+.githooks/* text eol=lf

@@ -1,0 +1,18 @@
+.delay-editor .delay-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.delay-editor .delay-enabled { display: inline-flex; align-items: center; gap: 5px; color: #bac6c0; font-size: 10px; font-weight: 400; cursor: pointer; }
+.delay-editor .delay-enabled input { margin: 0; }
+.delay-editor .delay-controls { min-width: 0; margin: 0; padding: 0; border: 0; }
+.delay-editor .delay-field > span { line-height: 1.45; }
+.delay-editor .delay-field input, .delay-editor .delay-field select { min-width: 0; }
+.delay-editor .delay-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: -2px 0 12px; }
+.delay-editor .delay-presets button { min-width: 0; height: 22px; padding: 0 2px; border: 1px solid #454c51; border-radius: 3px; background: #30353a; color: #aeb9c1; font-size: 9px; }
+.delay-editor .delay-presets button[aria-pressed="true"] { color: #d0eddd; border-color: #779d89; background: #354c40; }
+.delay-editor .delay-presets button:focus-visible { outline: 2px solid #99cbb0; outline-offset: 1px; }
+.delay-editor .delay-hint { color: #8f9ba4; font-size: 9px; line-height: 1.6; margin: 0 0 11px; }
+.delay-editor .delay-source-hint { margin-top: 11px; margin-bottom: 0; }
+.delay-editor .delay-envelope { display: block; width: 100%; height: auto; margin: 2px 0 6px; border: 1px solid #414b48; border-radius: 4px; background: #252d2a; }
+.delay-editor .delay-envelope text { fill: #a8b4af; font: 9px "Segoe UI", sans-serif; }
+.delay-editor .delay-envelope-axis { stroke: #525d57; stroke-width: 1; }
+.delay-editor .delay-note-off { stroke: #c7ac77; stroke-width: 1; }
+.delay-editor .delay-envelope-line { fill: none; stroke: #9bd1b3; stroke-width: 1.5; stroke-linejoin: round; }
+.delay-editor .delay-release-point { fill: #d8f2e4; }
