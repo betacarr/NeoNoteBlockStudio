@@ -4,6 +4,7 @@
  * Web material approximation; this does not use Apple's native platform implementation.
  */
 import { useEffect, useRef, type RefObject } from 'react';
+import './LiquidGlass.css';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const SURFACES = '.control-bar, .toolbar, .library, .inspector, .modal, .menu-items, .section-heading, .editor-heading, .status-bar';

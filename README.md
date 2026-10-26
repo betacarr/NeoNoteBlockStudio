@@ -30,7 +30,7 @@
 **NeoNBS** 是独立开发的桌面音符盒编辑器，以 MIDI 导入为主要工作流，支持 Note Block Studio 的 NBS 文件互通。原生 **`.nbsx`** 工程保存片段、混音、Delay 和来源信息，让编曲过程保持可编辑。
 
 > [!NOTE]
-> 当前 **v0.1.54 为源码发布**，尚未提供 NeoNBS 安装包。可按下方步骤在本机运行；游戏声音需从自己的 Minecraft 安装中读取。
+> **Windows x64 安装版现已提供。** 下载后即可安装运行；游戏声音需从自己的 Minecraft 安装中读取。
 
 <a id="features"></a>
 
@@ -77,9 +77,24 @@
 
 <a id="getting-started"></a>
 
-## 快速开始
+## 安装与启动
 
-准备 **Git、Node.js 24+ 和 JDK 9+**，建议使用 JDK 17。JDK 用于编译项目自行编写的 Java 解码适配器。
+![下载 Windows 版、完成安装、载入本机声音、导入作品的四步示意](docs/assets/guide/install.svg)
+
+| 下载 | 适合谁 |
+| --- | --- |
+| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.55/NeoNBS-0.1.55-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
+| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.55/NeoNBS-0.1.55-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
+| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.55/SHA256SUMS.txt) | 核对下载文件。 |
+
+下载安装版后运行向导，启动 NeoNBS；随后在「设置 → 声音与资源」选择自己的 Minecraft 实例并加载采样，再导入 MIDI 开始编辑。具体步骤见 [图文上手](docs/quick-start.md)。
+
+普通启动无需 Node.js 或 JDK；部分原生声音功能另需可用的 Java 运行环境。当前安装包未做数字签名。macOS 尚未提供经实际验收的安装包。
+
+<details>
+<summary><strong>从源码开发、验证与打包（可选）</strong></summary>
+
+需要 Git、Node.js 24+ 与 JDK 9+，建议 JDK 17。安装会下载并校验官方 Electron。
 
 ```powershell
 git clone https://github.com/betacarr/NeoNoteBlockStudio.git
@@ -87,11 +102,6 @@ cd NeoNoteBlockStudio
 npm ci
 npm run dev
 ```
-
-安装过程会下载并校验当前平台的官方 Electron。启动后的选轨、画音符、加载声音和导出步骤见 [图文上手](docs/quick-start.md)。
-
-<details>
-<summary><strong>开发、验证与打包命令</strong></summary>
 
 | 命令 | 用途 |
 | --- | --- |
@@ -113,7 +123,7 @@ npm run dev
 
 | 想了解什么 | 从这里开始 |
 | --- | --- |
-| 第一次使用，按图完成导入、编辑与导出 | **[图文上手：8 个步骤](docs/quick-start.md)** |
+| 第一次使用，按图完成导入、编辑与导出 | **[图文上手：9 个步骤](docs/quick-start.md)** |
 | 放置、移动、框选、缩放与片段边界 | [编辑操作](docs/editor-interactions.md) · [快捷键](docs/shortcuts.md) |
 | 轨道筛选、实时混音与电平 | [混音器](docs/mixer.md) · [轨道管理](docs/track-management.md) |
 | 回声包络、尾音、左右摆幅与效果导出 | [Delay](docs/delay-effects.md) |

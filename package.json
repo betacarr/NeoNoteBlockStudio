@@ -1,8 +1,8 @@
 {
   "name": "neo-noteblock-studio",
-  "version": "0.1.54",
+  "version": "0.1.55",
   "private": true,
-  "description": "A MIDI-first desktop note block editor with NBS interoperability and versioned Minecraft audio research.",
+  "description": "A MIDI-first desktop note block workstation with NBSX projects and NBS interoperability.",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "scripts": {
@@ -15,7 +15,7 @@
     "test:desktop": "node scripts/smoke-desktop.mjs",
     "test:lifecycle": "node scripts/smoke-file-lifecycle.mjs",
     "start": "electron .",
-    "package:win": "npm run build && electron-builder --win --x64",
+    "package:win": "npm run build && electron-builder --win --x64 && node scripts/check-release.mjs",
     "package:mac": "npm run build && electron-builder --mac",
     "research:audio": "node scripts/research-audio.mjs",
     "audit:publication": "node scripts/check-publication.mjs",
@@ -54,10 +54,21 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "third_party/**/*",
+      "!**/*.map",
+      "third_party/flp2nbs/LICENSE",
+      "third_party/flp2nbs/NOTICE.txt",
       "package.json",
       "LICENSE",
-      "THIRD_PARTY_NOTICES.md"
+      "THIRD_PARTY_NOTICES.md",
+      "!node_modules/@phosphor-icons/**/*",
+      "!node_modules/@tonejs/**/*",
+      "!node_modules/array-flatten/**/*",
+      "!node_modules/fflate/**/*",
+      "!node_modules/immer/**/*",
+      "!node_modules/midi-file/**/*",
+      "!node_modules/react/**/*",
+      "!node_modules/react-dom/**/*",
+      "!node_modules/scheduler/**/*"
     ],
     "asarUnpack": [
       "node_modules/koffi/**/*",
@@ -68,7 +79,8 @@
       "target": [
         "portable",
         "nsis"
-      ]
+      ],
+      "icon": ".local/release-assets/NeoNBS.ico"
     },
     "portable": {
       "artifactName": "NeoNBS-${version}-${arch}-portable.exe"
@@ -82,15 +94,32 @@
     "nsis": {
       "artifactName": "NeoNBS-${version}-${arch}-setup.exe",
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "NeoNBS",
+      "license": "LICENSE",
+      "language": "2052",
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ]
     },
     "fileAssociations": [
       {
         "ext": "nbsx",
-        "name": "Note Block Studio X Project",
+        "name": "NeoNBS Project",
         "role": "Editor"
       }
     ]
   },
-  "license": "SEE LICENSE IN LICENSE"
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "betacarr"
+  },
+  "homepage": "https://github.com/betacarr/NeoNoteBlockStudio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/betacarr/NeoNoteBlockStudio.git"
+  }
 }

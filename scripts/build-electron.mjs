@@ -2,12 +2,13 @@ import { build } from 'esbuild';
 import { mkdir, readdir, unlink, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import './build-app-icon.mjs';
 
 await build({
   entryPoints: ['electron/main.ts', 'electron/preload.ts', 'electron/audio-worker.ts'],
   outdir: 'dist-electron', outExtension: { '.js': '.cjs' },
   platform: 'node', target: 'node22', format: 'cjs', bundle: true,
-  external: ['electron', 'koffi'], sourcemap: true,
+  external: ['electron', 'koffi'], sourcemap: false,
 });
 const javaOutput = 'dist-electron/java';
 await mkdir(javaOutput, { recursive: true });

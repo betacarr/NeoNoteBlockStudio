@@ -1,4 +1,3 @@
-@import './LiquidGlass.css';
 :root { font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color: #d8dade; background: #242528; font-size: 12px; font-synthesis: none; color-scheme: dark; --green: #83c9a5; --line: #17181a; }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
