@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 const index = process.argv.indexOf('--packaged'); assert(index >= 0 && process.argv[index + 1], '--packaged EXE required');
 const executable = path.resolve(process.argv[index + 1]); assert(!/(?:portable|setup)\.exe$/i.test(executable));
 const expectedVersion = JSON.parse(await readFile('package.json', 'utf8')).version;
+const expectedBank = JSON.parse(await readFile('third_party/minecraft-samples/manifest.json', 'utf8')).bankId;
 const base = path.resolve('.local/diagnostics-desktop'); await mkdir(base, { recursive: true });
 const root = await mkdtemp(path.join(base, 'packaged-')), helper = path.join(root, 'fixture.mjs');
 await build({ stdin: { contents: "export {createDemo} from './src/core/project';export {saveNbsx} from './src/core/container';", resolveDir: process.cwd(), loader: 'ts' }, bundle: true, format: 'esm', platform: 'node', outfile: helper });
@@ -71,6 +72,7 @@ async function run(unwritable) {
     assert.equal(summary.latestPlayback.loadedSamples, 20); assert.equal(summary.latestPlayback.mode, 'realtime');
     assert.equal(summary.latestPlayback.playing, true);
     for (const event of ['app.started', 'audio.preview.ready', 'audio.play.request', 'audio.play.started', 'audio.output.signal', 'ipc.failed', 'audio.snapshot']) assert(entries.some(entry => entry.event === event), 'Missing actual diagnostic event: ' + event);
+    assert(entries.some(entry => entry.event === 'audio.preview.ready' && entry.fields?.bankId === expectedBank), 'Diagnostic archive must identify the actual official preview bank');
     assert.deepEqual((await state()).network, []); assert.deepEqual(errors, []);
     if (!unwritable) {
       const raw = await readFile(path.join(profile, 'logs', 'runtime.log'), 'utf8');

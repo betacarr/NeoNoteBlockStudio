@@ -1,4 +1,4 @@
-import bank from '../../third_party/opennbs-samples/manifest.json';
+import bank from '../../third_party/minecraft-samples/manifest.json';
 import type { SampleLibrary } from '../core/types';
 
 export const PREVIEW_SAMPLE_BANK = bank;
@@ -14,8 +14,8 @@ export async function loadBundledPreviewSamples(
     if (!response.ok) throw new Error(`内置试听采样缺失：${sample.id}。请重新安装完整版本。`);
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.length !== sample.bytes || new TextDecoder().decode(bytes.subarray(0, 4)) !== 'OggS'
-      || await digest('SHA-256', bytes) !== sample.sha256) throw new Error(`内置试听采样校验失败：${sample.id}。请重新安装完整版本。`);
-    return [sample.id, { name: sample.file, bytes, sha1: await digest('SHA-1', bytes) }] as const;
+      || await digest('SHA-256', bytes) !== sample.sha256 || await digest('SHA-1', bytes) !== sample.sha1) throw new Error(`内置试听采样校验失败：${sample.id}。请重新安装完整版本。`);
+    return [sample.id, { name: sample.resource, bytes, sha1: sample.sha1 }] as const;
   }));
   return Object.fromEntries(entries);
 }

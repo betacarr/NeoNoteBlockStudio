@@ -303,32 +303,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-FLP2NBS adaptation provenance: third_party/flp2nbs/NOTICE.txt. Minecraft, Mojang and Microsoft names describe compatibility; game code, textures and sounds are not included.
+FLP2NBS adaptation provenance: third_party/flp2nbs/NOTICE.txt. Minecraft, Mojang and Microsoft names describe compatibility; game code and textures are not included. Default preview audio is documented separately below.
 
 ## Default note block preview samples
 
-The distribution includes 20 Ogg files from OpenNBS / NoteBlockStudio revision 7dd79ecb313d981c12bc4b69ad13201c4995a3ae. See third_party/opennbs-samples/manifest.json for exact mappings and checksums, and NOTICE.md for provenance and rights boundaries. Minecraft-derived audio retains the rights of the respective rightsholders, including Mojang / Microsoft; the project licenses do not create a separate permission from those rightsholders. These files are used for editor preview, independently of version-specific native comparison.
-
-The upstream project license is reproduced below.
-
-MIT License
-
-Copyright (c) 2026 OpenNBS
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+The distribution includes 20 unmodified Ogg files from Mojang's official Minecraft resource service, pinned to Java Edition 26.3. Their original encoded bytes and relative amplitudes are retained without normalization or gain correction. The official version metadata, asset index, sound-event mappings and SHA-1/SHA-256 hashes are recorded and verified at build time. See third_party/minecraft-samples/manifest.json and NOTICE.md for provenance and rights boundaries. The sounds retain the rights of the respective rightsholders, including Mojang / Microsoft, and are not covered by NeoNBS's source license or an OpenNBS license. They are used for editor preview; matching local game resources remain necessary for version-specific native comparison.

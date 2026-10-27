@@ -78,7 +78,7 @@ export function normalizeDiagnostic(input: unknown, redact = createDiagnosticRed
       if (numericFields.has(key) && typeof item === 'number' && Number.isFinite(item)) fields[key] = Math.max(-1e9, Math.min(1e9, item));
       else if (Object.hasOwn(enums, key) && typeof item === 'string' && enums[key].includes(item)) fields[key] = item;
       else if (key === 'profileId' && typeof item === 'string' && /^java-[0-9][0-9a-z.+-]{0,40}$/i.test(item)) fields[key] = item;
-      else if (key === 'bankId' && typeof item === 'string' && /^opennbs-noteblock-preview-v\d+$/.test(item)) fields[key] = item;
+      else if (key === 'bankId' && typeof item === 'string' && /^(?:opennbs-noteblock-preview-v\d+|minecraft-java-\d+(?:\.\d+){1,3}-noteblock-v\d+)$/.test(item)) fields[key] = item;
       else if (key === 'version' && typeof item === 'string' && /^\d+(?:\.[\dA-Za-z-]+){1,4}$/.test(item)) fields[key] = item;
       else if ((key === 'packaged' || key === 'playing') && typeof item === 'boolean') fields[key] = item;
       else if (key === 'operation' && typeof item === 'string' && operations.has(item)) fields[key] = item;

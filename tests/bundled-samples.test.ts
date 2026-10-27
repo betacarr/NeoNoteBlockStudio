@@ -1,19 +1,52 @@
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AudioEngine } from '../src/audio/engine';
 import { loadBundledPreviewSamples, PREVIEW_SAMPLE_BANK } from '../src/audio/bundled-samples';
 import { INSTRUMENTS } from '../src/core/instruments';
 import { createProject, newNote } from '../src/core/project';
+import { resolveNoteBlockSounds } from '../src/core/sound-events';
 
 const base = new URL('https://local.test/sounds/');
 const localRead: typeof fetch = async input => {
   const url = new URL(String(input));
   expect(url.origin).toBe(base.origin);
-  return new Response(Uint8Array.from(await readFile('.local/preview-assets' + url.pathname)));
+  return new Response(Uint8Array.from(await readFile('.local/minecraft-preview-assets' + url.pathname)));
 };
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Shipped preview bank without a Minecraft installation', () => {
+  it('matches the independently hashed official version, asset index and sound-event mappings', async () => {
+    const official = async (sha1: string) => {
+      const bytes = await readFile(`.local/minecraft-preview-provenance/${sha1}.json`);
+      expect(createHash('sha1').update(bytes).digest('hex')).toBe(sha1);
+      return JSON.parse(bytes.toString('utf8'));
+    };
+    const version = await official(PREVIEW_SAMPLE_BANK.metadata.sha1), index = await official(version.assetIndex.sha1);
+    expect(version.id).toBe('26.3'); expect(version.assetIndex).toEqual(PREVIEW_SAMPLE_BANK.assetIndex);
+    const sounds = resolveNoteBlockSounds(await official(index.objects['minecraft/sounds.json'].hash));
+    const samples = await loadBundledPreviewSamples(base, localRead);
+    for (const item of PREVIEW_SAMPLE_BANK.samples) {
+      expect(item.event).toBe(`block.note_block.${item.id}`);
+      expect(sounds[item.id]).toEqual({ event: item.event, path: item.resource, volume: item.volume, pitch: item.pitch, attenuationDistance: item.attenuationDistance });
+      expect(createHash('sha1').update(samples[item.id].bytes).digest('hex')).toBe(index.objects[item.resource].hash);
+      expect(samples[item.id].bytes.length).toBe(index.objects[item.resource].size);
+      expect(samples[item.id].name).toBe(item.resource);
+    }
+  });
+  it('uses the harp2 and bassattack files actually referenced by the game, without instrument normalization', () => {
+    expect(PREVIEW_SAMPLE_BANK.samples.find(item => item.id === 'harp')?.resource).toBe('minecraft/sounds/note/harp2.ogg');
+    expect(PREVIEW_SAMPLE_BANK.samples.find(item => item.id === 'bass')?.resource).toBe('minecraft/sounds/note/bassattack.ogg');
+    for (const sample of PREVIEW_SAMPLE_BANK.samples) expect([sample.volume, sample.pitch, sample.attenuationDistance]).toEqual([1, 1, 16]);
+  });
+  it('passes the original encoded bytes to the decoder without changing individual sample amplitude', async () => {
+    const samples = await loadBundledPreviewSamples(base, localRead), decoded: Uint8Array[] = [];
+    const buffer = { duration: 1 };
+    vi.stubGlobal('AudioContext', class { decodeAudioData = async (bytes: ArrayBuffer) => { decoded.push(new Uint8Array(bytes)); return buffer; }; });
+    const engine = new AudioEngine(); await engine.setPreviewSamples(samples);
+    expect(decoded).toEqual(Object.values(samples).map(sample => sample.bytes));
+    for (const id of Object.keys(samples)) expect(engine.bufferFor(id)).toBe(buffer);
+  });
   it('provides all 20 instrument IDs and reads only local packaged URLs', async () => {
     const samples = await loadBundledPreviewSamples(base, localRead);
     expect(Object.keys(samples).sort()).toEqual(INSTRUMENTS.map(item => item.id).sort());

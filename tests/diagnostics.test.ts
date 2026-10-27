@@ -36,6 +36,12 @@ describe('Diagnostic privacy boundaries', () => {
     const fields = JSON.parse('{"constructor":"private","toString":"private","__proto__":"private","tracks":1}');
     expect(normalizeDiagnostic({ level: 'info', event: 'audio.play.request', fields })?.fields).toEqual({ tracks: 1 });
   });
+  it('preserves the official sample bank identity and historical bank IDs without accepting arbitrary strings', () => {
+    for (const bankId of ['minecraft-java-26.3-noteblock-v1', 'opennbs-noteblock-preview-v1']) {
+      expect(normalizeDiagnostic({ level: 'info', event: 'audio.preview.ready', fields: { bankId } })?.fields).toEqual({ bankId });
+    }
+    expect(normalizeDiagnostic({ level: 'info', event: 'audio.preview.ready', fields: { bankId: windowsPath } })?.fields).toEqual({});
+  });
   it('accepts only known event names, finite numbers, canonical formats and builtin instrument IDs', () => {
     expect(normalizeDiagnostic({ level: 'debug', event: 'audio.play.request' })).toBeUndefined();
     expect(normalizeDiagnostic({ level: 'info', event: song })).toBeUndefined();

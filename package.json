@@ -1,6 +1,6 @@
 {
   "name": "neo-noteblock-studio",
-  "version": "0.1.57",
+  "version": "0.1.58",
   "private": true,
   "description": "A MIDI-first desktop note block workstation with NBSX projects and NBS interoperability.",
   "type": "module",
@@ -74,9 +74,8 @@
       "!node_modules/react/**/*",
       "!node_modules/react-dom/**/*",
       "!node_modules/scheduler/**/*",
-      "third_party/opennbs-samples/LICENSE",
-      "third_party/opennbs-samples/NOTICE.md",
-      "third_party/opennbs-samples/manifest.json"
+      "third_party/minecraft-samples/NOTICE.md",
+      "third_party/minecraft-samples/manifest.json"
     ],
     "asarUnpack": [
       "node_modules/koffi/**/*",

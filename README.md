@@ -83,9 +83,9 @@
 
 | 下载 | 适合谁 |
 | --- | --- |
-| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.57/NeoNBS-0.1.57-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
-| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.57/NeoNBS-0.1.57-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
-| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.57/SHA256SUMS.txt) | 核对下载文件。 |
+| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.58/NeoNBS-0.1.58-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
+| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.58/NeoNBS-0.1.58-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
+| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.58/SHA256SUMS.txt) | 核对下载文件。 |
 
 下载安装版后运行向导，启动 NeoNBS；默认音色加载后即可导入 MIDI 并播放。需要核对特定游戏版本时，再到「设置 → 声音与资源」选择自己的 Minecraft 实例。具体步骤见 [图文上手](docs/quick-start.md)。
 
@@ -140,6 +140,6 @@ NeoNBS 使用 **源码可见的自定义许可**，完整条款见 [LICENSE](LIC
 - **未经书面许可，禁止**销售编辑器本体或改版、收费解锁，以及收费提供在线编辑功能。
 - **第三方组件**保留各自许可，见 [第三方说明](THIRD_PARTY_NOTICES.md)。本项目不属于 MIT、GPL 或 OSI 认可的开源许可。
 
-仓库不提交 Minecraft 游戏代码、原版声音文件、贴图、专有插件或私人曲目。构建时从 OpenNBS 的固定版本获取并校验 20 种默认试听采样，随发布版提供；[来源与权利说明](third_party/opennbs-samples/NOTICE.md)单独列明。嵌入采样的 NBSX 在分享前仍需确认素材权利。README 封面和操作示意图均为原创 SVG，不含游戏素材。
+仓库不提交 Minecraft 游戏代码、原版声音文件、贴图、专有插件或私人曲目。构建时从 Mojang 官方资源服务获取固定 Java 26.3 版本的 20 种默认采样，核对官方索引、声音事件和文件校验值，保留原始振幅，不做响度归一化；[来源与权利说明](third_party/minecraft-samples/NOTICE.md)单独列明。嵌入采样的 NBSX 在分享前仍需确认素材权利。README 封面和操作示意图均为原创 SVG，不含游戏素材。
 
 > **NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
