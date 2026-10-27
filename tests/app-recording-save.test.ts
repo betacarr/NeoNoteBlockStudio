@@ -58,7 +58,7 @@ function fixture({ live = false, caret = 0, length = 1920, ppq = 480, snap = 0, 
   const window = { desktop, confirm: vi.fn(() => false) }, adopt = vi.fn(), audition = vi.fn(async () => {}), finishNumberDraft = vi.fn(() => numberFlushBehavior());
   const midiDown = { current: (_key: string, _pitch: number, _velocity: number) => {} }, midiUp = { current: (_key: string) => {} }, finishHeld = { current: (_keys?: string[]) => {} };
   const commands = { current: {} }, setMessage = vi.fn((message: string) => { state.message = message; });
-  const scope = { projectRef, savedSnapshot, numberEditOwner, history, future, keysHeld, positionRef, recordingRef, stopEpoch, engine, window, adopt, audition, midiDown, midiUp, finishHeld, commands,
+  const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, projectRef, savedSnapshot, numberEditOwner, history, future, keysHeld, positionRef, recordingRef, stopEpoch, engine, window, adopt, audition, midiDown, midiUp, finishHeld, commands,
     editorDocumentKey: 0, region: project.regions[0], pattern: project.patterns[0], preferences: { snap, noteLength: 16 }, portable: false, library: undefined, filePath: state.filePath,
     setMessage, setProject: vi.fn(), setDirty: (value: boolean) => { state.dirty = value; }, setHasHeldRecording: (value: boolean) => { state.held = value; }, setPlaying: (value: boolean) => { state.playing = value; },
     setRevision: (update: (value: number) => number) => { state.revision = update(state.revision); }, setFilePath: (value: string) => { state.filePath = value; }, setRecovery: (update: (value: typeof state.recovery) => typeof state.recovery) => { state.recovery = update(state.recovery); }, setPlayhead: vi.fn(),

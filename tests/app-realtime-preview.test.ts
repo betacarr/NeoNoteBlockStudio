@@ -63,7 +63,7 @@ function fixture() {
   const setPlaybackMode = vi.fn((value: PlaybackMode) => { state.mode = value; });
   function functions() {
     let runEffect = () => {};
-    const scope = {
+    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false },
       project: projectRef.current, projectRef, stopEpoch, positionRef, engine, finishHeld, noteRangePreview: { current: undefined },
       produce, history, future, savedSnapshot, numberEditOwner, selectionSnapshot: () => ({ trackId: project.tracks[0].id, noteIds: [], focus: 'piano' }),
       setProject: vi.fn(), setDirty: vi.fn(), setRevision: vi.fn(), restoreSelection: vi.fn(), setModal: vi.fn(),

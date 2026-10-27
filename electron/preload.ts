@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopAPI } from '../src/core/types';
 
 const api: DesktopAPI = {
+  recordDiagnostic: input => ipcRenderer.invoke('diagnostics:record', input),
+  exportDiagnostics: () => ipcRenderer.invoke('diagnostics:export'),
+  openLogsFolder: () => ipcRenderer.invoke('diagnostics:open-folder'),
+  onDiagnosticRequest(callback) { const listener = () => callback(); ipcRenderer.on('diagnostics:capture', listener); return () => ipcRenderer.removeListener('diagnostics:capture', listener); },
   platform: process.platform,
   openFile: kind => ipcRenderer.invoke('file:open', kind),
   inspectFlpSamples: (sourcePath, samples) => ipcRenderer.invoke('flp:inspect-samples', sourcePath, samples),

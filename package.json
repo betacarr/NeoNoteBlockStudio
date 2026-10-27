@@ -1,6 +1,6 @@
 {
   "name": "neo-noteblock-studio",
-  "version": "0.1.56",
+  "version": "0.1.57",
   "private": true,
   "description": "A MIDI-first desktop note block workstation with NBSX projects and NBS interoperability.",
   "type": "module",

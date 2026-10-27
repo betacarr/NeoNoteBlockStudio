@@ -86,7 +86,7 @@ function fixture() {
     const project = projectRef.current, resolved = resolveEditorSelection(project, { trackId: state.selectedTrack, regionId: state.selectedRegion, noteIds: [...state.selectedNotes], focus: state.focus });
     const clipboardTarget = { documentKey: 1, focus: state.focus, trackId: state.selectedTrack, regionId: state.selectedRegion, regions: state.selectedRegions, notes: state.selectedNotes, filter: state.instrumentFilter };
     const { track, region, pattern, notes: selected } = resolved;
-    const scope = { project, projectRef, savedSnapshot, numberEditOwner, numberGeneration: numberEditOwner.current.generation,
+    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration: numberEditOwner.current.generation,
       ...state, selectedRegionsRef, instrumentFilterRef, history, future, clipboard, produce, normalizeEditorSelection, resolveEditorSelection, filterTracks, clipboardTarget, liveClipboardTarget: { current: clipboardTarget },
       applyRegionGroupMove, deleteRegionGroup, duplicateRegionGroup, moveRegion, MAX_PROJECT_TICK,
       setProject: vi.fn(), setSelectedTrack: (id: string) => { state.selectedTrack = id; }, setSelectedRegion: (id: string) => { state.selectedRegion = id; },

@@ -113,7 +113,7 @@ function fixture(initial = sourceProject()) {
     const numberGeneration = numberEditOwner.current.generation;
     const numberContext = Function('editorDocumentKey', 'project', 'numberGeneration', 'region', 'pattern', 'selectedNotes', `return ${numberContextCode}`)(state.editorDocumentKey, project, numberGeneration, region, pattern, state.selectedNotes) as string;
     liveNumberContext.current = numberContext;
-    const scope = { project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, ...state, history, future, selectedRegionsRef, instrumentFilterRef,
+    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, ...state, history, future, selectedRegionsRef, instrumentFilterRef,
       clipboard, regionClipboard, lastClipboardKind, liveClipboardTarget, clipboardTarget, liveNumberContext, numberContext, numberDrafts,
       track, region, pattern, selected, positionRef, preferences, meterMap: createMeterMap(project), sourceOrigin: region && pattern ? patternOrigin(region, pattern) : 0,
       produce, normalizeEditorSelection, resolveEditorSelection, createMeterMap, patternOrigin, patternTickAt, createProject, newNote, newTrack, uid,

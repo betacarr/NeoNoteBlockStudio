@@ -120,10 +120,19 @@ export class AudioEngine {
   private referenceLoading?: { data: string; promise: Promise<AudioBuffer> };
   onPosition?: (tick: number) => void;
   onEnded?: () => void;
+  onContextState?: (state: AudioContextState) => void;
 
-  async ensure() { this.context ??= new AudioContext({ sampleRate: 48000 }); await this.context.resume(); return this.context; }
+  private audioContext() {
+    if (!this.context) {
+      const context = this.context = new AudioContext({ sampleRate: 48000 });
+      const changed = () => { try { this.onContextState?.(context.state); } catch { /* A diagnostic observer cannot break playback. */ } };
+      context.addEventListener?.('statechange', changed); changed();
+    }
+    return this.context;
+  }
+  async ensure() { const context = this.audioContext(); await context.resume(); return context; }
   async setPreviewSamples(samples: SampleLibrary['samples']) {
-    const context = this.context ??= new AudioContext({ sampleRate: 48000 });
+    const context = this.audioContext();
     const decoded = await Promise.all(Object.entries(samples).map(async ([id, sample]) =>
       [id, await context.decodeAudioData(Uint8Array.from(sample.bytes).buffer)] as const));
     this.previewBuffers = new Map(decoded);
@@ -169,7 +178,7 @@ export class AudioEngine {
     if (this.referenceLoading?.data === data) return this.referenceLoading.promise;
     const promise = (async () => {
       // Decoding a waveform does not need to resume the output device.
-      const context = this.context ??= new AudioContext({ sampleRate: 48000 });
+      const context = this.audioContext();
       return context.decodeAudioData(Uint8Array.from(base64ToBytes(data)).buffer);
     })();
     const loading = { data, promise }; this.referenceLoading = loading;

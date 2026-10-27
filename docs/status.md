@@ -1,6 +1,8 @@
 # 当前版本与支持范围
 
-当前版本为 **NeoNBS 0.1.56**，提供 Windows x64 安装版与便携版。[下载最新版本](https://github.com/betacarr/NeoNoteBlockStudio/releases/latest)。
+当前版本为 **NeoNBS 0.1.57**，提供 Windows x64 安装版与便携版。[下载最新版本](https://github.com/betacarr/NeoNoteBlockStudio/releases/latest)。
+
+现已提供本地运行日志、自动脱敏和手动导出诊断包；异常界面也可使用主程序帮助菜单。详见[日志说明](diagnostics.md)。
 
 现有功能包括 MIDI／NBS 互通、支持范围内的 FLP 音符与片段导入、独立 NBSX 工程、编曲与钢琴卷帘、双轴缩放、片段拆分与剪贴板、力度与声像、实时混音和派生 Delay。
 

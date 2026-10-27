@@ -43,7 +43,7 @@ function fixture(format: ExportOptions['format'] = 'wav', nativeAudio = false) {
   let flush = () => true;
   const finishNumberDraft = vi.fn(() => flush());
   function functions() {
-    const scope = { finishNumberDraft, busy: state.busy, exportOwner, exportRunning, exportSaving, projectRef, modalRef,
+    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, finishNumberDraft, busy: state.busy, exportOwner, exportRunning, exportSaving, projectRef, modalRef,
       ensurePreviewSamples: vi.fn(async () => 20),
       syncExportOwner, isCurrentExport, setPrepared, setBusy, setMessage, setModal, setExportError, prepared: state.prepared,
       setExportFormat: (value: ExportOptions['format']) => { state.options.format = value; },

@@ -4,7 +4,8 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { produce } from 'immer';
 import { ArrowClockwise, ArrowCounterClockwise, ArrowsOut, CaretDown, Circle, Copy, Cursor, DownloadSimple, Eraser, FloppyDisk, FolderOpen, GearSix, Headphones, List, MagnifyingGlass, Minus, MusicNotes, PencilSimple, PianoKeys, Play, Plus, Record, Repeat, Scissors, SlidersHorizontal, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
 import { AudioEngine, PROFILE_STATUS } from '../audio/engine';
-import { loadBundledPreviewSamples } from '../audio/bundled-samples';
+import { loadBundledPreviewSamples, PREVIEW_SAMPLE_BANK } from '../audio/bundled-samples';
+import { recordDiagnostic, audioDiagnosticSnapshot } from './diagnostics';
 import { audioProfile, releaseIdentity } from '../audio/profiles';
 import { hrtfOptionHint } from '../audio/context';
 import { previewBackendForProject, type PlaybackMode } from '../audio/preview';
@@ -105,6 +106,7 @@ export function App() {
   const [pianoViewRequest, setPianoViewRequest] = useState<{ id: number; mode: 'all' | 'selection' }>();
   const [playhead, setPlayhead] = useState(0), positionRef = useRef(0), [playing, setPlaying] = useState(false), [loop, setLoop] = useState(false);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('realtime');
+  const playbackModeRef = useRef(playbackMode); playbackModeRef.current = playbackMode;
   const [recording, setRecording] = useState(false), recordingRef = useRef(recording); recordingRef.current = recording;
   const [keyboardEnabled, setKeyboardEnabled] = useState(false);
   const [search, setSearch] = useState(''), [message, setMessage] = useState('准备就绪 · 导入 MIDI 开始创作');
@@ -133,6 +135,7 @@ export function App() {
   const [recovery, setRecovery] = useState<{ name: string; bytes: Uint8Array; projectId?: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null), referenceInput = useRef<HTMLInputElement>(null);
   const engine = useRef(new AudioEngine()).current, clipboard = useRef<NoteClipboard | undefined>(undefined), keysHeld = useRef(new Map<string, RecordedPress>());
+  const signalLogged = useRef(false);
   const regionClipboard = useRef<RegionClipboard | undefined>(undefined), lastClipboardKind = useRef<'notes' | 'regions' | undefined>(undefined);
   const [, setClipboardRevision] = useState(0);
   const clipboardTarget = { documentKey: editorDocumentKey, focus, trackId: selectedTrack, regionId: selectedRegion, regions: selectedRegions, notes: selectedNotes, filter: instrumentFilter };
@@ -393,7 +396,10 @@ export function App() {
     if (focus !== 'piano' || !canEditSelectedNotes(track, pattern, selectedNotes)) return;
     editNotes('量化音符', notes => changeSelectedNotes(notes, selectedNotes, n => ({ ...n, tick: Math.max(0, meterMap.snap(sourceOrigin + n.tick, project.ppq * 4 / (preferences.snap || 16)) - sourceOrigin) })));
   }
-  function stop() { finishHeld.current(); stopEpoch.current++; engine.stop(); setPlaying(false); }
+  function stop() {
+    if (engine.playing) recordDiagnostic({ level: 'info', event: 'audio.play.stopped' });
+    finishHeld.current(); stopEpoch.current++; engine.stop(); setPlaying(false);
+  }
   function seek(tick: number) { stop(); const next = Math.max(0, tick); setPlayhead(next); positionRef.current = next; }
   function changePlaybackMode(value: PlaybackMode) {
     if (value === playbackMode) return;
@@ -403,8 +409,8 @@ export function App() {
     if (!previewSamplesReady.current) {
       const pending = loadBundledPreviewSamples().then(samples => engine.setPreviewSamples(samples));
       previewSamplesReady.current = pending;
-      try { const count = await pending; setPreviewSampleCount(count); return count; }
-      catch (error) { if (previewSamplesReady.current === pending) previewSamplesReady.current = undefined; throw error; }
+      try { const count = await pending; setPreviewSampleCount(count); recordDiagnostic({ level: 'info', event: 'audio.preview.ready', fields: { bankId: PREVIEW_SAMPLE_BANK.bankId, loadedSamples: count, expectedSamples: PREVIEW_SAMPLE_BANK.samples.length } }); return count; }
+      catch (error) { if (previewSamplesReady.current === pending) previewSamplesReady.current = undefined; recordDiagnostic({ level: 'error', event: 'audio.preview.failed', fields: { error } }); throw error; }
     }
     return previewSamplesReady.current;
   }
@@ -414,6 +420,8 @@ export function App() {
     setBusy(true);
     try {
       const epoch = stopEpoch.current, snapshot = projectRef.current;
+      signalLogged.current = false;
+      recordDiagnostic({ level: 'info', event: 'audio.play.request', fields: { ...audioDiagnosticSnapshot(snapshot, engine, playbackMode), fromTick: positionRef.current } });
       const reference = await engine.loadReference(snapshot);
       if (epoch !== stopEpoch.current || snapshot !== projectRef.current) return;
       const end = playbackEndTick(snapshot, reference?.duration), from = positionRef.current >= end ? 0 : positionRef.current;
@@ -455,9 +463,10 @@ export function App() {
         if (epoch !== stopEpoch.current || snapshot !== projectRef.current) { engine.stop(); return; }
         setMixerMeterScope('tracks'); setMessage('实时试听 · 编辑即时生效 · 空间效果为预览');
       }
+      recordDiagnostic({ level: 'info', event: 'audio.play.started', fields: audioDiagnosticSnapshot(snapshot, engine, playbackMode) });
       setPlaying(true);
     }
-    catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    catch (error) { recordDiagnostic({ level: 'error', event: 'audio.play.failed', fields: { ...audioDiagnosticSnapshot(projectRef.current, engine, playbackMode), error } }); setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   }
   function toggleLoop() { const resume = engine.playing, next = !loop; stop(); setLoop(next); if (resume) void togglePlay(next, true); }
@@ -486,7 +495,7 @@ export function App() {
         if (epoch === stopEpoch.current && current === projectRef.current) await engine.auditionProject(createAuditionProject(current, currentTrack, midi, note, origin, preferences.noteLength));
       }
     }
-    catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    catch (error) { recordDiagnostic({ level: 'error', event: 'audio.audition.failed', fields: { error } }); setMessage(error instanceof Error ? error.message : String(error)); }
   }
   async function loadResources(root = resourceRoot, index = resourceIndex, version = resourceVersion, applyProfile = true) {
     if (!window.desktop || !root || !index) return;
@@ -497,9 +506,10 @@ export function App() {
       if (applyProfile) commit('切换声音资源版本', p => { p.audio.profileId = loaded.profileId; clearBuiltinSampleOverrides(p.instruments); });
       await engine.loadProjectSamples(projectRef.current);
       setLibrary(loaded); setMessage(`已加载 Java ${loaded.version} · ${count} 个声音事件采样${loaded.warnings?.length ? ' · ' + loaded.warnings.join('；') : ' · 声音一致性待实测'}`);
+      recordDiagnostic({ level: 'info', event: 'audio.resources.ready', fields: { source: 'local', profileId: loaded.profileId, loadedSamples: count } });
       renderCache.current = undefined; auditionCache.current.clear();
       setResourceRoot(root); setResourceIndex(index); setResourceVersion(version);
-    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { recordDiagnostic({ level: 'error', event: 'audio.resources.failed', fields: { error } }); setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setLoadingResources(false); }
   }
   async function discover(autoLoad = false, quiet = false) {
@@ -533,6 +543,7 @@ export function App() {
     } catch (error) { setMessage(String(error)); }
   }
   function adopt(next: Project, filename?: string, path?: string, reports: Diagnostic[] = []) {
+    recordDiagnostic({ level: 'info', event: 'project.opened', fields: { format: filename?.split('.').at(-1)?.toLowerCase() ?? 'nbsx', tracks: next.tracks.length, notes: next.patterns.reduce((sum, pattern) => sum + pattern.notes.length, 0) } });
     liveClipboardTarget.current = undefined;
     instrumentFilterRef.current = '';
     setInstrumentFilter('');
@@ -565,7 +576,7 @@ export function App() {
       else if (ext === 'mid' || ext === 'midi') { const result = importMidi(bytes, name); adopt(result.project, name, undefined, result.diagnostics); savedSnapshot.current = undefined; setDirty(true); }
       else if (ext === 'nbs') { const result = importNbs(bytes, name); adopt(result.project, name, undefined, result.diagnostics); savedSnapshot.current = undefined; setDirty(true); }
       else throw new Error('请选择 MIDI、NBS、FLP 或 NBSX 文件。');
-    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { recordDiagnostic({ level: 'error', event: 'project.open.failed', fields: { error } }); setMessage(error instanceof Error ? error.message : String(error)); }
   }
   function cancelFlpImport() {
     flpOpenTicket.current++; setFlpImport(undefined); setModal(null); setMessage('已取消 FLP 导入。');
@@ -1002,6 +1013,7 @@ export function App() {
       ticket = { ...exportOwner.current };
       if (!ticket.context.open) return;
       setBusy(true); setExportError(undefined);
+      recordDiagnostic({ level: 'info', event: 'export.started', fields: { format: ticket.context.format } });
       const output = prepared && isCurrentExport(exportOwner.current, prepared, projectRef.current, true) ? prepared : await prepareExport(ticket);
       if (!isCurrentExport(exportOwner.current, ticket, projectRef.current, modalRef.current === 'export')) {
         if (modalRef.current === 'export') setMessage('工程或导出设置已更改，请再次导出。');
@@ -1013,11 +1025,13 @@ export function App() {
       exportSaving.current = true;
       const saved = window.desktop ? await window.desktop.saveFile(output.name, output.bytes) : (download(output.name, output.bytes), output.name);
       if (saved && isCurrentExport(exportOwner.current, ticket, projectRef.current, modalRef.current === 'export')) {
+        recordDiagnostic({ level: 'info', event: 'export.completed', fields: { format: ticket.context.format, bytes: output.bytes.length } });
         const warnings = output.diagnostics.filter(item => item.severity === 'warning');
         setMessage(`已导出 ${output.name}${warnings.length ? ` · ${warnings.length} 条转换提示` : ''}`);
         if (!warnings.length) setModal(null);
       }
     } catch (error) {
+      recordDiagnostic({ level: 'error', event: 'export.failed', fields: { format: ticket?.context.format, error } });
       if (ticket && isCurrentExport(exportOwner.current, ticket, projectRef.current, modalRef.current === 'export')) {
         const text = error instanceof Error ? error.message : String(error); setExportError({ ticket, message: text }); setMessage(text);
       }
@@ -1124,6 +1138,8 @@ export function App() {
     duplicate, 'split-region': splitSelectedRegions, 'add-track': addTrack, 'track-up': () => moveCurrentTrack(-1), 'track-down': () => moveCurrentTrack(1), 'delete-track': deleteCurrentTrack, draw: () => setTool('draw'), select: () => setTool('select'), erase: () => setTool('erase'), mixer: () => setPrefs({ showMixer: !preferences.showMixer }),
     'piano-fit-all': () => { if (pattern) setPianoViewRequest(value => ({ id: (value?.id ?? 0) + 1, mode: 'all' })); },
     'piano-fit-selection': () => { if (selected.length) setPianoViewRequest(value => ({ id: (value?.id ?? 0) + 1, mode: 'selection' })); },
+    diagnostics: () => { void window.desktop?.exportDiagnostics?.().then(result => { if (result.status === 'saved') setMessage(`已导出诊断包 · ${result.records ?? 0} 条记录 · 请检查后自行发送`); else if (result.status === 'failed') setMessage('诊断包未保存，请换一个位置重试。'); }).catch(() => setMessage('诊断包未保存，请换一个位置重试。')); },
+    'logs-folder': () => { void window.desktop?.openLogsFolder?.().catch(() => setMessage('日志目录暂时不可用，仍可尝试导出诊断包。')); },
     export: () => openExport(), settings: () => setModal('settings'), timing: () => { if (playbackMode === 'native-compare') stop(); else finishHeld.current(); setModal('timing'); },
     'save-close': () => { if (!finishNumberDraft()) return; stop(); void save().then(async saved => { if (saved && window.desktop) { await window.desktop.notifyDirty(false); await window.desktop.closeAfterSave(); } }); },
     copy: copySelection, paste: pasteSelection, cut: cutSelection, delete: deleteSelection,
@@ -1147,7 +1163,7 @@ export function App() {
     { label: '视图', items: [{ label: '音色库', command: 'library', checked: preferences.showLibrary }, { label: '检查器', command: 'inspector', checked: preferences.showInspector }, { label: '混音器', command: 'mixer', checked: preferences.showMixer, shortcut: bindings.mixer }, { label: '显示全部音符', command: 'piano-fit-all', separatorBefore: true, disabled: !pattern }, { label: '显示所选音符', command: 'piano-fit-selection', disabled: !selected.length }] },
     { label: '轨道', items: [{ label: '添加轨道', command: 'add-track' }, { label: '上移当前轨道', command: 'track-up', shortcut: bindings['track-up'], disabled: !!trackManagement.upIssue }, { label: '下移当前轨道', command: 'track-down', shortcut: bindings['track-down'], disabled: !!trackManagement.downIssue }, { label: '删除当前轨道', command: 'delete-track', shortcut: bindings['delete-track'], disabled: !!trackManagement.deleteIssue }] },
     { label: '播放', items: [{ label: playing ? '暂停' : '播放', command: 'play', shortcut: bindings.play }, { label: '停止并回到起点', command: 'stop' }, { label: '上一小节', command: 'previous-bar', separatorBefore: true }, { label: '下一小节', command: 'next-bar' }, { label: '速度与拍号…', command: 'timing' }, { label: '循环播放工程', command: 'loop', checked: loop, separatorBefore: true }, { label: '录入 MIDI / 电脑键盘', command: 'record', checked: recording }] },
-    { label: '设置', command: 'settings' }, { label: '帮助', command: 'help' },
+    { label: '设置', command: 'settings' }, { label: '帮助', items: [{ label: '操作与工程提示', command: 'help' }, { label: '导出诊断包…', command: 'diagnostics', separatorBefore: true, disabled: !window.desktop?.exportDiagnostics }, { label: '打开日志文件夹', command: 'logs-folder', disabled: !window.desktop?.openLogsFolder }] },
   ];
   for (const menu of menus) for (const item of menu.items ?? []) if (item.shortcut) item.shortcut = displayShortcut(item.shortcut, shortcutPlatform);
   useEffect(() => {
@@ -1181,7 +1197,7 @@ export function App() {
       window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
     };
   });
-  useEffect(() => { const timer = setInterval(() => { const levels = engine.meterLevels(); setMeters(previous => Object.keys(previous).length === Object.keys(levels.tracks).length && Object.keys(levels.tracks).every(key => Math.abs((previous[key] ?? 0) - levels.tracks[key]) < .003) ? previous : levels.tracks); setMasterMeter(previous => Math.abs(previous - levels.master) < .003 ? previous : levels.master); }, 100); return () => clearInterval(timer); }, [engine]);
+  useEffect(() => { const timer = setInterval(() => { const levels = engine.meterLevels(); if (!engine.playing) signalLogged.current = false; else if (!signalLogged.current && levels.master > 0) { signalLogged.current = true; recordDiagnostic({ level: 'info', event: 'audio.output.signal', fields: { peak: +levels.master.toFixed(5), signalTracks: Object.values(levels.tracks).filter(value => value > 0).length } }); } setMeters(previous => Object.keys(previous).length === Object.keys(levels.tracks).length && Object.keys(levels.tracks).every(key => Math.abs((previous[key] ?? 0) - levels.tracks[key]) < .003) ? previous : levels.tracks); setMasterMeter(previous => Math.abs(previous - levels.master) < .003 ? previous : levels.master); }, 100); return () => clearInterval(timer); }, [engine]);
   useEffect(() => {
     if (!engine.playing) return;
     updateRealtimeProject(project);
@@ -1190,6 +1206,7 @@ export function App() {
   useEffect(() => { void window.desktop?.notifyDirty(unsaved); }, [unsaved]);
   useEffect(() => {
     engine.onPosition = tick => { positionRef.current = tick; setPlayhead(tick); }; engine.onEnded = () => { finishHeld.current(); setPlaying(false); };
+    engine.onContextState = contextState => recordDiagnostic({ level: 'info', event: 'audio.context', fields: { contextState } });
     let canceled = false;
     void ensurePreviewSamples().catch(error => { if (!canceled) setMessage(`默认音色加载失败：${String(error)}`); });
     if (window.desktop) {
@@ -1206,8 +1223,9 @@ export function App() {
       commands.current[command]?.();
     });
     const offOpen = window.desktop?.onOpenFile(file => { void openBytesRef.current(file.name, file.bytes, file.path); });
+    const offDiagnostics = window.desktop?.onDiagnosticRequest?.(() => recordDiagnostic({ level: 'info', event: 'audio.snapshot', fields: audioDiagnosticSnapshot(projectRef.current, engine, playbackModeRef.current) }));
     void window.desktop?.rendererReady();
-    return () => { canceled = true; engine.stop(); off?.(); offOpen?.(); };
+    return () => { canceled = true; engine.onContextState = undefined; engine.stop(); off?.(); offOpen?.(); offDiagnostics?.(); };
   }, []);
   useEffect(() => {
     const timer = setInterval(() => {

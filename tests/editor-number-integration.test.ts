@@ -78,7 +78,7 @@ function fixture({ locked = false, missingPattern = false, missingRegion = false
   const selectionSnapshot = (value = projectRef.current) => normalizeEditorSelection(value, { trackId: track.id, regionId: region?.id, noteIds: [...selectedNotes], focus: 'piano' });
   let onFlush: () => boolean = () => true;
   const flushActiveNumberInput = vi.fn(() => onFlush());
-  const scope = { project, projectRef, pattern, track, region, selectedNotes, numberContext, liveNumberContext, numberGeneration, numberEditOwner, numberDrafts, setHasNumberDraft, setMessage,
+  const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, pattern, track, region, selectedNotes, numberContext, liveNumberContext, numberGeneration, numberEditOwner, numberDrafts, setHasNumberDraft, setMessage,
     produce, history, future, selectionSnapshot, setProject, setDirty, setRevision, changeSelectedNotes, notesUnchanged, applyNoteEdit, growEditedPattern, inspectorBeatTicks, noteTimingError, regionLengthError, MAX_PROJECT_TICK,
     portable: false, library: undefined, flattenNotes, bytesToBase64, flushActiveNumberInput,
     savedSnapshot, setFilePath, stop: vi.fn(), playbackMode: 'realtime', finishHeld: { current: vi.fn() }, seek: vi.fn(), restoreSelection: vi.fn(), setEditorDocumentKey: vi.fn(), setPianoViewRequest: vi.fn(),

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, utilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, utilityProcess, shell } from 'electron';
 import { readFile, writeFile, mkdir, readdir, stat, rename, copyFile, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -15,6 +15,9 @@ import { audioImplementation, clientEmbeddedLegacyCodec } from '../src/audio/imp
 import { inspectFlpSamples } from './flp-samples';
 import { applicationProfile } from './app-profile';
 import { APP_NAME } from '../src/core/app-identity';
+import { FileDiagnostics } from './diagnostics';
+import { diagnosticArchive } from './diagnostic-archive';
+import { normalizeDiagnostic, RENDERER_DIAGNOSTIC_EVENTS, type DiagnosticExportResult } from '../src/core/diagnostics';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'nbsx', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 const appRoot = path.resolve(__dirname, '..');
@@ -24,6 +27,22 @@ const selectedUserData = applicationProfile(requestedUserData, !app.isPackaged ?
 if (selectedUserData) app.setPath('userData', selectedUserData);
 const primaryInstance = app.requestSingleInstanceLock();
 if (!primaryInstance) app.quit();
+const diagnostics = primaryInstance ? new FileDiagnostics(path.join(app.getPath('userData'), 'logs'), {
+  privateValues: [app.getPath('home'), app.getPath('userData'), appRoot, app.getPath('exe')],
+}) : undefined;
+diagnostics?.log({ level: 'info', event: 'app.started', fields: { version: app.getVersion(), platform: process.platform, arch: process.arch, packaged: app.isPackaged } });
+if (primaryInstance) {
+  process.on('uncaughtExceptionMonitor', (error, origin) => diagnostics?.emergency({ level: 'error', event: 'app.fatal', fields: { error, origin } }));
+  process.on('warning', error => diagnostics?.log({ level: 'warning', event: 'app.warning', fields: { error } }));
+  app.on('child-process-gone', (_event, details) => diagnostics?.log({ level: details.reason === 'clean-exit' || details.reason === 'killed' ? 'info' : 'error', event: 'worker.gone', fields: { reason: details.reason, processType: details.type, exitCode: details.exitCode } }));
+  let quitFlushed = false;
+  app.on('will-quit', event => {
+    if (quitFlushed || !diagnostics) return;
+    event.preventDefault(); quitFlushed = true;
+    diagnostics.log({ level: 'info', event: 'app.quit' });
+    void Promise.race([diagnostics.flush(), new Promise(resolve => setTimeout(resolve, 1000))]).finally(() => app.quit());
+  });
+}
 const permittedFiles = new Set<string>(), permittedRoots = new Set<string>(), permittedLibraries = new Set<string>();
 const permittedDecoders = new Set<string>();
 const executeFile = promisify(execFile);
@@ -74,9 +93,10 @@ async function atomicWrite(filename: string, bytes: Uint8Array) {
   catch (error) { await unlink(temporary).catch(() => {}); throw error; }
 }
 function handle(channel: string, callback: (...args: any[]) => Promise<unknown>) {
-  ipcMain.handle(channel, (event, ...args) => {
+  ipcMain.handle(channel, async (event, ...args) => {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error('无效的桌面请求来源。');
-    return callback(...args);
+    try { return await callback(...args); }
+    catch (error) { if (!channel.startsWith('diagnostics:')) diagnostics?.log({ level: 'error', event: 'ipc.failed', fields: { operation: channel, error } }); throw error; }
   });
 }
 function checkBytes(bytes: unknown, limit = 256 * 1024 * 1024): asserts bytes is Uint8Array {
@@ -203,6 +223,14 @@ async function loadMinecraft(root: string, index: string, version: string): Prom
     profileId: `java-${client.release.id}`, samples, nativeLibrary, nativeDecoder };
 }
 function setupHandlers() {
+  handle('diagnostics:record', async input => {
+    const value = normalizeDiagnostic(input);
+    const stored = !!value && RENDERER_DIAGNOSTIC_EVENTS.has(value.event) && !!diagnostics?.log(value);
+    if (stored && value?.event === 'audio.snapshot') diagnosticSnapshotWaiter?.();
+    return stored;
+  });
+  handle('diagnostics:export', exportDiagnostics);
+  handle('diagnostics:open-folder', openLogsFolder);
   handle('renderer:ready', async () => { rendererReady = true; await flushOpenFiles(); });
   handle('project:dirty', async (dirty: boolean) => { if (typeof dirty !== 'boolean') throw new Error('无效工程状态。'); dirtyProject = dirty; });
   handle('window:close-saved', async () => { if (dirtyProject) throw new Error('工程仍有未保存的修改。'); window?.destroy(); });
@@ -280,11 +308,64 @@ function setupHandlers() {
     });
   });
 }
+let exportingDiagnostics = false;
+let diagnosticSnapshotWaiter: (() => void) | undefined;
+async function captureAudioDiagnosticState() {
+  if (!window || window.isDestroyed() || window.webContents.isCrashed()) return false;
+  return new Promise<boolean>(resolve => {
+    const finish = (captured: boolean) => { clearTimeout(timer); diagnosticSnapshotWaiter = undefined; resolve(captured); };
+    const timer = setTimeout(() => finish(false), 300);
+    diagnosticSnapshotWaiter = () => finish(true);
+    try { window!.webContents.send('diagnostics:capture'); } catch { finish(false); }
+  });
+}
+async function exportDiagnostics(): Promise<DiagnosticExportResult> {
+  if (!diagnostics || exportingDiagnostics) return { status: 'canceled' };
+  exportingDiagnostics = true;
+  try {
+    const consent = await dialog.showMessageBox(window!, { type: 'info', title: '导出诊断包',
+      message: '保存一份可用于反馈问题的诊断包。', detail: '包含软件版本、系统架构、采样和播放状态及错误记录；不包含工程、曲目或采样文件，不会自动上传。路径、邮箱和常见凭据会自动隐藏，发送前仍建议解压检查。',
+      buttons: ['取消', '选择保存位置…'], defaultId: 1, cancelId: 0 });
+    if (consent.response !== 1) return { status: 'canceled' };
+    const target = await dialog.showSaveDialog(window!, { title: '保存诊断包', defaultPath: `NeoNBS-diagnostics-${new Date().toISOString().replaceAll(':', '-')}.zip`, filters: [{ name: '诊断包', extensions: ['zip'] }] });
+    if (target.canceled || !target.filePath) return { status: 'canceled' };
+    const snapshotCaptured = await captureAudioDiagnosticState(), snapshot = await diagnostics.snapshot();
+    const bytes = diagnosticArchive(snapshot, { version: app.getVersion(), platform: process.platform, arch: process.arch,
+      osRelease: osRelease(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node, packaged: app.isPackaged, snapshotCaptured });
+    await atomicWrite(target.filePath, bytes);
+    diagnostics.log({ level: 'info', event: 'diagnostics.exported', fields: { records: snapshot.entries.length, bytes: bytes.length } });
+    return { status: 'saved', records: snapshot.entries.length };
+  } catch (error) {
+    diagnostics.log({ level: 'error', event: 'diagnostics.export.failed', fields: { error } });
+    try { await dialog.showMessageBox({ type: 'error', title: '诊断包未保存', message: '无法保存诊断包，请选择可写入的位置后重试。' }); } catch { /* The application may already be shutting down. */ }
+    return { status: 'failed' };
+  } finally { exportingDiagnostics = false; }
+}
+async function openLogsFolder() {
+  if (!diagnostics) return false;
+  try {
+    await diagnostics.flush();
+    if (!(await stat(diagnostics.directory)).isDirectory()) throw new Error('Log folder unavailable');
+    const result = await shell.openPath(diagnostics.directory);
+    if (!result) return true;
+  } catch { /* Folder access is optional; diagnostic export remains available. */ }
+  try { await dialog.showMessageBox({ type: 'info', title: '运行日志', message: '日志目录暂时不可用。仍可尝试导出诊断包，获取本次会话的内存记录。' }); }
+  catch { /* The application may already be shutting down. */ }
+  return false;
+}
 function createWindow() {
   dirtyProject = false; rendererReady = false;
   window = new BrowserWindow({ width: 1600, height: 1000, minWidth: 1050, minHeight: 720, backgroundColor: '#232426', title: APP_NAME, show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('did-finish-load', () => diagnostics?.log({ level: 'info', event: 'window.loaded' }));
+  window.webContents.on('did-fail-load', (_event, errorCode, description, _url, isMainFrame) => {
+    if (isMainFrame) diagnostics?.log({ level: 'error', event: 'window.load_failed', fields: { errorCode, error: description } });
+  });
+  window.webContents.on('render-process-gone', (_event, details) => diagnostics?.log({ level: 'error', event: 'window.renderer_gone', fields: { reason: details.reason, exitCode: details.exitCode } }));
+  window.webContents.on('console-message', details => {
+    if (details.level === 'warning' || details.level === 'error') diagnostics?.log({ level: details.level, event: 'renderer.console', fields: { error: details.message } });
+  });
   window.on('closed', () => { rendererReady = false; window = undefined; });
   window.on('close', event => {
     if (!dirtyProject) return;
@@ -309,9 +390,11 @@ function createWindow() {
     { label: '轨道', submenu: [{ label: '添加轨道', click: send('add-track') }, { label: '上移当前轨道', click: send('track-up') }, { label: '下移当前轨道', click: send('track-down') }, { type: 'separator' }, { label: '删除当前轨道', click: send('delete-track') }] },
     { label: '视图', submenu: [{ label: '混音器', click: send('mixer') }, { label: '设置', click: send('settings') }, { role: 'togglefullscreen', label: '全屏' }, { role: 'toggleDevTools', label: '开发工具' }] },
     { label: '播放', submenu: [{ label: '播放 / 暂停', click: send('play') }, { label: '停止并回到起点', click: send('stop') }, { label: '循环播放工程', click: send('loop') }, { type: 'separator' }, { label: '上一小节', click: send('previous-bar') }, { label: '下一小节', click: send('next-bar') }] },
+    { label: '帮助', submenu: [{ label: '操作与工程提示', click: send('help') }, { type: 'separator' }, { label: '导出诊断包…', click: () => { void exportDiagnostics(); } }, { label: '打开日志文件夹', click: () => { void openLogsFolder(); } }] },
   ]));
 }
 if (primaryInstance) app.whenReady().then(() => {
+  diagnostics?.log({ level: 'info', event: 'app.ready' });
   protocol.handle('nbsx', request => {
     const url = new URL(request.url); const relative = decodeURIComponent(url.pathname).replace(/^\/+/, '');
     const target = path.resolve(appRoot, 'dist', relative || 'index.html');

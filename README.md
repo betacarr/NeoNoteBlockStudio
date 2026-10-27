@@ -83,9 +83,9 @@
 
 | 下载 | 适合谁 |
 | --- | --- |
-| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.56/NeoNBS-0.1.56-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
-| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.56/NeoNBS-0.1.56-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
-| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.56/SHA256SUMS.txt) | 核对下载文件。 |
+| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.57/NeoNBS-0.1.57-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
+| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.57/NeoNBS-0.1.57-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
+| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.57/SHA256SUMS.txt) | 核对下载文件。 |
 
 下载安装版后运行向导，启动 NeoNBS；默认音色加载后即可导入 MIDI 并播放。需要核对特定游戏版本时，再到「设置 → 声音与资源」选择自己的 Minecraft 实例。具体步骤见 [图文上手](docs/quick-start.md)。
 
@@ -123,12 +123,13 @@ npm run dev
 
 | 想了解什么 | 从这里开始 |
 | --- | --- |
-| 第一次使用，按图完成导入、编辑与导出 | **[图文上手：9 个步骤](docs/quick-start.md)** |
+| 第一次使用，按图完成导入、编辑与导出 | **[图文上手：10 个步骤](docs/quick-start.md)** |
 | 放置、移动、框选、缩放与片段边界 | [编辑操作](docs/editor-interactions.md) · [快捷键](docs/shortcuts.md) |
 | 轨道筛选、实时混音与电平 | [混音器](docs/mixer.md) · [轨道管理](docs/track-management.md) |
 | 回声包络、尾音、左右摆幅与效果导出 | [Delay](docs/delay-effects.md) |
 | NBS 导出与音乐位置换算 | [导出流程](docs/export-workflow.md) · [音乐格点](docs/nbs-musical-timing.md) |
 | 已实现的内容、历史变更与验证范围 | [当前状态](docs/status.md) · [变更日志](CHANGELOG.md) · [验证说明](docs/verification.md) |
+| 无法播放、错误记录与反馈 | [日志与诊断包图解](docs/diagnostics.md) |
 | 版本、隐私、许可与素材 | [版本规则](VERSIONING.md) · [问题报告](SECURITY.md) · [许可说明](docs/licensing.md) · [素材边界](docs/assets-and-rights.md) |
 
 ## 许可与素材

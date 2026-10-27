@@ -78,6 +78,10 @@ export interface SampleLibrary {
   samples: Record<string, { name: string; bytes: Uint8Array; sha1: string }>;
 }
 export interface DesktopAPI {
+  recordDiagnostic?: (input: import('./diagnostics').DiagnosticInput) => Promise<boolean>;
+  exportDiagnostics?: () => Promise<import('./diagnostics').DiagnosticExportResult>;
+  openLogsFolder?: () => Promise<boolean>;
+  onDiagnosticRequest?: (callback: () => void) => () => void;
   openFile: (kind: 'project' | 'reference' | 'sample') => Promise<{ path: string; name: string; bytes: Uint8Array } | null>;
   inspectFlpSamples: (sourcePath: string, samples: { id: number; path: string }[]) => Promise<Record<number, { sha256: string; path: string }>>;
   saveFile: (name: string, bytes: Uint8Array, path?: string) => Promise<string | null>;
