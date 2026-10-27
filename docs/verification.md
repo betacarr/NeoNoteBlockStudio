@@ -13,6 +13,8 @@
 - 两个 ZIP 通过完整 CRC、可执行权限和内部程序／工程代码／桥接组件与受检构建的一致性检查；提供四个分发文件的 SHA-256 校验值。
 - 分发内容扫描不含源码映射、开发目录路径、私人工程、未公开功能或 Minecraft 游戏素材；源码发布检查通过。
 
+完整曲目的预览、真实音频输出、静音／音量、循环、编辑与 NBS／MIDI／WAV 导出等补充结果见 [常用功能验收](common-workflow-verification.md)。
+
 未进行 Apple Developer ID 签名和公证。物理 Intel Mac、macOS 13～26、硬件音频／MIDI、Minecraft 原生库及游戏录音一致性不在本次实机验收范围。macOS 安装与构建见 [macOS 说明](macos.md)。
 
 ## Windows 0.1.55
