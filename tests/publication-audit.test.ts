@@ -23,11 +23,40 @@ function audit(root: string, ref?: string) {
   try { return { status: 0, output: execFileSync(process.execPath, [script, ...(ref ? ['--ref', ref] : [])], { cwd: root, windowsHide: true, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }) }; }
   catch (error) { const result = error as { status: number; stdout: string; stderr: string }; return { status: result.status, output: `${result.stdout}${result.stderr}` }; }
 }
+function identityCommit(root: string, author: string, committer: string) {
+  execFileSync('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', 'Identity fixture'], {
+    cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, GIT_AUTHOR_NAME: 'Test', GIT_AUTHOR_EMAIL: author, GIT_COMMITTER_NAME: 'GitHub', GIT_COMMITTER_EMAIL: committer },
+  });
+}
 afterEach(() => { for (const root of folders.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe('publication gate inspects the data that Git will publish', () => {
   it('accepts a clean index before the first commit, then a noreply commit', () => {
     const root = fixture(); expect(audit(root).status).toBe(0);
     git(root, 'commit', '-m', 'Clean'); expect(audit(root, git(root, 'rev-parse', 'HEAD')).status).toBe(0);
+  });
+  it('accepts the exact public GitHub service committer with a user noreply author', () => {
+    const root = fixture(); identityCommit(root, '1+test@users.noreply.github.com', 'noreply@github.com');
+    expect(audit(root, git(root, 'rev-parse', 'HEAD')).status).toBe(0);
+  });
+  it.each(['noreply@github.com.example.invalid', 'noreply@github.example', 'noreply+release@github.com', 'no-reply@github.com', 'person@example.invalid'])('rejects the non-service committer %s without printing it', committer => {
+    const root = fixture(); identityCommit(root, '1+test@users.noreply.github.com', committer);
+    const result = audit(root); expect(result.status).toBe(1);
+    expect(result.output).toContain('non-noreply-git-identity'); expect(result.output).not.toContain(committer);
+  });
+  it('still rejects a personal author when the committer is the official service', () => {
+    const root = fixture(); identityCommit(root, 'person@example.invalid', 'noreply@github.com');
+    const result = audit(root); expect(result.status).toBe(1);
+    expect(result.output).toContain('non-noreply-git-identity'); expect(result.output).not.toContain('person@example.invalid');
+  });
+  it('does not extend the service-committer exception to authors', () => {
+    const root = fixture(); identityCommit(root, 'noreply@github.com', '1+test@users.noreply.github.com');
+    expect(audit(root).output).toContain('non-noreply-git-identity');
+  });
+  it('does not extend the service-committer exception to annotated taggers', () => {
+    const root = fixture(); git(root, 'commit', '-m', 'Clean'); git(root, 'config', 'user.email', 'noreply@github.com');
+    git(root, 'tag', '-a', 'v0.1.0', '-m', 'Tag');
+    expect(audit(root, git(root, 'rev-parse', 'v0.1.0')).output).toContain('non-noreply-git-identity');
   });
   it('finds a staged token even when it was removed from the working file, without printing it', () => {
     const root = fixture(), token = ['ghp', '_', 'a'.repeat(36)].join('');

@@ -60,7 +60,13 @@ export function auditPublication(root, ref) {
   if (history) {
     const identities = git(['log', '--format=%H%x09%ae%x09%ce', history]).toString().trim().split('\n').filter(Boolean);
     commits = identities.length;
-    identities.forEach((record, index) => { const [, author, committer] = record.trim().split('\t'); if (!noreply.test(author) || !noreply.test(committer)) fail(`history/commit-${index + 1}`, 'non-noreply-git-identity'); });
+    identities.forEach((record, index) => {
+      const [, author, committer] = record.trim().split('\t');
+      // GitHub's web-flow merges use this exact public service committer.
+      // Authors and taggers still require their user-specific noreply address.
+      const publicCommitter = noreply.test(committer) || committer === 'noreply@github.com';
+      if (!noreply.test(author) || !publicCommitter) fail(`history/commit-${index + 1}`, 'non-noreply-git-identity');
+    });
     if (git(['cat-file', '-t', history]).toString().trim() === 'tag') {
       const tag = git(['cat-file', '-p', history]).toString();
       const email = tag.match(/^tagger .* <([^<>]+)> /m)?.[1];
