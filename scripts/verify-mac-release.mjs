@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 if (process.platform !== 'darwin') throw new Error('Run macOS release verification on a Mac.');
+if (execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()) throw new Error('Verify a committed source tree without tracked modifications.');
 const metadata = JSON.parse(await readFile('package.json', 'utf8'));
 const architectures = process.argv.slice(2);
 if (!architectures.length) architectures.push('arm64', 'x64');
@@ -22,7 +23,7 @@ async function run(script, args) {
 for (const arch of new Set(architectures)) {
   const built = path.join(root, arch === 'arm64' ? 'mac-arm64' : 'mac', 'NeoNBS.app');
   const fixture = await mkdtemp(path.join(fixtureBase, `${arch}-`)), mount = path.join(fixture, 'mount'), installed = path.join(fixture, 'installed/NeoNBS.app');
-  await mkdir(mount); let mounted = false;
+  await mkdir(mount); await mkdir(path.dirname(installed)); let mounted = false;
   try {
     execFileSync('hdiutil', ['attach', '-readonly', '-nobrowse', '-mountpoint', mount, path.join(root, `NeoNBS-${metadata.version}-mac-${arch}.dmg`)], { stdio: 'pipe' }); mounted = true;
     execFileSync('ditto', [path.join(mount, 'NeoNBS.app'), installed]);
