@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 // deliberately excluded from Git and release packages. File pickers are the
 // only mocked product boundary; controls, audio and files use the actual app.
 const option = name => process.argv[process.argv.indexOf(name) + 1];
+const commandKey = process.platform === 'darwin' ? 'Meta' : 'Control';
 assert(process.argv.includes('--packaged'), 'Pass --packaged <executable> and optionally --assets <directory>.');
 const executable = path.resolve(option('--packaged'));
 const assets = path.resolve(process.argv.includes('--assets') ? option('--assets') : '.local/common-assets');
@@ -167,13 +168,13 @@ try {
   assert(positions.some((value, i) => i && numeric(value) < numeric(positions[i - 1])), 'Loop did not wrap');
   await stop(); await setLoop(false); await bpm.fill('108'); await bpm.press('Tab');
   checkpoint('tempo change and actual end-to-start loop wrap', { positions });
-  await page.locator('.piano-viewport canvas').focus(); await page.keyboard.press('Meta+a');
-  const beforeEdit = await save('demo-edit-baseline.nbsx'); await page.keyboard.press('Meta+b');
+  await page.locator('.piano-viewport canvas').focus(); await page.keyboard.press(`${commandKey}+a`);
+  const beforeEdit = await save('demo-edit-baseline.nbsx'); await page.keyboard.press(`${commandKey}+b`);
   await page.waitForFunction(() => document.title.startsWith('● '));
   const duplicated = await save('demo-duplicated.nbsx');
   const changed = duplicated.project.patterns.filter(pattern => pattern.notes.length !== beforeEdit.project.patterns.find(before => before.id === pattern.id)?.notes.length);
   assert.equal(changed.length, 1); assert.equal(changed[0].notes.length, beforeEdit.project.patterns.find(pattern => pattern.id === changed[0].id).notes.length * 2);
-  await page.locator('.piano-viewport canvas').focus(); await page.keyboard.press('Meta+z');
+  await page.locator('.piano-viewport canvas').focus(); await page.keyboard.press(`${commandKey}+z`);
   const undone = await save('demo-undone.nbsx'); assert.deepEqual(undone.project.patterns, beforeEdit.project.patterns);
   await menu('编辑', '重做'); const redone = await save('demo-redone.nbsx'); assert.deepEqual(redone.project.patterns, duplicated.project.patterns);
   await menu('编辑', '撤销'); await save('demo-final.nbsx');
