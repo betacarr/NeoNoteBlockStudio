@@ -51,7 +51,7 @@ try {
   await page.waitForFunction(() => document.title.startsWith('● '));
   await desktop.evaluate(({ dialog, BrowserWindow }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); BrowserWindow.getAllWindows()[0].close(); });
   assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
-  const closed = desktop.waitForEvent('close');
+  const closed = process.platform === 'darwin' ? page.waitForEvent('close') : desktop.waitForEvent('close');
   await desktop.evaluate(({ dialog, BrowserWindow }) => { dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false }); BrowserWindow.getAllWindows()[0].close(); });
   await closed;
   const final = openNbsx(new Uint8Array(await readFile(secondFile))); assert.equal(final.regions.length, 1); assert.equal(final.patterns[0].notes.length, 2);

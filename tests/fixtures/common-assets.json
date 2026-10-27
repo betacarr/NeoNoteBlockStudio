@@ -1,0 +1,109 @@
+{
+  "source": "https://github.com/OpenNBS/NoteBlockStudio",
+  "commit": "79b22ad890631a39196d45b9c27881599f9b04ab",
+  "purpose": "Local acceptance test only; not redistributed in application packages.",
+  "files": [
+    {
+      "file": "Turkish March.nbs",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Songs/Turkish%20March.nbs",
+      "bytes": 57959,
+      "sha256": "c2942a25e944288abe2e1edf8a68cfece9ae152cdbf67c2df12e7147ad541f1e"
+    },
+    {
+      "file": "harp.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/harp.ogg",
+      "bytes": 6137,
+      "sha256": "d775e11718dba8dd601e76bee5958aa02ed0d56c26481881d4c28226f7bd4477"
+    },
+    {
+      "file": "bdrum.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/bdrum.ogg",
+      "bytes": 3850,
+      "sha256": "829e1ff33546ef3de4e1e1a38ca3e0dc8a582227c284052868963333ed790686"
+    },
+    {
+      "file": "sdrum.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/sdrum.ogg",
+      "bytes": 3969,
+      "sha256": "a2a5168e70548dcddd5015204cec586365e611854e83bf634b42f2a6ddd8c3b7"
+    },
+    {
+      "file": "click.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/click.ogg",
+      "bytes": 3880,
+      "sha256": "8139400f63c0bc7114e960826a11bb1cd561e8f0c01dce077dbc6424ae51ab6c"
+    },
+    {
+      "file": "dbass.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/dbass.ogg",
+      "bytes": 5574,
+      "sha256": "7261568b63fea6a5763335479d16980329ae0c8db35f1b743eb86005d1a12150"
+    },
+    {
+      "file": "flute.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/flute.ogg",
+      "bytes": 8781,
+      "sha256": "9372c07a7b9939d54ba877e25ba162806143b143bd05983f2bdc0a35c913fcbe"
+    },
+    {
+      "file": "bell.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/bell.ogg",
+      "bytes": 5827,
+      "sha256": "550f0027fbaf52e1046898c05b65b9690d9db5374603fb701e5bd995f0d1059e"
+    },
+    {
+      "file": "guitar.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/guitar.ogg",
+      "bytes": 7563,
+      "sha256": "8c15ed51b6fd1724e1fcc532d916961ca7925ccb0538cb7464eb84f747633469"
+    },
+    {
+      "file": "icechime.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/icechime.ogg",
+      "bytes": 13271,
+      "sha256": "82066b17ea8398765b1945fc9dd2ff47a389e497d53d4ca72609c1783ab72a63"
+    },
+    {
+      "file": "xylobone.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/xylobone.ogg",
+      "bytes": 4551,
+      "sha256": "bd9c7af0c25f7033bff3026f6133e33d7b4d26d5ab689b66376cae090df95dd0"
+    },
+    {
+      "file": "iron_xylophone.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/iron_xylophone.ogg",
+      "bytes": 9559,
+      "sha256": "0a7ef8406f4ad4c5037aa1ecb7a9bf02cf34e86bb0bea46596eef147458b156a"
+    },
+    {
+      "file": "cow_bell.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/cow_bell.ogg",
+      "bytes": 8428,
+      "sha256": "7a18c945ff55914a4f51ddf6ecb012140cc737e63931947377c940e0d66474b7"
+    },
+    {
+      "file": "didgeridoo.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/didgeridoo.ogg",
+      "bytes": 12012,
+      "sha256": "7eaecdb39733fa5d1db91ec93fdc745a2cff9d0d77afdcbcfa9bc12568d542aa"
+    },
+    {
+      "file": "bit.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/bit.ogg",
+      "bytes": 11872,
+      "sha256": "6f5948e882931aaaab6a2396e0fb77228929481150fc0b822e4ac0d4c6c3bcfb"
+    },
+    {
+      "file": "banjo.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/banjo.ogg",
+      "bytes": 12499,
+      "sha256": "06b4e1927947bf2152d2d552099f753b2842f2419632f8effa1bad48d03af5f7"
+    },
+    {
+      "file": "pling.ogg",
+      "url": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/79b22ad890631a39196d45b9c27881599f9b04ab/datafiles/Data/Sounds/pling.ogg",
+      "bytes": 6274,
+      "sha256": "d7e3638d4c0fba4614f24ba94d6380935ae2341536d76989e44f00ffd94a1459"
+    }
+  ]
+}

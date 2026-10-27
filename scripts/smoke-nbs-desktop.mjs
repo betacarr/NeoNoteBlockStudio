@@ -43,7 +43,8 @@ if (prepareOnly) {
   const expectedVersion = argument('--expected-version') ?? JSON.parse(await readFile('package.json', 'utf8')).version;
   const sources = ['src/core/nbs.ts', 'src/core/container.ts', 'src/core/project.ts', 'src/core/time.ts', 'src/ui/App.tsx', 'electron/main.ts', 'tests/fixtures/nbs-interop.ts', 'scripts/smoke-nbs-desktop.mjs'];
   const implementationSha256 = Object.fromEntries(await Promise.all(sources.map(async file => [file, await sha256(file)])));
-  const images = [await reference(packaged), await reference(path.join(path.dirname(packaged), 'resources', 'app.asar'))];
+  const appAsar = process.platform === 'darwin' ? path.resolve(path.dirname(packaged), '../Resources/app.asar') : path.join(path.dirname(packaged), 'resources', 'app.asar');
+  const images = [await reference(packaged), await reference(appAsar)];
   const env = { ...process.env, NBSX_TEST_USER_DATA: profile }; delete env.ELECTRON_RUN_AS_NODE; delete env.NBSX_DEV_URL;
   let desktop, page, applicationVersion;
   const rendererErrors = [], consoleErrors = [], unexpectedDialogs = [], observations = [], savedFiles = [];

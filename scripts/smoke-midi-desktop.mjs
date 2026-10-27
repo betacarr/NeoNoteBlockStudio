@@ -21,7 +21,7 @@ const argument = name => {
 };
 const executableArgument = argument('--packaged'), executable = executableArgument && path.resolve(executableArgument);
 const expectedVersion = argument('--expected-version') ?? JSON.parse(await readFile('package.json', 'utf8')).version;
-const appAsar = executable && path.join(path.dirname(executable), 'resources', 'app.asar');
+const appAsar = executable && (process.platform === 'darwin' ? path.resolve(path.dirname(executable), '../Resources/app.asar') : path.join(path.dirname(executable), 'resources', 'app.asar'));
 if (executable) assert(!/(?:portable|setup)\.exe$/i.test(executable), 'Use an unpacked executable, not a launcher or installer');
 const base = path.resolve('.local/midi-desktop'); await mkdir(base, { recursive: true });
 const root = await mkdtemp(path.join(base, executable ? 'packaged-' : 'development-')), profile = path.join(root, 'profile');

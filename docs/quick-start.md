@@ -2,7 +2,7 @@
 
 先认清工作区，再按「导入 → 编辑 → 试听 → 保存与导出」完成第一首编曲。
 
-以下图片是按 **0.1.58** 功能绘制的操作示意，布局作了简化；点击图片可以放大。音符均为自行制作的演示内容，不含游戏声音或私人曲目。默认使用 FL 操作预设，快捷键可在设置中修改。
+以下图片是按 **0.1.59** 功能绘制的操作示意，布局作了简化；点击图片可以放大。音符均为自行制作的演示内容，不含游戏声音或私人曲目。默认使用 FL 操作预设，快捷键可在设置中修改。
 
 [安装与启动](#install) · [认识界面](#workspace) · [导入与试听](#import) · [编辑音符](#piano) · [缩放与滚动](#view) · [裁剪片段](#regions) · [混音](#mixer) · [Delay](#delay) · [保存与导出](#export) · [反馈与日志](#diagnostics)
 
@@ -15,6 +15,8 @@
 1. 在 [下载页面](https://github.com/betacarr/NeoNoteBlockStudio/releases/latest) 选择 Windows x64 安装版，运行后按向导完成安装。
 2. 从开始菜单打开 NeoNBS。也可选择便携版直接启动。
 3. 已内置 20 种默认试听音色，无需安装游戏或 Java 即可播放。当前安装包未做数字签名。
+
+macOS 的 Apple Silicon／Intel DMG 安装与 Command 快捷键见 [macOS 说明](macos.md)。
 
 <a id="workspace"></a>
 
