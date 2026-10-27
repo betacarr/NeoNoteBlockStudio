@@ -44,6 +44,7 @@ function fixture(format: ExportOptions['format'] = 'wav', nativeAudio = false) {
   const finishNumberDraft = vi.fn(() => flush());
   function functions() {
     const scope = { finishNumberDraft, busy: state.busy, exportOwner, exportRunning, exportSaving, projectRef, modalRef,
+      ensurePreviewSamples: vi.fn(async () => 20),
       syncExportOwner, isCurrentExport, setPrepared, setBusy, setMessage, setModal, setExportError, prepared: state.prepared,
       setExportFormat: (value: ExportOptions['format']) => { state.options.format = value; },
       setNbsVersion: (value: 4 | 5 | 6) => { state.options.nbsVersion = value; }, setNbsTempoPreset: (value: NbsTempoPreset) => { state.options.nbsTempoPreset = value; },

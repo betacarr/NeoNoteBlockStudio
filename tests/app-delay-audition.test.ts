@@ -59,6 +59,7 @@ function fixture(backend: 'native' | 'web' = 'native', ppq = 480, noteLength = 1
     const scope = { track, pattern, region, sourceOrigin: patternOrigin(region, pattern), positionRef, projectRef, library, engine,
       createAuditionProject, previewBackendForProject, preferences: { noteLength, snap: 0 }, stopEpoch: { current: 0 }, auditionCache,
       playbackMode, editorDocumentKey, window: { desktop: { renderNative, openFile } }, setMessage, firstNote: pattern.notes[0],
+      ensurePreviewSamples: vi.fn(async () => 20),
       instrument: project.instruments.find(item => item.id === track.instrumentId), uid, commit, bytesToBase64,
       midiDown, keysHeld, beginRecordedPress, recordingRef, newNote, setHasHeldRecording: vi.fn() };
     return Function(...Object.keys(scope), `${code}\nreturn {audition,locateSample,midiDown:midiDown.current};`)(...Object.values(scope)) as AppFunctions;

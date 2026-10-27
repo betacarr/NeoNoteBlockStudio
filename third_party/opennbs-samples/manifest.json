@@ -1,0 +1,128 @@
+{
+  "bankId": "opennbs-noteblock-preview-v1",
+  "repository": "https://github.com/OpenNBS/NoteBlockStudio",
+  "revision": "7dd79ecb313d981c12bc4b69ad13201c4995a3ae",
+  "baseUrl": "https://raw.githubusercontent.com/OpenNBS/NoteBlockStudio/7dd79ecb313d981c12bc4b69ad13201c4995a3ae/datafiles/Data/Sounds/",
+  "samples": [
+    {
+      "id": "harp",
+      "file": "harp.ogg",
+      "bytes": 6137,
+      "sha256": "d775e11718dba8dd601e76bee5958aa02ed0d56c26481881d4c28226f7bd4477"
+    },
+    {
+      "id": "bass",
+      "file": "dbass.ogg",
+      "bytes": 5574,
+      "sha256": "7261568b63fea6a5763335479d16980329ae0c8db35f1b743eb86005d1a12150"
+    },
+    {
+      "id": "basedrum",
+      "file": "bdrum.ogg",
+      "bytes": 3850,
+      "sha256": "829e1ff33546ef3de4e1e1a38ca3e0dc8a582227c284052868963333ed790686"
+    },
+    {
+      "id": "snare",
+      "file": "sdrum.ogg",
+      "bytes": 3969,
+      "sha256": "a2a5168e70548dcddd5015204cec586365e611854e83bf634b42f2a6ddd8c3b7"
+    },
+    {
+      "id": "hat",
+      "file": "click.ogg",
+      "bytes": 3880,
+      "sha256": "8139400f63c0bc7114e960826a11bb1cd561e8f0c01dce077dbc6424ae51ab6c"
+    },
+    {
+      "id": "guitar",
+      "file": "guitar.ogg",
+      "bytes": 7563,
+      "sha256": "8c15ed51b6fd1724e1fcc532d916961ca7925ccb0538cb7464eb84f747633469"
+    },
+    {
+      "id": "flute",
+      "file": "flute.ogg",
+      "bytes": 8781,
+      "sha256": "9372c07a7b9939d54ba877e25ba162806143b143bd05983f2bdc0a35c913fcbe"
+    },
+    {
+      "id": "bell",
+      "file": "bell.ogg",
+      "bytes": 5827,
+      "sha256": "550f0027fbaf52e1046898c05b65b9690d9db5374603fb701e5bd995f0d1059e"
+    },
+    {
+      "id": "chime",
+      "file": "icechime.ogg",
+      "bytes": 13271,
+      "sha256": "82066b17ea8398765b1945fc9dd2ff47a389e497d53d4ca72609c1783ab72a63"
+    },
+    {
+      "id": "xylophone",
+      "file": "xylobone.ogg",
+      "bytes": 4551,
+      "sha256": "bd9c7af0c25f7033bff3026f6133e33d7b4d26d5ab689b66376cae090df95dd0"
+    },
+    {
+      "id": "iron_xylophone",
+      "file": "iron_xylophone.ogg",
+      "bytes": 9559,
+      "sha256": "0a7ef8406f4ad4c5037aa1ecb7a9bf02cf34e86bb0bea46596eef147458b156a"
+    },
+    {
+      "id": "cow_bell",
+      "file": "cow_bell.ogg",
+      "bytes": 8428,
+      "sha256": "7a18c945ff55914a4f51ddf6ecb012140cc737e63931947377c940e0d66474b7"
+    },
+    {
+      "id": "didgeridoo",
+      "file": "didgeridoo.ogg",
+      "bytes": 12012,
+      "sha256": "7eaecdb39733fa5d1db91ec93fdc745a2cff9d0d77afdcbcfa9bc12568d542aa"
+    },
+    {
+      "id": "bit",
+      "file": "bit.ogg",
+      "bytes": 11872,
+      "sha256": "6f5948e882931aaaab6a2396e0fb77228929481150fc0b822e4ac0d4c6c3bcfb"
+    },
+    {
+      "id": "banjo",
+      "file": "banjo.ogg",
+      "bytes": 12499,
+      "sha256": "06b4e1927947bf2152d2d552099f753b2842f2419632f8effa1bad48d03af5f7"
+    },
+    {
+      "id": "pling",
+      "file": "pling.ogg",
+      "bytes": 6274,
+      "sha256": "d7e3638d4c0fba4614f24ba94d6380935ae2341536d76989e44f00ffd94a1459"
+    },
+    {
+      "id": "trumpet",
+      "file": "trumpet.ogg",
+      "bytes": 6074,
+      "sha256": "b67b417ec1944c99ec19a0cee5d5700e92209ec85d74555dfaf15d922a13671c"
+    },
+    {
+      "id": "trumpet_exposed",
+      "file": "trumpet_exposed.ogg",
+      "bytes": 6437,
+      "sha256": "2fcd3d4627b4c0299097bc6ced91103d22138f5db49f0f2bd3eff6fbc517d8cb"
+    },
+    {
+      "id": "trumpet_weathered",
+      "file": "trumpet_weathered.ogg",
+      "bytes": 5918,
+      "sha256": "e030fd7b834a6361be3e157951f8e696724b0dba2fa5c12430fa4530b5491b1a"
+    },
+    {
+      "id": "trumpet_oxidized",
+      "file": "trumpet_oxidized.ogg",
+      "bytes": 6088,
+      "sha256": "a8eccdb19f72e2c610fee2c7c72761deab1e33611f0467b880a1f299b172f34b"
+    }
+  ]
+}

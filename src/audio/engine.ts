@@ -96,6 +96,7 @@ export function wavFromChannels(channels: Float32Array[], sampleRate: number): U
 export class AudioEngine {
   context?: AudioContext;
   buffers = new Map<string, AudioBuffer>();
+  private previewBuffers = new Map<string, AudioBuffer>();
   library?: SampleLibrary;
   playing = false;
   renderDiagnostics: Diagnostic[] = [];
@@ -121,6 +122,13 @@ export class AudioEngine {
   onEnded?: () => void;
 
   async ensure() { this.context ??= new AudioContext({ sampleRate: 48000 }); await this.context.resume(); return this.context; }
+  async setPreviewSamples(samples: SampleLibrary['samples']) {
+    const context = this.context ??= new AudioContext({ sampleRate: 48000 });
+    const decoded = await Promise.all(Object.entries(samples).map(async ([id, sample]) =>
+      [id, await context.decodeAudioData(Uint8Array.from(sample.bytes).buffer)] as const));
+    this.previewBuffers = new Map(decoded);
+    return decoded.length;
+  }
   async setLibrary(library: SampleLibrary) {
     const context = await this.ensure();
     const decoded = new Map<string, AudioBuffer>();
@@ -202,7 +210,8 @@ export class AudioEngine {
     };
   }
   position() { return this.clock && this.context ? transportPosition(this.clock, this.context.currentTime) : undefined; }
-  bufferFor(id: string) { return this.buffers.get(id) ?? this.buffers.get(SAMPLE_NAMES[id] ?? id); }
+  bufferFor(id: string, includePreview = true) { return this.buffers.get(id) ?? this.buffers.get(SAMPLE_NAMES[id] ?? id)
+    ?? (includePreview ? this.previewBuffers.get(id) : undefined); }
   private mixedProject(project: Project): Project {
     if (!this.trackPreviews.size && this.masterPreview === undefined) return project;
     return { ...project, tracks: project.tracks.map(track => this.trackPreviews.has(track.id) ? { ...track, ...this.trackPreviews.get(track.id) } : track),
@@ -471,7 +480,7 @@ export class AudioEngine {
     if (project.audio.mode === 'vanilla' && project.audio.directional && gameHrtfControl(project.audio.profileId) === false) throw new Error('该版本未提供游戏内 HRTF 开关；请关闭方向音频，或切换完整试听模式。');
     const plan = renderNoteEvents(project), notes = plan.notes, ids = [...new Set(notes.map(n => n.effectiveInstrument))]; this.renderDiagnostics = plan.diagnostics;
     const samples: PcmSample[] = ids.map(id => {
-      const buffer = this.bufferFor(id); if (!buffer) throw new Error(`缺少采样：${id}`);
+      const buffer = this.bufferFor(id, false); if (!buffer) throw new Error(`原生对照缺少目标版本采样：${id}。内置试听采样仅用于实时试听与 Web WAV。`);
       return { id, channels: buffer.numberOfChannels, sampleRate: buffer.sampleRate, data: Array.from({ length: buffer.numberOfChannels }, (_, ch) => buffer.getChannelData(ch).slice()) };
     });
     const timing = createTempoMap(project), events = notes.map(note => ({ time: timing.seconds(note.absoluteTick), frame: timing.frame(note.absoluteTick, project.audio.sampleRate), tick: note.absoluteTick, instrument: note.effectiveInstrument, ...noteAudioParameters(project, note, this.library) }));
@@ -480,7 +489,7 @@ export class AudioEngine {
       if (asset?.data) return /ogg|vorbis/.test(asset.mime) ? [{ id, bytes: base64ToBytes(asset.data) }] : [];
       return this.library?.samples[id] ? [{ id, bytes: this.library.samples[id].bytes }] : [];
     });
-    const duration = renderDuration(project, notes, id => this.bufferFor(id)?.duration ?? 0, this.library, timing);
+    const duration = renderDuration(project, notes, id => this.bufferFor(id, false)?.duration ?? 0, this.library, timing);
     if (duration > 1800) throw new Error('单次音频导出最长 30 分钟，请拆分较长工程或缩短延迟尾音。');
     return { nativeLibrary: this.library.nativeLibrary, nativeDecoder: this.library.nativeDecoder, javaDecoder: this.library.javaDecoder, attenuationModel: this.library.attenuationModel, listener: listenerForProject(project), hrtf: hrtfContextForProject(project), outputLimiter: outputLimiterForProject(project), broadcast: broadcastForProject(project), encodedSamples, sampleRate: project.audio.sampleRate, directional: project.audio.directional, samples, events, duration };
   }

@@ -46,6 +46,7 @@ function fixture() {
   const history = { current: [] as { label: string; project: Project; selection: unknown }[] }, future = { current: [] as { label: string; project: Project; selection: unknown }[] };
   const savedSnapshot = { current: project }, numberEditOwner = { current: { project, generation: 0 } };
   const finishHeld = { current: vi.fn() };
+  const previewSamplesReady = { current: Promise.resolve(20) };
   const engine = {
     playing: false,
     stop: vi.fn(() => { engine.playing = false; }),
@@ -74,6 +75,7 @@ function fixture() {
       busy: state.busy, playing: state.playing, loop: state.loop, revision: 0, renderCache,
       library: { profileId: project.audio.profileId, root: 'fixture', version: '1.16.5', samples: {}, nativeLibrary: 'original-not-loaded' },
       window: { desktop: { renderNative } }, previewBackendForProject, playbackEndTick, createTempoMap,
+      previewSamplesReady, setPreviewSampleCount: vi.fn(),
       audioProfile: () => ({ status: 'fixture' }), PROFILE_STATUS: { fixture: 'inert test boundary' },
       activeTempo: createTempoMap(projectRef.current).at(positionRef.current),
       element: (_tag: string, props: unknown) => props,
@@ -129,7 +131,8 @@ describe('App local realtime/default playback integration', () => {
   it.each(['project', 'mode'] as const)('stops a realtime startup that became stale during engine await: %s', async reason => {
     const t = fixture(), waiting = deferred<boolean>();
     t.engine.play.mockImplementationOnce(async () => { await waiting.promise; t.engine.playing = true; return true; });
-    const app = t.functions(), playback = app.togglePlay(); await Promise.resolve();
+    const app = t.functions(), playback = app.togglePlay();
+    for (let n = 0; n < 12 && !t.engine.play.mock.calls.length; n++) await Promise.resolve();
     expect(t.engine.play).toHaveBeenCalledOnce();
     if (reason === 'project') t.projectRef.current = { ...t.project, name: 'Edited while loading' };
     else app.changePlaybackMode('native-compare');

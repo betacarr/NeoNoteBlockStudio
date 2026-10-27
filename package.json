@@ -1,6 +1,6 @@
 {
   "name": "neo-noteblock-studio",
-  "version": "0.1.55",
+  "version": "0.1.56",
   "private": true,
   "description": "A MIDI-first desktop note block workstation with NBSX projects and NBS interoperability.",
   "type": "module",
@@ -19,7 +19,12 @@
     "package:mac": "npm run build && electron-builder --mac",
     "research:audio": "node scripts/research-audio.mjs",
     "audit:publication": "node scripts/check-publication.mjs",
-    "install:hooks": "git config core.hooksPath .githooks"
+    "install:hooks": "git config core.hooksPath .githooks",
+    "prepare:preview": "node scripts/prepare-preview-samples.mjs",
+    "prebuild": "npm run prepare:preview",
+    "predev": "npm run prepare:preview",
+    "predev:web": "npm run prepare:preview",
+    "pretest": "npm run prepare:preview"
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",
@@ -68,7 +73,10 @@
       "!node_modules/midi-file/**/*",
       "!node_modules/react/**/*",
       "!node_modules/react-dom/**/*",
-      "!node_modules/scheduler/**/*"
+      "!node_modules/scheduler/**/*",
+      "third_party/opennbs-samples/LICENSE",
+      "third_party/opennbs-samples/NOTICE.md",
+      "third_party/opennbs-samples/manifest.json"
     ],
     "asarUnpack": [
       "node_modules/koffi/**/*",
