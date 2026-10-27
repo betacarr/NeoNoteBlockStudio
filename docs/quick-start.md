@@ -16,6 +16,8 @@
 2. 从开始菜单打开 NeoNBS。也可选择便携版直接启动。
 3. 游戏声音需从自己的本机 Minecraft 安装读取；安装包不附带游戏素材。当前安装包未做数字签名。
 
+macOS 0.1.56 的 Apple Silicon／Intel DMG 安装与 Command 快捷键见 [macOS 说明](macos.md)。
+
 <a id="workspace"></a>
 
 ## 2. 认识工作区

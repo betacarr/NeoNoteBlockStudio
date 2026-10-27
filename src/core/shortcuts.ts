@@ -62,6 +62,11 @@ export function fixedShortcuts(platform: string): FixedShortcut[] {
     { command: 'close-dialog', label: '关闭对话框 / 菜单', bindings: ['Escape'], reservedOnly: true },
     { command: 'activate-control', label: '焦点移动 / 激活控件', bindings: ['Tab', 'Shift+Tab', 'Enter', 'Shift+Enter'], reservedOnly: true },
     { command: 'fullscreen', label: '全屏（系统菜单）', bindings: isMac(platform) ? [] : ['F11'], reservedOnly: true },
+    ...(isMac(platform) ? [
+      { command: 'close-window', label: '关闭窗口（系统菜单）', bindings: ['Ctrl+W'], reservedOnly: true },
+      { command: 'settings', label: '设置（系统菜单）', bindings: ['Ctrl+,'], reservedOnly: true },
+      { command: 'window', label: '隐藏 / 最小化窗口（系统菜单）', bindings: ['Ctrl+H', 'Ctrl+Alt+H', 'Ctrl+M'], reservedOnly: true },
+    ] : []),
     { command: 'devtools', label: '开发工具（系统菜单）', bindings: [isMac(platform) ? 'Ctrl+Alt+I' : 'Ctrl+Shift+I'], reservedOnly: true },
     { command: 'quit', label: '退出程序（系统）', bindings: [isMac(platform) ? 'Ctrl+Q' : 'Alt+F4'], reservedOnly: true },
     { command: 'system', label: '系统保留', bindings: isMac(platform) ? ['Ctrl+Alt+Escape'] : ['Alt+Tab', 'Alt+Space', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Escape'], reservedOnly: true },

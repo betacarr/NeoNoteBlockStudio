@@ -14,6 +14,7 @@ import { loadNoteBlockSoundAssets, soundAssetLayout } from '../src/core/sound-as
 import { audioImplementation, clientEmbeddedLegacyCodec } from '../src/audio/implementations';
 import { inspectFlpSamples } from './flp-samples';
 import { applicationProfile } from './app-profile';
+import { applicationMenu } from './menu';
 import { APP_NAME } from '../src/core/app-identity';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'nbsx', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
@@ -30,6 +31,7 @@ const executeFile = promisify(execFile);
 let window: BrowserWindow | undefined;
 let rendererReady = false, flushingOpenFiles = false;
 const pendingOpenFiles: string[] = [];
+const pendingMenuCommands: string[] = [];
 let dirtyProject = false, closeDialogOpen = false;
 type MinecraftLocation = { root: string; versions: string[]; indexes: string[] };
 let discovered: MinecraftLocation[] | undefined;
@@ -46,7 +48,33 @@ function projectIdFromContainer(bytes: Uint8Array): string | undefined {
 }
 
 function queueOpenFile(filename: string) {
-  if (!filename.startsWith('-') && /\.(?:nbsx|nbs|mid|midi|flp)$/i.test(filename)) { pendingOpenFiles.push(path.resolve(filename)); void flushOpenFiles(); }
+  if (!filename.startsWith('-') && /\.(?:nbsx|nbs|mid|midi|flp)$/i.test(filename)) {
+    pendingOpenFiles.push(path.resolve(filename));
+    if (app.isReady()) showWindow();
+    void flushOpenFiles();
+  }
+}
+function showWindow() {
+  if (!window) createWindow();
+  if (window!.isMinimized()) window!.restore();
+  window!.show(); window!.focus();
+}
+const sendMenuCommand = (command: string) => () => {
+  if (!window || !rendererReady) {
+    pendingMenuCommands.push(command);
+    if (app.isReady()) showWindow();
+  } else window.webContents.send('menu', command);
+};
+
+function requestProjectClose(quit: boolean) {
+  if (!window || closeDialogOpen) return;
+  const target = window;
+  closeDialogOpen = true;
+  void dialog.showMessageBox(target, { type: 'question', title: '保存工程', message: '工程有未保存的修改。', detail: quit ? '退出前可以保存为 NBSX 工程。' : '关闭窗口前可以保存为 NBSX 工程。', buttons: [quit ? '保存并退出' : '保存并关闭', '取消', quit ? '不保存退出' : '不保存关闭'], defaultId: 0, cancelId: 1 }).then(result => {
+    if (target.isDestroyed()) return;
+    if (result.response === 2) { dirtyProject = false; if (quit) app.quit(); else target.destroy(); }
+    else if (result.response === 0) target.webContents.send('menu', quit ? 'save-quit' : 'save-close');
+  }).catch(error => { dialog.showErrorBox('无法关闭工程', String(error)); }).finally(() => { closeDialogOpen = false; });
 }
 async function flushOpenFiles() {
   if (!rendererReady || !window || flushingOpenFiles) return;
@@ -64,8 +92,9 @@ async function flushOpenFiles() {
 }
 if (primaryInstance) {
   for (const argument of process.argv.slice(app.isPackaged ? 1 : 2)) queueOpenFile(argument);
-  app.on('second-instance', (_event, argv) => { for (const argument of argv) queueOpenFile(argument); if (window?.isMinimized()) window.restore(); window?.show(); window?.focus(); });
+  app.on('second-instance', (_event, argv) => { for (const argument of argv) queueOpenFile(argument); if (app.isReady()) showWindow(); });
   app.on('open-file', (event, filename) => { event.preventDefault(); queueOpenFile(filename); });
+  app.on('before-quit', event => { if (dirtyProject && window) { event.preventDefault(); requestProjectClose(true); } });
 }
 
 async function atomicWrite(filename: string, bytes: Uint8Array) {
@@ -203,9 +232,15 @@ async function loadMinecraft(root: string, index: string, version: string): Prom
     profileId: `java-${client.release.id}`, samples, nativeLibrary, nativeDecoder };
 }
 function setupHandlers() {
-  handle('renderer:ready', async () => { rendererReady = true; await flushOpenFiles(); });
+  handle('renderer:ready', async () => {
+    rendererReady = true; await flushOpenFiles();
+    for (const command of pendingMenuCommands.splice(0)) window?.webContents.send('menu', command);
+  });
   handle('project:dirty', async (dirty: boolean) => { if (typeof dirty !== 'boolean') throw new Error('无效工程状态。'); dirtyProject = dirty; });
-  handle('window:close-saved', async () => { if (dirtyProject) throw new Error('工程仍有未保存的修改。'); window?.destroy(); });
+  handle('window:close-saved', async (quit = false) => {
+    if (typeof quit !== 'boolean' || dirtyProject) throw new Error('工程仍有未保存的修改，或关闭请求无效。');
+    if (quit) app.quit(); else window?.destroy();
+  });
   handle('file:open', async (kind: string) => {
     const extensions = kind === 'project' ? ['nbsx', 'mid', 'midi', 'nbs', 'flp'] : ['wav', 'ogg', 'mp3', 'flac'];
     const result = await dialog.showOpenDialog(window!, { title: kind === 'project' ? '打开工程或导入 MIDI / NBS / FLP' : '选择声音文件', properties: ['openFile'], filters: [{ name: '支持的文件', extensions }] });
@@ -289,27 +324,13 @@ function createWindow() {
   window.on('close', event => {
     if (!dirtyProject) return;
     event.preventDefault();
-    if (closeDialogOpen) return;
-    closeDialogOpen = true;
-    void dialog.showMessageBox(window!, { type: 'question', title: '保存工程', message: '工程有未保存的修改。', detail: '退出前可以保存为 NBSX 工程。', buttons: ['保存并退出', '取消', '不保存退出'], defaultId: 0, cancelId: 1 }).then(result => {
-      closeDialogOpen = false;
-      if (result.response === 2) window?.destroy();
-      else if (result.response === 0) window?.webContents.send('menu', 'save-close');
-    });
+    requestProjectClose(false);
   });
   window.webContents.on('will-navigate', (event, url) => { if (url !== window!.webContents.getURL()) event.preventDefault(); });
   window.once('ready-to-show', () => window?.show());
   const devUrl = !app.isPackaged && process.env.NBSX_DEV_URL;
   if (devUrl && /^http:\/\/127\.0\.0\.1:\d+\/$/.test(devUrl)) void window.loadURL(devUrl);
   else void window.loadURL('nbsx://app/index.html');
-  const send = (command: string) => () => window?.webContents.send('menu', command);
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: '文件', submenu: [{ label: '新建工程', accelerator: 'CmdOrCtrl+N', click: send('new') }, { label: '打开 / 导入…', accelerator: 'CmdOrCtrl+O', click: send('open') }, { label: '保存工程', accelerator: 'CmdOrCtrl+S', click: send('save') }, { label: '另存为…', accelerator: 'CmdOrCtrl+Shift+S', click: send('save-as') }, { type: 'separator' }, { label: '导出…', click: send('export') }, { role: 'quit', label: '退出' }] },
-    { label: '编辑', submenu: [{ label: '撤销', click: send('undo') }, { label: '重做', click: send('redo') }, { type: 'separator' }, { label: '复制', click: send('copy') }, { label: '剪切', click: send('cut') }, { label: '粘贴', click: send('paste') }, { label: '独立复制', click: send('duplicate') }, { label: '在播放头拆分片段', click: send('split-region') }, { label: '全选', click: send('select-all') }] },
-    { label: '轨道', submenu: [{ label: '添加轨道', click: send('add-track') }, { label: '上移当前轨道', click: send('track-up') }, { label: '下移当前轨道', click: send('track-down') }, { type: 'separator' }, { label: '删除当前轨道', click: send('delete-track') }] },
-    { label: '视图', submenu: [{ label: '混音器', click: send('mixer') }, { label: '设置', click: send('settings') }, { role: 'togglefullscreen', label: '全屏' }, { role: 'toggleDevTools', label: '开发工具' }] },
-    { label: '播放', submenu: [{ label: '播放 / 暂停', click: send('play') }, { label: '停止并回到起点', click: send('stop') }, { label: '循环播放工程', click: send('loop') }, { type: 'separator' }, { label: '上一小节', click: send('previous-bar') }, { label: '下一小节', click: send('next-bar') }] },
-  ]));
 }
 if (primaryInstance) app.whenReady().then(() => {
   protocol.handle('nbsx', request => {
@@ -319,7 +340,9 @@ if (primaryInstance) app.whenReady().then(() => {
     return net.fetch(pathToFileURL(target).toString());
   });
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'midi' || permission === 'midiSysex'));
-  setupHandlers(); createWindow();
-  app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+  setupHandlers();
+  Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenu(process.platform, sendMenuCommand)));
+  createWindow();
+  app.on('activate', () => showWindow());
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

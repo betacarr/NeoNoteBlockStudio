@@ -1108,6 +1108,7 @@ export function App() {
     'piano-fit-selection': () => { if (selected.length) setPianoViewRequest(value => ({ id: (value?.id ?? 0) + 1, mode: 'selection' })); },
     export: () => openExport(), settings: () => setModal('settings'), timing: () => { if (playbackMode === 'native-compare') stop(); else finishHeld.current(); setModal('timing'); },
     'save-close': () => { if (!finishNumberDraft()) return; stop(); void save().then(async saved => { if (saved && window.desktop) { await window.desktop.notifyDirty(false); await window.desktop.closeAfterSave(); } }); },
+    'save-quit': () => { if (!finishNumberDraft()) return; stop(); void save().then(async saved => { if (saved && window.desktop) { await window.desktop.notifyDirty(false); await window.desktop.closeAfterSave(true); } }); },
     copy: copySelection, paste: pasteSelection, cut: cutSelection, delete: deleteSelection,
     'select-all': selectAllInEditor,
     library: () => setPrefs({ showLibrary: !preferences.showLibrary }), inspector: () => setPrefs({ showInspector: !preferences.showInspector }),
@@ -1182,7 +1183,7 @@ export function App() {
       if (editing && textEditingCommands.has(command)) { document.execCommand(command === 'select-all' ? 'selectAll' : command); return; }
       const activeModal = modalRef.current;
       const recoveryAction = activeModal === 'recovery' && (command === 'recover-project' || command === 'discard-recovery');
-      if (activeModal && command !== 'save-close' && !recoveryAction) return;
+      if (activeModal && command !== 'save-close' && command !== 'save-quit' && !recoveryAction) return;
       if (editing && (Object.hasOwn(SHORTCUT_COMMANDS, command) || command.startsWith('transpose-') || command.startsWith('nudge-'))) return;
       commands.current[command]?.();
     });

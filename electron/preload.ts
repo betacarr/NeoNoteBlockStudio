@@ -16,7 +16,7 @@ const api: DesktopAPI = {
   onOpenFile(callback) { const listener = (_event: Electron.IpcRendererEvent, file: { name: string; path: string; bytes: Uint8Array }) => callback(file); ipcRenderer.on('file:open-request', listener); return () => ipcRenderer.removeListener('file:open-request', listener); },
   renderNative: request => ipcRenderer.invoke('audio:render', request),
   notifyDirty: dirty => ipcRenderer.invoke('project:dirty', dirty),
-  closeAfterSave: () => ipcRenderer.invoke('window:close-saved'),
+  closeAfterSave: quit => ipcRenderer.invoke('window:close-saved', quit),
   onMenu(callback) { const listener = (_event: Electron.IpcRendererEvent, command: string) => callback(command); ipcRenderer.on('menu', listener); return () => ipcRenderer.removeListener('menu', listener); },
 };
 contextBridge.exposeInMainWorld('desktop', api);

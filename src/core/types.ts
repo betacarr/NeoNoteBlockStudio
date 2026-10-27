@@ -91,7 +91,7 @@ export interface DesktopAPI {
   rendererReady: () => Promise<void>;
   renderNative: (request: NativeRenderRequest) => Promise<NativeRenderResult>;
   notifyDirty: (dirty: boolean) => Promise<void>;
-  closeAfterSave: () => Promise<void>;
+  closeAfterSave: (quit?: boolean) => Promise<void>;
   onMenu: (callback: (command: string) => void) => () => void;
   platform: string;
 }
