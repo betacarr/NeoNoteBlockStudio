@@ -40,7 +40,7 @@ node scripts/verify-mac-release.mjs
 
 `npm run package:mac:arm64` 与 `npm run package:mac:x64` 分别只生成一个架构。打包脚本按目标架构下载官方 Electron，并用官方 SHA-256 校验；原生音频桥接包按锁文件的 SHA-512 完整性校验，避免把主机架构的二进制误标成另一个版本。构建不会切换开发环境使用的 Electron。
 
-`verify-mac-release.mjs` 依次检查两个实际打包程序的 Mac 窗口与 Command 操作、20 种默认音色、日志导出、工程生命周期、MIDI 与 NBS 工作流，最后重新审查分发内容。检查使用隔离资料目录。详细报告留在忽略的 `.local/` 内；`release/0.1.59/macos-verification.json` 仅含版本、源码提交、固定检查名称和分发文件校验值，便于反馈构建结果。该命令要求两个架构都能在本机运行；Apple Silicon 上的 Intel 检查需要已安装 Rosetta。
+`verify-mac-release.mjs` 挂载只读 DMG，将程序复制到隔离安装目录并推出映像，核对内容与签名，再检查 ZIP 完整 CRC。随后用安装后的两种架构程序检查 Mac 窗口与 Command 操作、20 种默认音色、日志导出、工程生命周期、MIDI 与 NBS 工作流，最后重新审查分发内容。检查使用隔离资料目录。详细报告留在忽略的 `.local/` 内；`release/0.1.59/macos-verification.json` 仅含版本、源码提交、系统版本、固定检查名称和分发文件校验值，便于反馈构建结果。该命令要求两个架构都能在本机运行；Apple Silicon 上的 Intel 检查需要已安装 Rosetta。
 
 发布检查确认 NBSX 关联、版本、最低系统要求、图标、许可证、Java 适配器、主程序／原生组件架构和代码签名，并扫描开发路径与非公开素材。DMG、ZIP 均保留文件权限与符号链接。当前配置明确采用 ad-hoc 签名；正式 Developer ID 公证发布需要另行配置证书和公证凭据。
 
