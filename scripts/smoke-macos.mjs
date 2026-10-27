@@ -54,7 +54,13 @@ const dialog = async (response, canceled = false) => desktop.evaluate(({ dialog 
 }, { response, canceled, saved });
 const closeWindow = async () => {
   const closed = page.waitForEvent('close');
-  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+  await desktop.evaluate(({ BrowserWindow }) => {
+    const target = BrowserWindow.getAllWindows()[0];
+    if (!target) throw new Error('The owned test window is missing.');
+    // Let the inspector evaluation return before Cocoa closes the renderer.
+    // A synchronous close can strand its CDP reply on macOS under Rosetta.
+    setImmediate(() => target.close());
+  });
   await closed;
   assert.equal(await desktop.evaluate(async ({ BrowserWindow }) => {
     // CDP reports the renderer closed before Cocoa has always finished tearing
