@@ -35,3 +35,16 @@ let offset=6+sizes.length*16;
 const entries=sizes.map((size,index)=>{const entry=Buffer.alloc(16);entry[0]=size===256?0:size;entry[1]=entry[0];entry.writeUInt16LE(1,4);entry.writeUInt16LE(32,6);entry.writeUInt32LE(images[index].length,8);entry.writeUInt32LE(offset,12);offset+=images[index].length;return entry;});
 await mkdir('.local/release-assets',{recursive:true});
 await writeFile('.local/release-assets/NeoNBS.ico',Buffer.concat([header,...entries,...images]));
+// ICNS stores PNG representations directly; no platform-specific image tool is
+// needed. Include standard and Retina sizes through 1024 pixels.
+const representations = [['icp4',16],['icp5',32],['icp6',64],['ic07',128],['ic08',256],['ic09',512],['ic10',1024],['ic11',32],['ic12',64],['ic13',256],['ic14',512]];
+const cache = new Map(sizes.map((size, index) => [size, images[index]]));
+const icnsChunks = representations.map(([type, size]) => {
+  if (!cache.has(size)) cache.set(size, png(size));
+  const data = cache.get(size), head = Buffer.alloc(8);
+  head.write(type, 0, 'ascii'); head.writeUInt32BE(data.length + 8, 4);
+  return Buffer.concat([head, data]);
+});
+const icnsHeader = Buffer.alloc(8); icnsHeader.write('icns', 0, 'ascii');
+icnsHeader.writeUInt32BE(8 + icnsChunks.reduce((total, data) => total + data.length, 0), 4);
+await writeFile('.local/release-assets/NeoNBS.icns', Buffer.concat([icnsHeader, ...icnsChunks]));

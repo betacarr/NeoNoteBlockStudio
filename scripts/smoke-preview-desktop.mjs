@@ -56,6 +56,26 @@ try {
   await menu('文件', '打开 / 导入…'); await page.waitForFunction(() => document.title.includes('默认音色离线检查'));
   await menu('视图', '混音器'); await page.waitForFunction(() => !!document.querySelector('.mixer-strip'));
   report.loadedSamples = await page.locator('.sample-dot.loaded').count();
+  if (!missing) {
+    // Observe every displayed peak before playback begins. Polling over CDP can
+    // miss short percussion transients, especially with Rosetta overhead.
+    await page.evaluate(() => {
+      const state = window.__previewMeterObservation = { trackPeaks: {}, masterPeak: 0 };
+      const collect = () => {
+        for (const node of document.querySelectorAll('.mixer-meter[role="meter"]')) {
+          const label = node.getAttribute('aria-label'), peak = Number(node.getAttribute('aria-valuenow'));
+          if (label === '总输出电平') state.masterPeak = Math.max(state.masterPeak, peak);
+          else state.trackPeaks[label] = Math.max(state.trackPeaks[label] ?? 0, peak);
+        }
+      };
+      const observer = new MutationObserver(collect);
+      observer.observe(document.querySelector('.mixer-console'), { subtree: true, attributes: true, attributeFilter: ['aria-valuenow'] });
+      window.__previewMeterObserver = observer; collect();
+    });
+    const loop = await page.locator('button[aria-label="循环播放工程"]').getAttribute('aria-pressed');
+    if (loop !== 'true') await menu('播放', '循环播放工程');
+    report.meterObservation = 'Read-only DOM observer installed before looped playback; no audio arguments or results replaced.';
+  }
   await menu('播放', '播放 / 暂停');
   if (missing) {
     await page.waitForFunction(() => document.querySelector('.status-message')?.textContent.includes('缺少采样'));
@@ -65,11 +85,8 @@ try {
     await page.waitForFunction(() => document.querySelector('.status-message')?.textContent.includes('实时试听'));
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
-      const meters = await page.evaluate(() => [...document.querySelectorAll('.mixer-meter[role="meter"]')].map(node => ({ label: node.getAttribute('aria-label'), peak: Number(node.getAttribute('aria-valuenow')) })));
-      for (const meter of meters) {
-        if (meter.label === '总输出电平') report.masterPeak = Math.max(report.masterPeak, meter.peak);
-        else report.trackPeaks[meter.label] = Math.max(report.trackPeaks[meter.label] ?? 0, meter.peak);
-      }
+      const observed = await page.evaluate(() => window.__previewMeterObservation);
+      report.trackPeaks = observed.trackPeaks; report.masterPeak = observed.masterPeak;
       if (Object.values(report.trackPeaks).filter(value => value > 0).length === 20 && report.masterPeak > 0) break;
       await new Promise(resolve => setTimeout(resolve, 60));
     }

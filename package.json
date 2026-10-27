@@ -1,6 +1,6 @@
 {
   "name": "neo-noteblock-studio",
-  "version": "0.1.58",
+  "version": "0.1.59",
   "private": true,
   "description": "A MIDI-first desktop note block workstation with NBSX projects and NBS interoperability.",
   "type": "module",
@@ -16,7 +16,7 @@
     "test:lifecycle": "node scripts/smoke-file-lifecycle.mjs",
     "start": "electron .",
     "package:win": "npm run build && electron-builder --win --x64 && node scripts/check-release.mjs",
-    "package:mac": "npm run build && electron-builder --mac",
+    "package:mac": "npm run build && node scripts/package-mac.mjs",
     "research:audio": "node scripts/research-audio.mjs",
     "audit:publication": "node scripts/check-publication.mjs",
     "install:hooks": "git config core.hooksPath .githooks",
@@ -24,7 +24,10 @@
     "prebuild": "npm run prepare:preview",
     "predev": "npm run prepare:preview",
     "predev:web": "npm run prepare:preview",
-    "pretest": "npm run prepare:preview"
+    "pretest": "npm run prepare:preview",
+    "package:mac:arm64": "npm run build && node scripts/package-mac.mjs arm64",
+    "package:mac:x64": "npm run build && node scripts/package-mac.mjs x64",
+    "test:mac": "node scripts/smoke-macos.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",
@@ -94,9 +97,16 @@
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "icon": ".local/release-assets/NeoNBS.icns",
+      "artifactName": "NeoNBS-${version}-mac-${arch}.${ext}",
+      "minimumSystemVersion": "13.0",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false
     },
     "nsis": {
       "artifactName": "NeoNBS-${version}-${arch}-setup.exe",
@@ -128,5 +138,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/betacarr/NeoNoteBlockStudio.git"
+  },
+  "engines": {
+    "node": "^24.0.0 || >=26.0.0"
   }
 }

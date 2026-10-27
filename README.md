@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/betacarr/NeoNoteBlockStudio/releases/latest"><img src="https://img.shields.io/github/v/release/betacarr/NeoNoteBlockStudio?style=flat-square&amp;label=release&amp;color=65b98c" alt="最新发布版本" /></a>
-  <a href="#getting-started"><img src="https://img.shields.io/badge/platform-Windows_first-586e82?style=flat-square" alt="Windows 优先" /></a>
+  <a href="#getting-started"><img src="https://img.shields.io/badge/platform-Windows_%7C_macOS-586e82?style=flat-square" alt="Windows 与 macOS" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Source_Available-7377a8?style=flat-square" alt="源码可见的自定义许可" /></a>
 </p>
 
@@ -30,7 +30,7 @@
 **NeoNBS** 是独立开发的桌面音符盒编辑器，以 MIDI 导入为主要工作流，支持 Note Block Studio 的 NBS 文件互通。原生 **`.nbsx`** 工程保存片段、混音、Delay 和来源信息，让编曲过程保持可编辑。
 
 > [!NOTE]
-> **Windows x64 安装版现已提供。** 下载后即可安装运行；内置 20 种默认音色，无需安装游戏即可试听。
+> **Windows x64 与 macOS 双架构使用统一版本。** 下载页列明已发布的安装包；内置 20 种默认音色，无需安装游戏即可试听。
 
 <a id="features"></a>
 
@@ -69,7 +69,7 @@
 
 **优先完善编辑操作与完整工作流。** 原生声音对照按版本逐步研究，游戏内结构生成待定。
 
-- **Windows** 为主要验证平台；提供 macOS 构建入口，尚无同等运行验收。
+- **Windows 与 macOS** 提供桌面构建；各平台的实际检查范围分别记录在 [验证说明](docs/verification.md)。
 - 默认实时试听支持编辑即时生效；原生离线对照用于声音校对，修改后需重新播放。
 - 实时试听与原版声音仍可能存在差异，版本元数据和数学测试不代表所有版本、设备的游戏录音验收。
 
@@ -83,18 +83,20 @@
 
 | 下载 | 适合谁 |
 | --- | --- |
-| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.58/NeoNBS-0.1.58-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
-| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.58/NeoNBS-0.1.58-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
-| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.58/SHA256SUMS.txt) | 核对下载文件。 |
+| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
+| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
+| [macOS Apple Silicon DMG](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-mac-arm64.dmg) | M 系列 Mac，macOS 13+。 |
+| [macOS Intel DMG](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-mac-x64.dmg) | Intel Mac，macOS 13+。 |
+| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/SHA256SUMS.txt) | 核对下载文件。 |
 
 下载安装版后运行向导，启动 NeoNBS；默认音色加载后即可导入 MIDI 并播放。需要核对特定游戏版本时，再到「设置 → 声音与资源」选择自己的 Minecraft 实例。具体步骤见 [图文上手](docs/quick-start.md)。
 
-普通启动、默认试听和 Web WAV 导出无需 Minecraft、Node.js 或 Java；原生声音校对另需匹配的本机游戏资源，部分版本还需 Java 运行环境。当前安装包未做数字签名。macOS 尚未提供经实际验收的安装包。
+普通启动、默认试听和 Web WAV 导出无需 Minecraft、Node.js 或 Java；原生声音校对另需匹配的本机游戏资源，部分版本还需 Java 运行环境。当前安装包未做数字签名。macOS 提供两种架构的 DMG／ZIP，安装与签名情况见 [macOS 说明](docs/macos.md)。
 
 <details>
 <summary><strong>从源码开发、验证与打包（可选）</strong></summary>
 
-需要 Git、Node.js 24+ 与 JDK 9+，建议 JDK 17。安装会下载并校验官方 Electron。
+需要 Git、受支持的 Node.js 24 或 26+ 与 JDK 9+，建议 JDK 17。安装会下载并校验官方 Electron。macOS 打包在 Mac 上进行。
 
 ```powershell
 git clone https://github.com/betacarr/NeoNoteBlockStudio.git
@@ -110,7 +112,9 @@ npm run dev
 | `npm test` | 运行单元与组件测试。 |
 | `npm run build` | 类型检查并构建前端与桌面代码。 |
 | `npm run package:win` | 构建 Windows 分发包。 |
-| `npm run package:mac` | 构建 macOS 分发包；尚无同等运行验收。 |
+| `npm run package:mac` | 构建 macOS Apple Silicon 与 Intel 的 DMG／ZIP，检查架构、许可、签名并生成校验值。 |
+| `npm run package:mac:arm64` / `npm run package:mac:x64` | 只构建指定架构。 |
+| `npm run test:mac` | 在 Mac 上验收系统菜单、Command 编辑、窗口重开及保存退出。 |
 | `npm run audit:publication` | 检查 Git 暂存文件、版本信息与提交身份。 |
 
 发布检查使用 Git 暂存区中的内容，提交前请先暂存计划发布的文件。它不能代替人工素材审阅。线上自动检查尚未启用，可参考 [配置模板](docs/ci-template.yml)。

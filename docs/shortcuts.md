@@ -50,6 +50,6 @@ Space / Shift+Space 固定优先切换播放 / 暂停，在文字与数字输入
 
 `npx vitest run tests/shortcuts.test.ts` 检查三预设、平台映射、重复与固定键冲突、独立格式、旧导出兼容、无效文件和 UTF-8 大小限制。
 
-真实 Edge 浏览器通过 CUA 验证了：重复/固定键错误禁止应用、有效别名规范化、新格式导入、无效导入保持原配置、旧 Preferences 导入不改变外观、菜单提示随映射更新、关闭设置丢弃未应用草稿，以及搜索输入不触发工具/混音器/音符删除。`Ctrl+Shift+M`、`Shift+1`、`Ctrl+Shift+/`、`Plus`（`Shift+=`）均实测触发混音器。macOS 的映射通过单元测试验证，尚未在 macOS 桌面实机验收。
+真实 Edge 浏览器通过 CUA 验证了：重复/固定键错误禁止应用、有效别名规范化、新格式导入、无效导入保持原配置、旧 Preferences 导入不改变外观、菜单提示随映射更新、关闭设置丢弃未应用草稿，以及搜索输入不触发工具/混音器/音符删除。`Ctrl+Shift+M`、`Shift+1`、`Ctrl+Shift+/`、`Plus`（`Shift+=`）均实测触发混音器。macOS 0.1.56 已在打包程序中检查 Command 全选／独立复制／撤销、物理 Control 不触发相同编辑命令，以及原生设置菜单与关闭／退出工作流。其他预设映射与系统保留键冲突通过单元测试验证；平台验收边界见 [发布验证](verification.md)。
 
 `node scripts/smoke-shortcuts.mjs` 使用独立桌面配置目录检查原生菜单的对话框保护、正常复制/撤销，以及独立 JSON 的原生保存桥接。另并发调用四次真实 `discoverMinecraft`，断言每次返回的根目录唯一，并确认没有 React 重复 key 警告。脚本不合成键盘或鼠标输入。最近通过的归档为 `.local/shortcut-desktop/run-1792785100341/report.json`。

@@ -6,6 +6,6 @@
 
 ## macOS
 
-源码保留 macOS 构建入口，尚未提供经实际安装、输入、文件生命周期和声音验证的安装包。构建命令不等于平台验收完成。
+0.1.59 合并 Apple Silicon／Intel 两套 DMG 与 ZIP 构建，最低 macOS 13。适配分支曾在 Apple Silicon 原生及 Rosetta 环境验证；合并版本的结果另行记录，构建命令不能代替实际验收。当前采用 ad-hoc 签名，未做 Developer ID 签名和公证。详见 [macOS 安装与构建](macos.md)。
 
 [下载 Windows 版](https://github.com/betacarr/NeoNoteBlockStudio/releases/latest) · [发布验证范围](verification.md)
