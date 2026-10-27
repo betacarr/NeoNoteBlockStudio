@@ -18,7 +18,7 @@ const startup = path.join(root,'startup.nbsx'), secondFile = path.join(root,'sec
 await Promise.all([writeFile(startup, saveNbsx(first)), writeFile(secondFile, saveNbsx(second)), writeFile(path.join(profile, 'recovery.nbsx'), saveNbsx(recovered))]);
 const env = { ...process.env, NBSX_TEST_USER_DATA: profile }; delete env.ELECTRON_RUN_AS_NODE; delete env.NBSX_DEV_URL;
 const baseArguments = packaged ? [] : ['.'];
-const desktop = await electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...baseArguments, startup, '--mute-audio', `--user-data-dir=${profile}`], env });
+let desktop = await electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...baseArguments, startup, '--mute-audio', `--user-data-dir=${profile}`], env });
 const errors = [];
 try {
   const page = await desktop.firstWindow(); page.on('pageerror', error => errors.push(error.message));
@@ -62,7 +62,33 @@ try {
   const normalize = value => { const copy = structuredClone(value); delete copy.modifiedAt; return copy; }, restoredPatterns = structuredClone(final.patterns); restoredPatterns[0].notes = second.patterns[0].notes;
   assert.deepEqual(restoredPatterns, second.patterns); assert.deepEqual(final.regions, second.regions); assert.deepEqual(final.tracks, second.tracks);
   assert.deepEqual(normalize(openNbsx(new Uint8Array(await readFile(startup)))), normalize(first)); assert.deepEqual(errors, []);
-  const report={schema:1,status:'passed',packaged:!!packaged,root,profile,applicationVersion,startupFileOpen:'passed',secondaryInstanceForwarding:'passed',recoveryDirtyAndSaveCleanup:'passed',recoveryModalBlocksBackgroundEdit:'passed',unrelatedRecoveryPreserved:'passed',cancelClose:'passed',saveAndClose:'passed',noteDuplicatePreservesOriginal:'passed',savedRegions:final.regions.length,savedNotes:final.patterns[0].notes.length,rendererErrors:errors};
+  await desktop.close();
+  desktop = await electron.launch({ ...(packaged ? { executablePath: packaged } : {}), args: [...baseArguments, secondFile, '--mute-audio', `--user-data-dir=${profile}`], env });
+  const discardPage = await desktop.firstWindow(); discardPage.on('pageerror', error => errors.push(error.message));
+  await discardPage.waitForFunction(() => document.title.includes('再次打开检查'));
+  const beforeDiscard = await readFile(secondFile);
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'select-all'));
+  await discardPage.waitForFunction(() => document.querySelector('.editor-heading')?.textContent.includes('已选择 2 个音符'));
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'duplicate'));
+  await discardPage.waitForFunction(() => document.title.startsWith('● '));
+  assert.equal(await discardPage.evaluate(async () => {
+    await window.desktop.notifyDirty(true);
+    // Exercise the real renderer guard without replacing or removing it.
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  }), true, 'Unsaved edits must still be protected before Quit');
+  await desktop.evaluate(({ app, dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); app.quit(); });
+  assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+  assert((await discardPage.title()).startsWith('● '), 'Cancel Quit must preserve unsaved edits');
+  await desktop.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async () => ({ response: 2, checkboxChecked: false });
+    dialog.showSaveDialog = async () => { throw new Error('Discard Quit must not request a save'); };
+  });
+  const discarded = desktop.waitForEvent('close', { timeout: 10000 });
+  await desktop.evaluate(({ app }) => app.quit()); await discarded;
+  assert.deepEqual(await readFile(secondFile), beforeDiscard, 'Discard Quit must leave the saved project unchanged');
+  assert.deepEqual(errors, []);
+  const report={schema:1,status:'passed',packaged:!!packaged,root,profile,applicationVersion,startupFileOpen:'passed',secondaryInstanceForwarding:'passed',recoveryDirtyAndSaveCleanup:'passed',recoveryModalBlocksBackgroundEdit:'passed',unrelatedRecoveryPreserved:'passed',cancelClose:'passed',saveAndClose:'passed',cancelQuit:'passed',discardQuit:'passed',discardPreservesSavedFile:'passed',noteDuplicatePreservesOriginal:'passed',savedRegions:final.regions.length,savedNotes:final.patterns[0].notes.length,rendererErrors:errors};
   await writeFile(path.join(root,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({...report,report:path.join(root,'report.json')}));
 } catch (error) {
   const page = desktop.windows()[0];

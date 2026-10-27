@@ -91,7 +91,12 @@ function requestProjectClose(quit: boolean) {
   closeDialogOpen = true;
   void dialog.showMessageBox(target, { type: 'question', title: '保存工程', message: '工程有未保存的修改。', detail: quit ? '退出前可以保存为 NBSX 工程。' : '关闭窗口前可以保存为 NBSX 工程。', buttons: [quit ? '保存并退出' : '保存并关闭', '取消', quit ? '不保存退出' : '不保存关闭'], defaultId: 0, cancelId: 1 }).then(result => {
     if (target.isDestroyed()) return;
-    if (result.response === 2) { dirtyProject = false; if (quit) app.quit(); else target.destroy(); }
+    if (result.response === 2) {
+      dirtyProject = false;
+      // Discard was confirmed; bypass the renderer's unsaved beforeunload guard.
+      target.destroy();
+      if (quit) app.quit();
+    }
     else if (result.response === 0) target.webContents.send('menu', quit ? 'save-quit' : 'save-close');
   }).catch(error => { dialog.showErrorBox('无法关闭工程', String(error)); }).finally(() => { closeDialogOpen = false; });
 }
