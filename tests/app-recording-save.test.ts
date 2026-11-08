@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { produce } from 'immer';
@@ -26,7 +27,7 @@ const actualCode = transformSync([
   between('  async function openBytes(', '\n  async function open()'),
   between('  function projectForSave(', '\n  async function saveOriginalMidi('),
   between('  async function save(as', '\n  async function newProject('),
-  between('  async function newProject()', '\n  function restoreRecovery('),
+  between('  async function newProject()', '\n  async function clearPreviousRecovery('),
   between('  midiDown.current =', '\n  function toggleRecord('),
   between('    const onKeyDown =', "\n    window.addEventListener('keydown'"),
   between('const blur = () => finishHeld.current();', " window.addEventListener('blur'"),
@@ -58,13 +59,13 @@ function fixture({ live = false, caret = 0, length = 1920, ppq = 480, snap = 0, 
   const window = { desktop, confirm: vi.fn(() => false) }, adopt = vi.fn(), audition = vi.fn(async () => {}), finishNumberDraft = vi.fn(() => numberFlushBehavior());
   const midiDown = { current: (_key: string, _pitch: number, _velocity: number) => {} }, midiUp = { current: (_key: string) => {} }, finishHeld = { current: (_keys?: string[]) => {} };
   const commands = { current: {} }, setMessage = vi.fn((message: string) => { state.message = message; });
-  const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, projectRef, savedSnapshot, numberEditOwner, history, future, keysHeld, positionRef, recordingRef, stopEpoch, engine, window, adopt, audition, midiDown, midiUp, finishHeld, commands,
+  const scope = { ...noteOnlyAppHarnessBoundaries(), recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, projectRef, savedSnapshot, numberEditOwner, history, future, keysHeld, positionRef, recordingRef, stopEpoch, engine, window, adopt, audition, midiDown, midiUp, finishHeld, commands,
     editorDocumentKey: 0, region: project.regions[0], pattern: project.patterns[0], preferences: { snap, noteLength: 16 }, portable: false, library: undefined, filePath: state.filePath,
     setMessage, setProject: vi.fn(), setDirty: (value: boolean) => { state.dirty = value; }, setHasHeldRecording: (value: boolean) => { state.held = value; }, setPlaying: (value: boolean) => { state.playing = value; },
     setRevision: (update: (value: number) => number) => { state.revision = update(state.revision); }, setFilePath: (value: string) => { state.filePath = value; }, setRecovery: (update: (value: typeof state.recovery) => typeof state.recovery) => { state.recovery = update(state.recovery); }, setPlayhead: vi.fn(),
     selectionSnapshot: () => ({ trackId: project.tracks[0].id, regionId: project.regions[0].id, noteIds: [], focus: 'piano' }),
     finishNumberDraft, produce, createProject, openNbsx, saveNbsx, flattenNotes, bytesToBase64, growEditedPattern, beginRecordedPress, finishRecordedPress, previewRecordingProject, recordingProjectsEqual, newNote,
-    localStorage: { removeItem: vi.fn(), setItem: vi.fn() }, download: vi.fn(),
+    validateProject: (value: Project) => value, confirmProjectReplacement: vi.fn(async () => projectRef.current === savedSnapshot.current && ![...keysHeld.current.values()].some(press => press.capture) || window.confirm()), clearPreviousRecovery: async (id: string) => desktop.clearRecovery(id), localStorage: { removeItem: vi.fn(), setItem: vi.fn() }, download: vi.fn(),
     keyboardEnabled: false, recording: true, modal: null, setModal: vi.fn(), isShortcutInput, shortcutForEvent, commandForShortcut, shortcutPlatform: 'win32', bindings: inspectShortcuts('fl', {}, 'win32').effective,
     setInterval: (callback: () => void) => { timers.push(callback); return timers.length; }, clearInterval: vi.fn(),
   };
@@ -195,12 +196,15 @@ describe('App held-recording save boundaries (source-derived integration)', () =
     expect(test.keysHeld.current.size).toBe(1); expect(test.state.held).toBe(true); expect(test.unsaved()).toBe(true); expect(test.history.current).toHaveLength(0);
   });
 
-  it.each(['new', 'open'])('prompts and preserves pending capture when %s is cancelled despite an unchanged project reference', async action => {
-    const test = fixture(), base = test.projectRef.current; test.down();
+  it.each(['new', 'open'])('finalizes and retains pending capture in the old document when %s is cancelled', async action => {
+    const test = fixture(), base = test.projectRef.current; test.down(); const noteId = test.keysHeld.current.get('held')!.noteId;
     expect(test.state.dirty).toBe(false); expect(test.projectRef.current).toBe(test.savedSnapshot.current); expect(test.unsaved()).toBe(true);
     if (action === 'new') await test.api.newProject(); else await test.api.openBytes('other.nbsx', saveNbsx(createProject('Other document')));
-    expect(test.window.confirm).toHaveBeenCalledOnce(); expect(test.adopt).not.toHaveBeenCalled(); expect(test.projectRef.current).toBe(base);
-    expect(test.keysHeld.current.size).toBe(1); expect(test.desktop.clearRecovery).not.toHaveBeenCalled(); expect(test.history.current).toHaveLength(0);
+    expect(test.window.confirm).toHaveBeenCalledOnce(); expect(test.adopt).not.toHaveBeenCalled();
+    expect(test.projectRef.current.id).toBe(base.id); expect(test.projectRef.current.patterns[0].notes[0]).toEqual(base.patterns[0].notes[0]);
+    expect(test.recorded()).toEqual([{ id: noteId, tick: 0, duration: 120, midi: 64, velocity: .7, pan: 0, detune: 0, height: 0 }]);
+    expect(test.keysHeld.current.size).toBe(0); expect(test.desktop.clearRecovery).not.toHaveBeenCalled(); expect(test.history.current).toHaveLength(1);
+    expect(test.savedSnapshot.current).toBe(base); expect(test.state.dirty).toBe(true);
   });
 
   it('ignores keyboard repeats after a blur has finalized the original press', () => {

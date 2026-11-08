@@ -10,7 +10,7 @@ function fixture() {
 }
 
 describe('editor selection targets', () => {
-  it('leaves an emptied wind-chime track selected with no target for a second Delete', () => {
+  it('leaves an emptied track selected with no target for a second Delete', () => {
     const { project, track, region, selection } = fixture();
     project.regions = project.regions.filter(item => item.id !== region.id);
     project.patterns = project.patterns.filter(item => item.id !== region.patternId);

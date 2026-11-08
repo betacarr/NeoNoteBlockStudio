@@ -1,17 +1,24 @@
 import type { ShortcutPreset } from './types';
+import { STEM_SPLITTER_PRESET_IDS, STEM_SPLITTER_PRESETS, type StemSplitterPreset } from './stem-splitter-presets';
+
+type StemPresetCommand = `stem-preset-${StemSplitterPreset}`;
+const stemPresetLabels = Object.fromEntries(STEM_SPLITTER_PRESET_IDS.map(id =>
+  [`stem-preset-${id}`, `大分轨拆分器 · ${STEM_SPLITTER_PRESETS[id].label}`])) as Record<StemPresetCommand, string>;
+const unassignedStemPresets = Object.fromEntries(Object.keys(stemPresetLabels).map(command => [command, ''])) as Record<StemPresetCommand, string>;
 
 export const SHORTCUT_COMMANDS = {
-  play: '播放 / 暂停', undo: '撤销', redo: '重做', duplicate: '独立复制', 'split-region': '在播放头拆分片段', draw: '绘制工具', select: '选择工具', erase: '擦除工具', mixer: '混音器', quantize: '量化选中音符',
-  'track-up': '上移当前轨道', 'track-down': '下移当前轨道', 'delete-track': '删除当前轨道',
+  play: '播放 / 暂停', undo: '撤销', redo: '重做', duplicate: '独立复制', 'split-region': '在播放头拆分片段', draw: '绘制工具', select: '选择工具', erase: '擦除工具', mixer: '混音器', metronome: '节拍器', quantize: '量化选中音符',
+  'track-up': '上移当前轨道', 'track-down': '下移当前轨道', 'delete-track': '删除当前轨道', 'chord-track': '显示 / 隐藏和弦轨',
+  ...stemPresetLabels,
 } as const;
 export type ShortcutCommand = keyof typeof SHORTCUT_COMMANDS;
 export interface ShortcutSettings { preset: ShortcutPreset; shortcuts: Record<string, string> }
 export interface ShortcutConfig extends ShortcutSettings { format: 'nbsx-shortcuts'; version: 1 }
 export interface ShortcutIssue { commands: string[]; binding?: string; message: string }
 export const SHORTCUT_PRESETS: Record<ShortcutPreset, Record<ShortcutCommand, string>> = {
-  fl: { play: 'Space', undo: 'Ctrl+Z', redo: 'Ctrl+Y', duplicate: 'Ctrl+B', 'split-region': 'Ctrl+T', draw: 'P', select: 'E', erase: 'D', mixer: 'F9', quantize: 'Ctrl+Q', 'track-up': '', 'track-down': '', 'delete-track': '' },
-  logic: { play: 'Space', undo: 'Ctrl+Z', redo: 'Ctrl+Shift+Z', duplicate: 'Ctrl+D', 'split-region': 'Ctrl+T', draw: 'P', select: 'T', erase: 'E', mixer: 'X', quantize: 'Q', 'track-up': '', 'track-down': '', 'delete-track': '' },
-  nbs: { play: 'Space', undo: 'Ctrl+Z', redo: 'Ctrl+Y', duplicate: 'Ctrl+D', 'split-region': 'Ctrl+T', draw: 'P', select: 'S', erase: 'E', mixer: 'F9', quantize: 'Ctrl+Q', 'track-up': '', 'track-down': '', 'delete-track': '' },
+  fl: { play: 'Space', undo: 'Ctrl+Z', redo: 'Ctrl+Y', duplicate: 'Ctrl+B', 'split-region': 'Ctrl+T', draw: 'P', select: 'E', erase: 'D', mixer: 'F9', metronome: '', quantize: 'Ctrl+Q', 'track-up': '', 'track-down': '', 'delete-track': '', 'chord-track': '', ...unassignedStemPresets },
+  logic: { play: 'Space', undo: 'Ctrl+Z', redo: 'Ctrl+Shift+Z', duplicate: 'Ctrl+D', 'split-region': 'Ctrl+T', draw: 'P', select: 'T', erase: 'E', mixer: 'X', metronome: 'K', quantize: 'Q', 'track-up': '', 'track-down': '', 'delete-track': '', 'chord-track': 'G', ...unassignedStemPresets },
+  nbs: { play: 'Space', undo: 'Ctrl+Z', redo: 'Ctrl+Y', duplicate: 'Ctrl+D', 'split-region': 'Ctrl+T', draw: 'P', select: 'S', erase: 'E', mixer: 'F9', metronome: '', quantize: 'Ctrl+Q', 'track-up': '', 'track-down': '', 'delete-track': '', 'chord-track': '', ...unassignedStemPresets },
 };
 export const isShortcutPreset = (value: unknown): value is ShortcutPreset => value === 'fl' || value === 'logic' || value === 'nbs';
 const isMac = (platform: string) => /mac|darwin/i.test(platform);
@@ -82,6 +89,8 @@ export function inspectShortcuts(preset: ShortcutPreset, overrides: unknown, pla
     try { const normalized = normalizeShortcut(value); shortcuts[command] = normalized; bindings[command as ShortcutCommand] = normalized; }
     catch (error) { bindings[command as ShortcutCommand] = ''; issues.push({ commands: [command], message: `${SHORTCUT_COMMANDS[command as ShortcutCommand]}：${(error as Error).message}` }); }
   }
+  // An existing custom use of K takes precedence over the newly added Logic default.
+  if (!Object.hasOwn(shortcuts, 'metronome') && Object.values(shortcuts).includes(bindings.metronome)) bindings.metronome = '';
   const occupied = new Map<string, { command: string; label: string }[]>();
   for (const fixed of fixedShortcuts(platform)) for (const binding of fixed.bindings) occupied.set(binding, [{ command: fixed.command, label: fixed.label }]);
   for (const [command, binding] of Object.entries(bindings)) {

@@ -4,7 +4,63 @@
 .delay-editor .delay-controls { min-width: 0; margin: 0; padding: 0; border: 0; }
 .delay-editor .delay-field > span { line-height: 1.45; }
 .delay-editor .delay-field input, .delay-editor .delay-field select { min-width: 0; }
-.delay-editor .delay-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: -2px 0 12px; }
+.delay-parameter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(78px, 1.35fr);
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 5px;
+  color: var(--ui-secondary, #bac6d0);
+  font-size: 11px;
+}
+.delay-parameter > span:first-child { min-width: 0; }
+.delay-parameter > .commit-range-input { width: 100%; max-width: none; }
+.delay-parameter > .commit-range-input:not(.parameter-dial) { grid-template-columns: minmax(0, 1fr) auto; }
+.delay-parameter > .commit-range-input > input { width: 100%; min-width: 0; margin: 0; accent-color: var(--ui-focus, #9bbdfb); }
+.delay-parameter > .parameter-dial > input { width: min(100%, 38px); margin-inline: auto; }
+.delay-parameter .commit-range-input output { color: var(--ui-text, #e2eaf4); opacity: .9; white-space: nowrap; }
+@supports selector(::-webkit-slider-thumb) {
+  .delay-parameter > .commit-range-input:not(.parameter-dial) {
+    --delay-track: #465160;
+    --delay-fill: var(--ui-focus, #9bbdfb);
+    --delay-low: 0%;
+    --delay-high: var(--parameter-fill);
+  }
+  .delay-parameter > .commit-range-input:not(.parameter-dial) > input {
+    appearance: none;
+    height: 19px;
+    border: 0;
+    background: transparent;
+    cursor: ew-resize;
+  }
+  .delay-parameter > .commit-range-input:not(.parameter-dial) > input::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--delay-track) var(--delay-low), var(--delay-fill) var(--delay-low) var(--delay-high), var(--delay-track) var(--delay-high));
+  }
+  .delay-parameter > .commit-range-input:not(.parameter-dial) > input::-webkit-slider-thumb {
+    appearance: none;
+    width: 11px;
+    height: 11px;
+    margin-top: -3.5px;
+    border-radius: 50%;
+    background: #d0e1fa;
+  }
+  .delay-parameter > .commit-range-input.parameter-centered {
+    --delay-low: min(50%, var(--parameter-fill));
+    --delay-high: max(50%, var(--parameter-fill));
+  }
+  .delay-parameter > .commit-range-input:not(.parameter-dial) > input:disabled { opacity: .5; cursor: default; }
+}
+.delay-envelope-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  margin: 6px 0 8px;
+}
+.delay-parameter-stacked { grid-template-columns: minmax(0, 1fr); gap: 0; text-align: center; margin: 0; font-size: 10px; }
+.delay-parameter-stacked output { font-size: 8px; letter-spacing: -.18px; }
+.delay-editor .delay-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 4px 0 11px; }
 .delay-editor .delay-presets button { min-width: 0; height: 22px; padding: 0 2px; border: 1px solid #454c51; border-radius: 3px; background: #30353a; color: #aeb9c1; font-size: 9px; }
 .delay-editor .delay-presets button[aria-pressed="true"] { color: #d0eddd; border-color: #779d89; background: #354c40; }
 .delay-editor .delay-presets button:focus-visible { outline: 2px solid #99cbb0; outline-offset: 1px; }

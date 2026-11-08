@@ -1,11 +1,12 @@
 import { audioFacts } from './profiles';
+import { NOTE_BLOCK_MIN_PITCH, NOTE_BLOCK_MAX_PITCH } from '../core/instruments';
 import legacyFacts from '../data/legacy-audio-facts.json';
 
 const f = Math.fround;
 // For fixed bounds [0, 1], this preserves the original Java clamp's input
 // negative zero and NaN. JS Math.max changes -0; Math.min canonicalizes NaN.
 const unit = (value: number) => value < 0 ? 0 : value > 1 ? 1 : value;
-const pitchRange = (value: number) => value < .5 ? .5 : value > 2 ? 2 : value;
+const pitchRange = (value: number) => value < NOTE_BLOCK_MIN_PITCH ? NOTE_BLOCK_MIN_PITCH : value > NOTE_BLOCK_MAX_PITCH ? NOTE_BLOCK_MAX_PITCH : value;
 interface LegacySoundRules {
   volumeRule?: 'clamp-before-global-setting';
   soundEventArithmetic?: 'double-event-scalars' | 'float-event-scalars';

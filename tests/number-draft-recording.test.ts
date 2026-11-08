@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { applyNoteEdit } from '../src/core/note-edit';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
@@ -11,8 +12,7 @@ import { MAX_PROJECT_TICK, inspectorBeatTicks, noteTimingError, regionLengthErro
 import { normalizeEditorSelection, resolveEditorSelection } from '../src/core/editor-selection';
 import { beginRecordedPress, finishRecordedPress, previewRecordingProject, recordingProjectsEqual, type RecordedPress } from '../src/core/recording';
 import { bytesToBase64, openNbsx, saveNbsx } from '../src/core/container';
-import { createDefaultDelay, delayEnvelope } from '../src/core/delay';
-import type { DelayEffect, Note, Project } from '../src/core/types';
+import type { Note, Project } from '../src/core/types';
 import type { CommitNumberInputProps } from '../src/ui/CommitNumberInput';
 
 // Actual component callbacks, App closures/contexts/JSX bindings, and recording
@@ -33,9 +33,8 @@ const code = transformSync([
   section('  async function save(', '\n  async function newProject('),
   section('  finishHeld.current = (keys =', '\n  midiUp.current ='),
 ].join('\n'), { loader: 'ts', target: 'es2022' }).code;
-const contexts = transformSync(section('  const numberGeneration =', '\n  const liveNumberContext =')
-  + section('  const delayContext =', '\n  const liveDelayContext ='), { loader: 'ts', target: 'es2022' }).code;
-const evaluateContexts = Function('project', 'numberEditOwner', 'region', 'pattern', 'track', 'selectedNotes', 'editorDocumentKey', `${contexts}\nreturn {numberGeneration,numberContext,delayContext};`);
+const contexts = transformSync(section('  const numberGeneration =', '\n  const liveNumberContext ='), { loader: 'ts', target: 'es2022' }).code;
+const evaluateContexts = Function('project', 'numberEditOwner', 'region', 'pattern', 'track', 'selectedNotes', 'editorDocumentKey', `${contexts}\nreturn {numberGeneration,numberContext};`);
 
 type Element = { type: unknown; props: Record<string, any> };
 const NumberMarker = () => undefined;
@@ -47,48 +46,37 @@ function bindingCode(start: string) {
 }
 const heightBinding = bindingCode('<CommitNumberInput aria-label="音符上下位置"');
 const regionBinding = bindingCode('<CommitNumberInput aria-label="片段长度"');
-const delayBinding = bindingCode('<DelayEditor value={track.delay}');
-const panelSource = readFileSync(new URL('../src/ui/DelayEditor.tsx', import.meta.url), 'utf8');
-const panelCode = transformSync(panelSource.slice(panelSource.indexOf('const TIME_FIELDS =')).replace('export function DelayEditor(', 'function DelayEditor('),
-  { loader: 'tsx', target: 'es2022', jsx: 'transform', jsxFactory: 'element' }).code;
-const DelayPanel = Function('createDefaultDelay', 'delayEnvelope', 'CommitNumberInput', 'element', `${panelCode}\nreturn DelayEditor;`)(createDefaultDelay, delayEnvelope, NumberMarker, element);
-function elements(node: Element): Element[] {
-  return [node, ...(node.props.children ?? []).flat(Infinity).filter((child: any) => child && typeof child === 'object').flatMap(elements)];
-}
-
 interface AppFunctions {
   commit: (label: string, change: (project: Project) => void, preserveNumberDraft?: boolean) => void;
   commitNoteNumber: (patch: Partial<Note>) => void;
   commitRegionLength: (value: number) => void;
-  changeTrackDelay: (value: DelayEffect) => void;
   setNumberPending: (field: string, pending: boolean) => void;
   finishNumberDraft: () => boolean;
   save: () => Promise<boolean>;
   finishHeld: (keys?: string[]) => void;
 }
 
-function fixture(field: 'height' | 'region' | 'delay' = 'height') {
+function fixture(field: 'height' | 'region' = 'height') {
   const initial = createProject('Draft and recording'); initial.ppq = 480;
   initial.patterns[0].length = initial.regions[0].length = 960;
   initial.patterns[0].notes = [{ ...newNote(0, 60, 120), id: 'selected-note', height: .25 }, { ...newNote(120, 64, 240), id: 'other-note', height: -.5 }];
-  initial.tracks[0].delay = createDefaultDelay();
   const state = { project: initial, revision: 0, dirty: false, pending: false, documentKey: 4, playhead: 0 };
   const selectedNotes = new Set(['selected-note']), projectRef = { current: initial }, numberEditOwner = { current: { project: initial, generation: 0 } };
   const history = { current: [] as any[] }, future = { current: [] as any[] }, numberDrafts = { current: new Set<string>() };
   const savedSnapshot = { current: initial as Project | undefined }, keysHeld = { current: new Map<string, RecordedPress>() }, positionRef = { current: 0 };
-  const liveNumberContext = { current: '' }, liveDelayContext = { current: '' };
+  const liveNumberContext = { current: '' };
   const pendingEvents: boolean[] = [], committedValues: number[] = [], files: Uint8Array[] = [];
   const setMessage = vi.fn(), engine = { position: () => undefined };
   const window = { desktop: { saveFile: vi.fn(async (_name: string, bytes: Uint8Array) => { files.push(bytes.slice()); return 'saved.nbsx'; }), clearRecovery: vi.fn(async () => {}) } };
-  let input: ReturnType<typeof createNumberInputHarness>, app: AppFunctions, currentContext: { numberGeneration: number; numberContext: string; delayContext: string };
+  let input: ReturnType<typeof createNumberInputHarness>, app: AppFunctions, currentContext: { numberGeneration: number; numberContext: string };
   function parentRender() {
     const project = state.project;
     const { region, pattern, track, notes } = resolveEditorSelection(project, { trackId: initial.tracks[0].id, regionId: initial.regions[0].id, noteIds: [...selectedNotes], focus: 'piano' });
     const selectedRegions = new Set(region ? [region.id] : []), selectedRegionsRef = { current: selectedRegions };
     currentContext = evaluateContexts(project, numberEditOwner, region, pattern, track, selectedNotes, state.documentKey);
-    liveNumberContext.current = currentContext.numberContext; liveDelayContext.current = currentContext.delayContext;
+    liveNumberContext.current = currentContext.numberContext;
     const finishHeld = { current: (_keys?: string[]) => {} };
-    const scope = { project, projectRef, numberEditOwner, ...currentContext, liveNumberContext, liveDelayContext, region, pattern, track, selectedNotes, selectedRegions, selectedRegionsRef, regionGroupIssue: '',
+    const scope = { ...noteOnlyAppHarnessBoundaries(), project, projectRef, numberEditOwner, ...currentContext, liveNumberContext, region, pattern, track, selectedNotes, selectedRegions, selectedRegionsRef, regionGroupIssue: '',
       produce, history, future, numberDrafts, setHasNumberDraft: (value: boolean) => { state.pending = value; }, setMessage,
       selectionSnapshot: (value = projectRef.current) => normalizeEditorSelection(value, { trackId: track?.id, regionId: region?.id, noteIds: [...selectedNotes], focus: 'piano' }),
       setProject: (value: Project) => { state.project = value; }, setDirty: (value: boolean) => { state.dirty = value; }, setRevision: (update: (value: number) => number) => { state.revision = update(state.revision); },
@@ -96,12 +84,10 @@ function fixture(field: 'height' | 'region' | 'delay' = 'height') {
       flushActiveNumberInput: () => input.flush(), previewRecordingProject, recordingProjectsEqual, finishRecordedPress, keysHeld, engine, editorDocumentKey: state.documentKey,
       savedSnapshot, filePath: undefined, setFilePath: vi.fn(), setRecovery: vi.fn(), window, localStorage: { removeItem: vi.fn() }, finishHeld,
       setHasHeldRecording: vi.fn(), positionRef, setPlayhead: (value: number) => { state.playhead = value; } };
-    app = Function(...Object.keys(scope), `${code}\nreturn {commit,commitNoteNumber,commitRegionLength,changeTrackDelay,setNumberPending,finishNumberDraft,save,finishHeld:finishHeld.current};`)(...Object.values(scope)) as AppFunctions;
-    const jsxScope = { ...scope, ...app, firstNote: notes[0], CommitNumberInput: NumberMarker, DelayEditor: NumberMarker, element,
-      delayPreviewDuration: { beats: 1, seconds: .5 }, tempoMap: { at: () => ({ bpm: 120 }) }, delayPreviewOrigin: 0 };
-    const compiledBinding = field === 'height' ? heightBinding : field === 'region' ? regionBinding : delayBinding;
-    const binding = Function(...Object.keys(jsxScope), compiledBinding)(...Object.values(jsxScope)) as Element;
-    const actual = field === 'delay' ? elements(DelayPanel(binding.props)).find(node => node.type === NumberMarker && node.props['aria-label'] === 'Delay 回声间隔')!.props : binding.props;
+    app = Function(...Object.keys(scope), `${code}\nreturn {commit,commitNoteNumber,commitRegionLength,setNumberPending,finishNumberDraft,save,finishHeld:finishHeld.current};`)(...Object.values(scope)) as AppFunctions;
+    const jsxScope = { ...scope, ...app, firstNote: notes[0], CommitNumberInput: NumberMarker, element };
+    const compiledBinding = field === 'height' ? heightBinding : regionBinding;
+    const actual = (Function(...Object.keys(jsxScope), compiledBinding)(...Object.values(jsxScope)) as Element).props;
     const props = { ...actual, onCommit: (value: number) => { committedValues.push(value); return actual.onCommit(value); },
       onPendingChange: (pending: boolean) => { pendingEvents.push(pending); actual.onPendingChange(pending); } } as CommitNumberInputProps;
     if (input) input.update(props); else input = createNumberInputHarness(props);
@@ -153,15 +139,6 @@ describe('real numeric drafts through App recording commits (callback integratio
     const test = fixture('region'); test.input().change('3.5'); test.appendRecording(1000);
     expect(test.input().flush()).toBe(true); expect(test.committedValues).toEqual([3.5]);
     expect(test.projectRef.current.regions[0].length).toBe(1920); test.parentRender(); expect(test.input().render().props.value).toBe('4');
-  });
-
-  it('keeps a real Delay field draft across recording and commits through the actual panel and App callback', () => {
-    const test = fixture('delay'), context = test.context().delayContext;
-    test.input().change('1.25'); const recorded = test.appendRecording(); test.parentRender();
-    expect(test.context().delayContext).toBe(context); expect(test.input().render().props.value).toBe('1.25'); expect(test.state.pending).toBe(true);
-    test.input().key('Enter');
-    expect(test.projectRef.current.tracks[0].delay!.interval).toBe(1.25); expect(test.projectRef.current.patterns[0].notes.at(-1)?.id).toBe(recorded.noteId);
-    expect(test.pendingEvents).toEqual([true, false]); expect(test.committedValues).toEqual([1.25]);
   });
 
   it('ordinary edits still invalidate a note draft on the parent rerender', () => {

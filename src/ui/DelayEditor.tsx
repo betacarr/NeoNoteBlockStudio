@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import type { DelayEffect } from '../core/types';
 import { createDefaultDelay, delayEnvelope } from '../core/delay';
-import { CommitNumberInput } from './CommitNumberInput';
+import { CommitRangeInput } from './CommitRangeInput';
 import './DelayEditor.css';
 
 export interface DelayEditorProps {
   value: DelayEffect | undefined;
   disabled?: boolean;
   contextKey: string;
+  owner: object;
+  getOwner: () => object;
+  onPrepare?: () => boolean;
   onChange: (value: DelayEffect) => void;
-  onPendingChange: (field: string, pending: boolean) => void;
   previewDuration?: { beats: number; seconds: number };
   secondsPerBeat?: number;
 }
@@ -40,7 +43,8 @@ function envelopePreview(effect: DelayEffect, duration: number) {
 }
 
 /** Controlled track settings; original notes are never edited by this panel. */
-export function DelayEditor({ value, disabled = false, contextKey, onChange, onPendingChange, previewDuration, secondsPerBeat: suppliedSecondsPerBeat }: DelayEditorProps) {
+export function DelayEditor({ value, disabled = false, contextKey, owner, getOwner, onPrepare, onChange, previewDuration, secondsPerBeat: suppliedSecondsPerBeat }: DelayEditorProps) {
+  const [draft, setDraft] = useState<{ context: string; field: TimeField | RatioField; value: number }>();
   const effect = value ?? createDefaultDelay(), milliseconds = effect.timeUnit === 'seconds', displayScale = milliseconds ? 1000 : 1, unit = milliseconds ? '毫秒' : '拍';
   const ratio = suppliedSecondsPerBeat ?? (previewDuration && previewDuration.beats > 0 && previewDuration.seconds > 0 && Number.isFinite(previewDuration.beats) && Number.isFinite(previewDuration.seconds)
     ? previewDuration.seconds / previewDuration.beats : undefined);
@@ -56,13 +60,25 @@ export function DelayEditor({ value, disabled = false, contextKey, onChange, onP
     for (const field of TIME_FIELDS) converted[field] = bound(effect[field] * factor, timeMinimum(field, next), 256);
     change(converted);
   };
-  const timeField = (field: TimeField, label: string) => <label className="field delay-field"><span>{label} / {unit}</span><CommitNumberInput
-    aria-label={`Delay ${label}`} value={effect[field] * displayScale} min={timeMinimum(field, effect.timeUnit) * displayScale} max={256 * displayScale} step={milliseconds ? 1 : .25}
-    disabled={disabled} contextKey={`${contextKey}:delay:${field}:${effect.timeUnit}`} onPendingChange={pending => onPendingChange(`delay-${field}`, pending)}
-    onCommit={number => { if (Number.isFinite(number)) change({ [field]: bound(number / displayScale, timeMinimum(field, effect.timeUnit), 256) }); }} /></label>;
-  const ratioField = (field: RatioField, label: string) => <label className="field delay-field"><span>{label} / %</span><CommitNumberInput
-    aria-label={`Delay ${label}`} value={(effect[field] ?? 0) * 100} min={0} max={100} step={1} disabled={disabled} contextKey={`${contextKey}:delay:${field}`}
-    onPendingChange={pending => onPendingChange(`delay-${field}`, pending)} onCommit={number => { if (Number.isFinite(number)) change({ [field]: bound(number, 0, 100) / 100 }); }} /></label>;
+  const preview = (field: TimeField | RatioField, scale: number) => (number: number | undefined) => {
+    if (number !== undefined) setDraft({ context: contextKey, field, value: number / scale });
+    else setDraft(old => old?.context === contextKey && old.field === field ? undefined : old);
+  };
+  const envelope = !disabled && draft?.context === contextKey ? { ...effect, [draft.field]: draft.value } : effect;
+  const timeText = (number: number) => milliseconds && Math.abs(number) >= 1000 ? `${+(number / 1000).toFixed(2)} 秒`
+    : `${+number.toFixed(milliseconds ? 1 : 4)} ${unit}`;
+  const timeField = (field: TimeField, label: string, stacked = false) => <label className={`delay-parameter${stacked ? ' delay-parameter-stacked' : ''}`}>
+    <span>{label}</span><CommitRangeInput aria-label={`Delay ${label}`} value={effect[field] * displayScale}
+      dial={field !== 'releaseOffset'} curve={field === 'releaseOffset' ? 'centered-time' : 'time'} formatValue={timeText}
+      min={timeMinimum(field, effect.timeUnit) * displayScale} max={256 * displayScale} step={milliseconds ? 1 : 1 / 64}
+      disabled={disabled} contextKey={`${contextKey}:delay:${field}:${effect.timeUnit}`} owner={owner} getOwner={getOwner} onPrepare={onPrepare}
+      onPreview={preview(field, displayScale)}
+      onCommit={number => { if (Number.isFinite(number)) change({ [field]: bound(number / displayScale, timeMinimum(field, effect.timeUnit), 256) }); }} /></label>;
+  const ratioField = (field: RatioField, label: string, dial = false) => <label className={`delay-parameter${dial ? ' delay-parameter-stacked' : ''}`}>
+    <span>{label}</span><CommitRangeInput aria-label={`Delay ${label}`} value={(effect[field] ?? 0) * 100} dial={dial}
+      min={0} max={100} step={.5} formatValue={number => `${+number.toFixed(1)}%`} disabled={disabled} contextKey={`${contextKey}:delay:${field}`}
+      owner={owner} getOwner={getOwner} onPrepare={onPrepare} onPreview={preview(field, 100)}
+      onCommit={number => { if (Number.isFinite(number)) change({ [field]: bound(number, 0, 100) / 100 }); }} /></label>;
 
   return <div className="inspector-section delay-editor" data-testid="delay-editor" data-enabled={effect.enabled} data-mode={effect.mode}>
     <div className="inspector-heading delay-heading"><span>Delay 回声</span><label className="delay-enabled"><input type="checkbox" aria-label="启用轨道 Delay" checked={effect.enabled} disabled={disabled} onChange={event => change({ enabled: event.currentTarget.checked })} />启用</label></div>
@@ -76,9 +92,13 @@ export function DelayEditor({ value, disabled = false, contextKey, onChange, onP
       {ratioField('panAmount', '左右摆幅')}
       <p className="delay-hint">逐次左 / 右交替；相对原音声像，0% 关闭。</p>
       {effect.mode === 'gate' ? <div className="delay-gate">
-        {envelopePreview(effect, duration)}
+        {envelopePreview(envelope, duration)}
+        <div className="delay-envelope-controls" role="group" aria-label="Delay 包络">
+          {timeField('attack', '起音 A', true)}{timeField('decay', '衰减 D', true)}
+          {ratioField('sustain', '保持 S', true)}{timeField('release', '释放 R', true)}
+        </div>
         <p className="delay-hint">ADSR 只调节回声音符力度。{milliseconds ? '时间以毫秒显示。' : '拍数以四分音符为 1 拍。'}</p>
-        {timeField('attack', '起音 A')}{timeField('decay', '衰减 D')}{ratioField('sustain', '保持 S')}{timeField('release', '释放 R')}{timeField('releaseOffset', '释放偏移')}
+        {timeField('releaseOffset', '释放偏移')}
         <p className="delay-hint">释放偏移相对原音符末尾；负数表示提前。</p>
       </div> : <div className="delay-tail">{timeField('tail', '独立尾长')}<p className="delay-hint">从每个原音符开始，按独立尾长生成回声。</p></div>}
     </fieldset>

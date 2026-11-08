@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { produce } from 'immer';
@@ -18,7 +19,7 @@ function section(from: string, to: string) {
 }
 const localModeState = source.split('\n').find(line => line.includes('[playbackMode, setPlaybackMode]'));
 if (!localModeState) throw new Error('App local playback state missing');
-const bpmStart = source.indexOf('<input aria-label="当前位置速度 BPM"');
+const bpmStart = source.indexOf('<CommitNumberInput aria-label="当前位置速度 BPM"');
 if (bpmStart < 0) throw new Error('App current-tempo input missing');
 const bpmSource = source.slice(bpmStart, source.indexOf('/>', bpmStart) + 2);
 const code = transformSync([
@@ -31,7 +32,7 @@ const code = transformSync([
   source.split('\n').find(line => line.startsWith('  const removeReference = '))!,
   `const timingCommand = { ${section('timing: () => {', "\n    'save-close':")} };`,
   `const bpmInput = ${bpmSource};`,
-  section('  useEffect(() => {\n    if (!engine.playing) return;', "  useEffect(() => { try { localStorage.setItem('nbsx-preferences'"),
+  section('  useEffect(() => {\n    if (!engine.playing) return;', '  const cycleSignature ='),
 ].join('\n'), { loader: 'tsx', jsxFactory: 'element', target: 'es2022' }).code;
 
 function deferred<T>() {
@@ -63,7 +64,7 @@ function fixture() {
   const setPlaybackMode = vi.fn((value: PlaybackMode) => { state.mode = value; });
   function functions() {
     let runEffect = () => {};
-    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false },
+    const scope = { ...noteOnlyAppHarnessBoundaries(), recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false },
       project: projectRef.current, projectRef, stopEpoch, positionRef, engine, finishHeld, noteRangePreview: { current: undefined },
       produce, history, future, savedSnapshot, numberEditOwner, selectionSnapshot: () => ({ trackId: project.tracks[0].id, noteIds: [], focus: 'piano' }),
       setProject: vi.fn(), setDirty: vi.fn(), setRevision: vi.fn(), restoreSelection: vi.fn(), setModal: vi.fn(),
@@ -77,7 +78,7 @@ function fixture() {
       window: { desktop: { renderNative } }, previewBackendForProject, playbackEndTick, createTempoMap,
       previewSamplesReady, setPreviewSampleCount: vi.fn(),
       audioProfile: () => ({ status: 'fixture' }), PROFILE_STATUS: { fixture: 'inert test boundary' },
-      activeTempo: createTempoMap(projectRef.current).at(positionRef.current),
+      activeTempo: createTempoMap(projectRef.current).at(positionRef.current), editorDocumentKey: 0, CommitNumberInput: 'commit-number-marker', setNumberPending: vi.fn(),
       element: (_tag: string, props: unknown) => props,
     };
     const app = Function(...Object.keys(scope), `${code}\nreturn {togglePlay,changePlaybackMode,previewMixerTrack,previewMixerMaster,commit,undo,redo,changeReference,removeReference,openTiming:timingCommand.timing,bpmInput};`)(...Object.values(scope)) as {
@@ -88,7 +89,7 @@ function fixture() {
       commit: (label: string, edit: (project: Project) => void) => void;
       undo: () => void; redo: () => void; openTiming: () => void;
       changeReference: (patch: { startTick?: number; gain?: number }) => void; removeReference: () => void;
-      bpmInput: { readOnly: boolean; onChange: (event: { target: { value: string } }) => void };
+      bpmInput: { disabled: boolean; onCommit: (value: number) => void };
     };
     return { ...app, runEffect: () => runEffect() };
   }
@@ -101,7 +102,7 @@ describe('App local realtime/default playback integration', () => {
     const before = structuredClone(t.project), app = t.functions();
     expect(t.state.mode).toBe('realtime');
     await app.togglePlay();
-    expect(t.engine.play).toHaveBeenCalledExactlyOnceWith(t.project, 120, false);
+    expect(t.engine.play).toHaveBeenCalledExactlyOnceWith(t.project, 120, false, undefined);
     expect(t.engine.nativeRequest).not.toHaveBeenCalled(); expect(t.renderNative).not.toHaveBeenCalled();
     expect(t.state).toMatchObject({ playing: true, meter: 'tracks', busy: false });
     expect(t.projectRef.current).toBe(t.project); expect(t.project).toEqual(before);
@@ -175,12 +176,12 @@ describe('App local realtime/default playback integration', () => {
 
   it('allows the actual BPM input to commit live tempo while retaining native playback read-only behavior', () => {
     const t = fixture(); t.engine.playing = true; t.state.playing = true;
-    const app = t.functions(); expect(app.bpmInput.readOnly).toBe(false);
-    app.bpmInput.onChange({ target: { value: '150' } });
+    const app = t.functions(); expect(app.bpmInput.disabled).toBe(false);
+    app.bpmInput.onCommit(150);
     expect(t.projectRef.current.tempos).toEqual([{ tick: 0, bpm: 150 }]); expect(t.engine.playing).toBe(true); expect(t.engine.stop).not.toHaveBeenCalled();
     t.functions().runEffect(); expect(t.engine.updateProject).toHaveBeenCalledExactlyOnceWith(t.projectRef.current);
-    t.state.mode = 'native-compare'; expect(t.functions().bpmInput.readOnly).toBe(true);
-    t.state.playing = false; expect(t.functions().bpmInput.readOnly).toBe(false);
+    t.state.mode = 'native-compare'; expect(t.functions().bpmInput.disabled).toBe(true);
+    t.state.playing = false; expect(t.functions().bpmInput.disabled).toBe(false);
   });
 });
 

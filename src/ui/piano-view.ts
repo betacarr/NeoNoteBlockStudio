@@ -5,6 +5,20 @@ export const PIANO_MAX_ZOOM = 220;
 export const PIANO_MIN_ROW_HEIGHT = .25, PIANO_MAX_ROW_HEIGHT = 48, PIANO_DEFAULT_ROW_HEIGHT = 18;
 const DEFAULT_ZOOM = 72, DEFAULT_ROW_HEIGHT = PIANO_DEFAULT_ROW_HEIGHT;
 
+export interface DrumRowLabel { midi: number; label: string; mapped: boolean; mappingName?: string; range?: 'in' | 'out' | 'mixed' | 'unmapped' }
+export const pianoRowHeaderWidth = (drums: boolean): number => drums ? 204 : 58;
+/** The same origin serves drawing, hit testing and scroll anchoring. */
+export const pianoGridTick = (x: number, scrollX: number, ppq: number, zoom: number, headerWidth: number): number => (x - headerWidth + scrollX) * ppq / zoom;
+export const pianoGridX = (tick: number, scrollX: number, ppq: number, zoom: number, headerWidth: number): number => headerWidth + tick * zoom / ppq - scrollX;
+export function visibleDrumRows(rows: readonly DrumRowLabel[], scrollY: number, rowHeight: number, height: number): DrumRowLabel[] {
+  const labels = new Map(rows.map(row => [row.midi, row]));
+  const first = Math.max(0, Math.floor(scrollY / rowHeight)), last = Math.min(127, Math.ceil((scrollY + height) / rowHeight) - 1);
+  return Array.from({ length: Math.max(0, last - first + 1) }, (_, index) => {
+    const midi = 127 - first - index;
+    return labels.get(midi) ?? { midi, label: '未映射', mapped: false };
+  });
+}
+
 export function clampPianoZoom(value: number): number {
   return Math.min(PIANO_MAX_ZOOM, Math.max(PIANO_MIN_ZOOM, Number.isNaN(value) ? DEFAULT_ZOOM : value));
 }

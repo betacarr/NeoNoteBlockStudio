@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { applyNoteEdit } from '../src/core/note-edit';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
@@ -71,7 +72,7 @@ function fixture(field: Field, setup: (project: Project) => void = () => {}) {
     const { region, pattern, track, notes } = resolveEditorSelection(project, { trackId: initial.tracks[0].id, regionId: initial.regions[0].id, noteIds: [...selectedNotes], focus: 'piano' });
     const context = evaluateContext(project, numberEditOwner, region, pattern, selectedNotes, 4);
     liveNumberContext.current = context.numberContext;
-    const scope = { project, projectRef, numberEditOwner, ...context, liveNumberContext, region, pattern, track, selectedNotes, numberDrafts,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), project, projectRef, numberEditOwner, ...context, liveNumberContext, region, pattern, track, selectedNotes, numberDrafts,
       selectedRegions: new Set([initial.regions[0].id]), selectedRegionsRef: { current: new Set([initial.regions[0].id]) }, regionGroupIssue: '',
       setHasNumberDraft: (value: boolean) => { state.pending = value; }, setMessage, produce, history, future,
       selectionSnapshot: (value = projectRef.current) => normalizeEditorSelection(value, { trackId: track?.id, regionId: region?.id, noteIds: [...selectedNotes], focus: 'piano' }),

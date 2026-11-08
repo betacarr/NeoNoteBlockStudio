@@ -1,0 +1,106 @@
+.audio-assist-backdrop{position:fixed;inset:0;z-index:1100;background:#101820bc;display:flex;align-items:center;justify-content:center;padding:18px}
+.audio-assist-dialog{display:flex;flex-direction:column;width:min(1440px,100%);height:min(940px,100%);background:var(--panel,#252a30);color:var(--text,#e3e8ee);border:1px solid #515e68;border-radius:12px;box-shadow:0 24px 100px #0008;overflow:hidden;font-size:12px;outline:none}
+.audio-assist-dialog header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #46515b}.audio-assist-dialog h2{font-size:19px;margin:0 0 5px}.audio-assist-dialog h3{font-size:13px;margin:0 0 12px}.audio-assist-dialog p{margin:0;line-height:1.65;color:#b2bfca}.audio-assist-dialog small{color:#a5b5c1;font-size:11px;line-height:1.6}.audio-assist-dialog h3 small{font-weight:400;margin-left:8px}.audio-assist-dialog header>button{font-size:23px;line-height:20px;width:32px}.audio-assist-dialog button,.audio-assist-dialog input{font:inherit;border-radius:5px;min-height:28px}.audio-assist-dialog button{padding:4px 10px;cursor:pointer}.audio-assist-dialog button:disabled{opacity:.4;cursor:default}.audio-assist-dialog .primary{color:#143226;background:#91c7b1;border-color:#91c7b1}.audio-assist-dialog button.active{background:#3d6255;color:#e9fff3;border-color:#88baa4}.audio-assist-dialog button:focus-visible,.audio-assist-dialog input:focus-visible,.aa-wave:focus-visible{outline:2px solid #95cfb9;outline-offset:2px}.audio-assist-dialog input[type=number]{width:82px;padding:4px 6px}.audio-assist-dialog input[type=checkbox]{min-height:auto;accent-color:#93c5ad}.aa-command,.aa-progress,.aa-transport,.aa-loop,.aa-fields{display:flex;align-items:center;gap:10px}.aa-command{padding:12px 20px;border-bottom:1px solid #46515b;flex-shrink:0}.aa-command>span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#b7c7d1}.aa-progress{padding:10px 20px;background:#293c39}.aa-progress progress{accent-color:#91c7b1;flex:1}.aa-progress span{max-width:50%}.aa-runtime{padding:9px 20px!important;background:#473d2d}.aa-content{padding:16px 20px;flex:1;min-height:0;overflow:auto}.aa-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;text-align:center}.aa-empty h3{font-size:19px;margin:0}.aa-empty-wave{font-size:72px;color:#8ec7b1;line-height:1}.aa-transport{margin-bottom:12px}.aa-transport>input[type=range]{flex:1;min-width:80px;accent-color:#91c7b1}.aa-transport output{font-variant-numeric:tabular-nums;color:#b6c9d5;white-space:nowrap}.aa-loop{margin-bottom:14px;flex-wrap:wrap}.aa-loop label{display:flex;align-items:center;gap:5px}.aa-loop small{margin-left:auto}.aa-stems{display:flex;flex-direction:column;gap:5px}.aa-stem{display:grid;grid-template-columns:190px minmax(100px,1fr) 90px 70px;gap:12px;align-items:center;border:1px solid #424e57;background:#20272d;border-radius:6px;padding:7px 10px}.aa-stem-info{display:flex;align-items:center;gap:6px;min-width:0}.aa-stem-info>i{width:3px;height:25px;border-radius:2px;flex-shrink:0}.aa-stem-info strong{flex:1;overflow:hidden;text-overflow:ellipsis}.aa-stem-info button{padding:3px 7px;min-width:26px}.aa-stem>input{width:100%;accent-color:#99bfae}.aa-wave{height:40px;position:relative;overflow:hidden;cursor:crosshair;background:#29343a;border-radius:3px}.aa-wave svg{width:100%;height:100%;stroke:#96bcb6;stroke-width:.7;opacity:.85}.aa-playhead{position:absolute;top:0;bottom:0;width:1px;background:#f0d9a1;pointer-events:none}.aa-analysis{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;margin-top:22px}.aa-tempo,.aa-chords{min-width:0;border-top:1px solid #47525d;padding-top:15px}.aa-fields{margin:10px 0;flex-wrap:wrap}.aa-fields label{display:flex;align-items:center;gap:5px}.aa-beat-strip{height:27px;background:#1c252c;position:relative;overflow:hidden;margin:12px 0;border-radius:3px}.aa-beat-strip button{position:absolute;top:3px;bottom:3px;width:3px;min-height:0;padding:0;background:#688b86;border:0;border-radius:0}.aa-beat-strip button.active{background:#e7cf8d;width:4px}.aa-apply-tempo{display:flex;align-items:center;gap:5px;margin-top:15px}.audio-assist-dialog .aa-warning{font-size:11px;color:#d5b78d;margin-top:7px}.aa-chord-lane{height:31px;position:relative;background:#1b242a;overflow:hidden;border-radius:4px;margin-bottom:10px}.aa-chord-lane button{position:absolute;top:2px;bottom:2px;min-height:0;padding:2px 4px;overflow:hidden;white-space:nowrap;text-align:left;background:#38514c;border:1px solid #608377;font-size:10px}.aa-chord-table{max-height:245px;overflow:auto}.aa-chord-table table{width:100%;border-collapse:collapse;font-size:11px}.aa-chord-table th{text-align:left;color:#a4b5c1;font-weight:400;padding:5px 4px;position:sticky;top:0;background:#252d34;z-index:1}.aa-chord-table td{border-top:1px solid #3c4851;padding:5px 4px}.aa-chord-table td>input:not([type=number]){width:80px;min-width:50px;padding:4px 6px}.aa-chord-table input[type=number]{width:77px}.aa-chord-table button{font-size:10px;white-space:nowrap;padding:4px 5px}.aa-uncertain{color:#d1b986;border:1px solid #706044;border-radius:3px;padding:2px 5px;white-space:nowrap}.aa-message{padding:8px 20px;min-height:32px;border-top:1px solid #46515b;color:#c8ba96;font-size:11px}.audio-assist-dialog footer{padding:12px 20px;display:flex;align-items:center;gap:10px;border-top:1px solid #46515b;flex-shrink:0}.audio-assist-dialog footer>span{flex:1;font-size:11px;color:#a9bac5}
+@media(max-width:1000px){.audio-assist-backdrop{padding:6px}.aa-analysis{grid-template-columns:270px minmax(0,1fr);gap:12px}.aa-stem{grid-template-columns:155px minmax(70px,1fr) 65px 65px;gap:7px}.aa-content{padding:12px}.aa-loop small{margin-left:0}.aa-chord-table td>input:not([type=number]){width:60px}.aa-chord-table input[type=number]{width:65px}}
+.aa-files{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:8px 10px;background:#20272d;border:1px solid #414e58;border-radius:5px}.aa-files label{display:flex;align-items:center;gap:7px}.aa-files select{max-width:220px;min-height:28px;font:inherit;border-radius:5px}.aa-files button{white-space:nowrap}
+.aa-model-card{margin:10px 20px 0;padding:12px 15px;max-height:280px;overflow:auto;background:#263730;border:1px solid #55796a;border-radius:7px;flex-shrink:0}.aa-model-card>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:10px}.aa-model-card h3{margin:0}.aa-model-card p{font-size:11px;margin-top:5px}.aa-model-card .aa-model-source{overflow-wrap:anywhere}.aa-model-card a{color:#a5cdbd}.aa-model-card progress{width:100%;height:9px;margin-top:8px;accent-color:#94c8af}.aa-model-actions{display:flex;gap:10px;align-items:center;margin-top:9px}.aa-model-actions>span{color:#b6cbbd;font-size:11px}
+.aa-compute{margin:6px 20px;font-size:11px;color:#c8d2dc;flex-shrink:0}.aa-compute summary{cursor:pointer}.aa-compute>div{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 0}.aa-compute label{display:flex;gap:6px;align-items:center}.aa-compute select{min-height:26px;font:inherit}.aa-compute-result{margin:3px 20px;font-size:11px;color:#a8cdbf;flex-shrink:0}
+/* Stem Splitter controls and region chord editor. */
+.aa-split-dialog {width:min(500px,100%);height:auto;max-height:calc(100vh - 36px);overflow-y:auto}
+.aa-split-dialog header {padding:18px 24px 12px}
+.aa-split-dialog .aa-command {padding:6px 20px;border:0;flex-wrap:wrap}
+.aa-split-dialog .aa-warning {padding:0 20px}
+.aa-split-dialog .aa-message:empty {display:none}
+.aa-split-backdrop {background:#0009}
+.aa-split-setup {
+  width:min(460px,100%);max-height:calc(100dvh - 36px);color:#e1e1e1;background:#292929;
+  border-color:#444;box-shadow:0 24px 64px #0009;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color-scheme:dark;
+}
+.aa-split-setup header {padding:20px 28px 25px;border:0;flex-shrink:0}
+.aa-split-setup h2 {margin:0;font-size:15px;font-weight:700;line-height:19px}
+.aa-split-setup p,.aa-split-setup small {color:#a9a9a9}
+.aa-split-setup footer {
+  flex-shrink:0;padding:18px 19px 18px;gap:8px;border:0;background:transparent;
+}
+.aa-split-setup footer button {min-width:50px;min-height:24px;padding:3px 11px;border:0;border-radius:6px;background:#3c3c3c;color:#e8e8e8}
+.aa-split-setup footer button.primary {background:#087fff;color:#fff}
+.aa-split-setup footer button:enabled:hover {filter:brightness(1.15)}
+.aa-split-setup footer .aa-split-help-button {
+  display:grid;place-items:center;min-width:24px;width:24px;height:24px;padding:0;
+  margin-right:auto;border-radius:50%;color:#dedede;background:#393939;font-size:15px;font-weight:600;
+}
+.aa-split-help {margin:10px 19px 0;flex-shrink:0}
+.aa-split-help p {margin-bottom:6px}
+.aa-split-help button {font-size:11px}
+.aa-chord-dialog .aa-empty small {max-width:520px}
+.audio-source-target {padding:12px 24px;display:flex;flex-wrap:wrap;gap:8px;background:#24282d}
+.audio-source-target small {margin-left:auto}
+.aa-split-options {padding:0 19px;flex-shrink:0}
+.aa-preset {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding:0 10px;background:#303030;border-radius:var(--ui-radius-group,12px);font-size:13px}
+.aa-preset-control {position:relative;min-width:0}
+.aa-preset select {appearance:none;width:100%;min-height:38px;max-width:100%;padding:0 34px 0 8px;font:inherit;text-align:end;border:0;background:transparent;color:inherit}
+.aa-preset select option {background:#303030;color:#eee}
+.aa-preset-chevron {position:absolute;right:4px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#404040;pointer-events:none}
+.aa-split-setup .aa-stem-choice {display:block;margin:0 0 10px;padding:0 10px;border-radius:var(--ui-radius-group,12px);background:#303030;overflow:hidden}
+.aa-split-setup .aa-stem-choice label {display:flex;align-items:center;gap:8px;font-size:13px}
+.aa-split-options input[type=checkbox] {width:16px;height:16px;margin:0;padding:0;flex-shrink:0;accent-color:#087fff}
+.aa-stem-option {position:relative}
+.aa-stem-choice .aa-stem-label {padding:6px 0;background:transparent;cursor:pointer}
+.aa-stem-label:has(input:disabled) {cursor:default}
+.aa-split-options :is(.aa-stem-label,.aa-submix-label) input {margin-left:auto}
+.aa-stem-icon {display:grid;place-items:center;width:48px;height:36px;flex-shrink:0;border-radius:5px;background:#006a80;color:#a2e6ef}
+.aa-stem-choice [data-role=vocals] .aa-stem-icon {background:#00878a}
+.aa-stem-choice [data-role=drums] .aa-stem-icon {background:#007287}
+.aa-stem-choice [data-role=bass] .aa-stem-icon {background:#006880}
+.aa-stem-choice [data-role=guitar] .aa-stem-icon {background:#245d88;color:#b1daff}
+.aa-stem-choice [data-role=piano] .aa-stem-icon {background:#354e8a;color:#b7caff}
+.aa-stem-choice [data-role=other] .aa-stem-icon {background:#44398a;color:#cac2fa}
+.aa-split-setup .aa-stem-choice .aa-drum-pieces {position:absolute;right:22px;top:50%;transform:translateY(-50%);padding:0;background:transparent;color:#b0b0b0;font-size:12px;white-space:nowrap}
+.aa-split-options .aa-drum-pieces input[role=switch] {appearance:none;width:35px;height:16px;border:0;border-radius:10px;background:#494949;cursor:pointer}
+.aa-drum-pieces input[role=switch]::before {content:"";display:block;width:20px;height:12px;margin:2px;border-radius:8px;background:#e8e8e8}
+.aa-drum-pieces input[role=switch]:checked {background:#087fff}
+.aa-drum-pieces input[role=switch]:checked::before {transform:translateX(11px)}
+.aa-drum-pieces input[role=switch]:disabled {opacity:.45;cursor:default}
+.aa-submix {padding:0 10px;background:#303030;border-radius:var(--ui-radius-group,12px)}
+.aa-submix-description {display:block;padding:10px 0;border-bottom:1px solid #ffffff10;font-size:11px}
+.aa-submix-row {position:relative}
+.aa-submix-label {display:flex;align-items:center;gap:8px;padding:7px 0;font-size:13px}
+.aa-submix-label .aa-stem-icon {background:#484848;color:#d5d5d5}
+.aa-submix-label:has(input:disabled) {opacity:.45}
+.aa-submix-row button {
+  display:grid;place-items:center;position:absolute;top:50%;right:22px;transform:translateY(-50%);
+  width:21px;height:21px;padding:0;border:0;background:transparent;color:#bababa;
+}
+.aa-submix-row button:enabled:hover {background:#424242}
+.aa-submix-summary {display:block;padding:0 0 8px 56px}
+.aa-submix-roles {display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:8px 0;border-top:1px solid #ffffff10}
+.aa-submix-roles label {display:inline-flex;align-items:center;gap:4px}
+.aa-region-chords {grid-template-columns:minmax(0,1fr)}
+
+.aa-stem-choice > div + div {border-top:1px solid #ffffff10}
+.aa-kit-choices label {justify-content:space-between;padding:6px 0 6px 56px;border-top:1px solid #ffffff10;color:#d4d4d4}
+.aa-kit-choices .aa-unavailable-kit {color:#999}
+.aa-split-setup .aa-stem-option:has(.aa-stem-label:not(:has(input))) .aa-drum-pieces {right:0}
+
+@media (forced-colors: active) {
+  .aa-split-setup .aa-preset select {
+    appearance: auto;
+    border: 1px solid ButtonText;
+    padding: 0 8px;
+  }
+  .aa-split-setup .aa-preset-chevron,
+  .aa-split-setup .aa-drum-pieces input[role=switch]::before {
+    display: none;
+  }
+  .aa-split-setup .aa-drum-pieces input[role=switch] {
+    appearance: auto;
+    width: 16px;
+  }
+  .aa-split-setup footer button {
+    border: 1px solid ButtonText;
+  }
+  .aa-split-setup footer button:disabled {
+    border-color: GrayText;
+  }
+}

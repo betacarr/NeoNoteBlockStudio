@@ -1,23 +1,28 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import type { Note, Pattern, Region, ShortcutPreset, Track } from '../core/types';
+import type { Instrument, Note, Pattern, Region, ShortcutPreset, Track } from '../core/types';
 import { clamp, newNote } from '../core/project';
-import { noteName } from '../core/instruments';
+import { INSTRUMENTS, inNoteBlockRange, noteBlockMidiRange, noteName } from '../core/instruments';
 import type { MeterMap } from '../core/meter';
 import { dragNotes, dragPlacedNote, noteResizeHandleWidth, planRegionTrim, regionSourceRanges } from '../core/editor-interaction';
 import { velocityBounds, constrainVelocityDelta, changeNoteVelocities, type VelocityMode } from '../core/note-velocity';
 import { EditorScrollbar } from './EditorScrollbar';
 import { noteAt, notesAlongStroke, type Point } from './piano-hit-test';
-import { clampPianoZoom, planPianoView, planPianoRowZoom } from './piano-view';
+import { clampPianoZoom, planPianoView, planPianoRowZoom, pianoRowHeaderWidth, pianoGridTick, pianoGridX, visibleDrumRows, type DrumRowLabel } from './piano-view';
 import { PianoNoteIndex } from './piano-note-index';
 import { previewPianoNotes } from './piano-preview';
+import { NoteDeletionFeedback, deletionFeedbackCandidates } from './note-deletion-feedback';
 
 export type Tool = 'draw' | 'select' | 'erase';
 interface Props {
+  drumRows?: DrumRowLabel[];
+  instruments?: readonly Instrument[];
   pattern: Pattern; track: Track; ppq: number; selected: Set<string>; tool: Tool;
   snap: number; noteLength: number; zoom: number; playhead: number; meter: MeterMap; origin: number;
   preset: ShortcutPreset; region?: Region;
   viewKey?: string; viewRequest?: { id: number; mode: 'all' | 'selection' };
+  /** Empty mapped tracks locate their trigger register without adding source notes. */
+  guidePitches?: number[];
   gestureOwner?: object; getGestureOwner?: () => object;
   onPrepareGesture?: () => boolean;
   onZoom: (zoom: number) => void; onSelect: (ids: Set<string>) => void;
@@ -39,8 +44,13 @@ interface Drag {
   selection?: PianoNoteIndex;
   velocityMode?: VelocityMode;
   velocityBounds?: ReturnType<typeof velocityBounds>;
+  copyIds?: Map<string, string>;
+  copiedSelection?: Set<string>;
 }
-const KEYBOARD = 58, TIMELINE = 26, RULER = 42, ROW = 18, VELOCITY = 78;
+interface NoteContextMenu {
+  x: number; y: number; ids: Set<string>; notes: Note[]; patternId: string; trackId: string; region?: Region; owner?: object;
+}
+const TIMELINE = 26, RULER = 42, ROW = 18, VELOCITY = 78;
 const black = (midi: number) => [1, 3, 6, 8, 10].includes(midi % 12);
 
 export function PianoRoll(props: Props) {
@@ -55,7 +65,15 @@ export function PianoRoll(props: Props) {
   const previousZoom = useRef(props.zoom), syncNavigation = useRef<() => void>(() => {});
   const drag = useRef<Drag | null>(null);
   const animation = useRef(0);
+  const deletion = useRef(new NoteDeletionFeedback());
+  const deletionAnimation = useRef(0), reducedMotion = useRef(true);
+  const visibleBeforeDelete = useRef<{ note: Note; color: string }[]>([]);
+  const erasePreviewed = useRef(new Set<string>());
+  const deletionSource = useRef(props.pattern.notes);
+  const deletionOwner = useRef<unknown[]>([]);
   const current = useRef(props); current.current = props;
+  const [contextMenu, setContextMenu] = useState<NoteContextMenu | null>(null);
+  const menuElement = useRef<HTMLDivElement>(null);
   // Keep only the current immutable source index, rather than retaining one per undo state.
   const indexedNotes = useRef<PianoNoteIndex | undefined>(undefined);
   const noteIndex = () => {
@@ -64,14 +82,25 @@ export function PianoRoll(props: Props) {
     return indexedNotes.current;
   };
   const drawRef = useRef<() => void>(() => {});
+  function clearDeletionFeedback() {
+    deletion.current.clear(); erasePreviewed.current.clear(); visibleBeforeDelete.current = [];
+    cancelAnimationFrame(deletionAnimation.current); deletionAnimation.current = 0;
+  }
+  function animateDeletion() {
+    if (deletionAnimation.current || !deletion.current.size || reducedMotion.current) return;
+    deletionAnimation.current = requestAnimationFrame(() => {
+      deletionAnimation.current = 0; drawRef.current(); animateDeletion();
+    });
+  }
+  const keyboardWidth = () => pianoRowHeaderWidth(!!current.current.drumRows);
   const scale = () => current.current.zoom / current.current.ppq;
   const step = () => current.current.snap ? current.current.ppq * 4 / current.current.snap : 1;
   const snap = (tick: number) => Math.max(0, current.current.meter.snap(current.current.origin + tick, step()) - current.current.origin);
-  const position = (e: React.PointerEvent | React.WheelEvent) => { const rect = canvas.current!.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
-  const toTick = (x: number) => Math.max(0, (x - KEYBOARD + scroll.current.x) / scale());
+  const position = (e: { clientX: number; clientY: number }) => { const rect = canvas.current!.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
+  const toTick = (x: number) => Math.max(0, pianoGridTick(x, scroll.current.x, current.current.ppq, current.current.zoom, keyboardWidth()));
   const toPitch = (y: number) => clamp(127 - Math.floor((y - RULER + scroll.current.y) / rowHeight.current), 0, 127);
-  const rectFor = (note: Note) => ({ x: KEYBOARD + note.tick * scale() - scroll.current.x, y: RULER + (127 - note.midi) * rowHeight.current - scroll.current.y, width: Math.max(6, note.duration * scale()), height: Math.max(1, rowHeight.current - 2) });
-  const rawTick = (x: number) => (x - KEYBOARD + scroll.current.x) / scale();
+  const rectFor = (note: Note) => ({ x: pianoGridX(note.tick, scroll.current.x, current.current.ppq, current.current.zoom, keyboardWidth()), y: RULER + (127 - note.midi) * rowHeight.current - scroll.current.y, width: Math.max(6, note.duration * scale()), height: Math.max(1, rowHeight.current - 2) });
+  const rawTick = (x: number) => pianoGridTick(x, scroll.current.x, current.current.ppq, current.current.zoom, keyboardWidth());
   const queryFor = (x1: number, y1: number, x2: number, y2: number) => {
     const start = rawTick(Math.min(x1, x2)), end = rawTick(Math.max(x1, x2));
     // Inverse pixel conversion can round across a closed edge, especially far from zero.
@@ -92,13 +121,14 @@ export function PianoRoll(props: Props) {
   };
   function cancelDrag(restoreSelection = true) {
     const active = drag.current; if (!active) return;
+    if (active.kind === 'erase') { deletion.current.remove(erasePreviewed.current); erasePreviewed.current.clear(); }
     drag.current = null; cancelAnimationFrame(animation.current); animation.current = 0;
     const element = canvas.current;
     if (element) { element.style.cursor = ''; if (element.hasPointerCapture(active.pointerId)) element.releasePointerCapture(active.pointerId); }
     if (restoreSelection && validDrag(active)) current.current.onSelect(new Set(active.selectionBefore));
     drawRef.current();
   }
-  const viewportWidth = () => Math.max(1, size.current.width - KEYBOARD);
+  const viewportWidth = () => Math.max(1, size.current.width - keyboardWidth());
   const viewportHeight = () => Math.max(1, size.current.height - RULER - VELOCITY);
   const previewRegion = () => {
     const active = drag.current;
@@ -140,6 +170,8 @@ export function PianoRoll(props: Props) {
   const applyView = (mode: 'locate' | 'all' | 'selection') => {
     const p = current.current;
     let notes = p.pattern.notes;
+    if (!notes.length && p.drumRows && mode !== 'selection') notes = (p.drumRows.filter(row => row.mapped).map(row => row.midi).length ? p.drumRows.filter(row => row.mapped).map(row => row.midi) : p.guidePitches?.length ? p.guidePitches : [36,38,42,46]).map(midi => newNote(0,midi));
+    if (!notes.length && p.guidePitches?.length && mode !== 'selection') notes = p.guidePitches.map(midi => newNote(0, midi));
     if (mode === 'selection') { notes = notes.filter(note => p.selected.has(note.id)); if (!notes.length) return; }
     let startTick: number | undefined;
     if (mode === 'locate' && p.region) {
@@ -174,107 +206,171 @@ export function PianoRoll(props: Props) {
     const element = canvas.current; if (!element) return;
     const context = element.getContext('2d'); if (!context) return;
     const { width: w, height: h } = size.current, p = current.current, active = drag.current, ROW = rowHeight.current;
+    const rowLabels = new Map(p.drumRows?.map(row => [row.midi, row]) ?? []);
+    const rootMidi = (p.instruments ?? INSTRUMENTS).find(instrument => instrument.id === p.track.instrumentId)?.rootMidi ?? 66;
+    // gestureOwner changes on ordinary commits; it is deliberately not an
+    // animation scope. Document navigation is represented by viewKey instead.
+    const now = performance.now(), owner = [p.viewKey,p.pattern.id,p.track.id,p.region?.id,!!p.drumRows];
+    if (owner.some((value,index) => value !== deletionOwner.current[index])) {
+      clearDeletionFeedback(); deletionOwner.current = owner; deletionSource.current = p.pattern.notes;
+    }
+    if (deletionSource.current !== p.pattern.notes) {
+      // Scan IDs once per immutable edit, never on animation frames.
+      const liveIds = new Set(p.pattern.notes.map(note => note.id));
+      deletion.current.restore(liveIds);
+      deletion.current.enqueue(visibleBeforeDelete.current.filter(item => !liveIds.has(item.note.id) && !erasePreviewed.current.has(item.note.id)),now,reducedMotion.current);
+      deletionSource.current = p.pattern.notes;
+      if (active?.kind !== 'erase') erasePreviewed.current.clear();
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     if (element.width !== Math.round(w * dpr) || element.height !== Math.round(h * dpr)) { element.width = Math.round(w * dpr); element.height = Math.round(h * dpr); }
     context.setTransform(dpr, 0, 0, dpr, 0, 0); context.clearRect(0, 0, w, h);
-    context.fillStyle = '#252629'; context.fillRect(0, 0, w, h);
+    context.fillStyle = '#1c222c'; context.fillRect(0, 0, w, h);
     const noteBottom = h - VELOCITY;
-    context.save(); context.beginPath(); context.rect(KEYBOARD, RULER, w - KEYBOARD, noteBottom - RULER); context.clip();
+    context.save(); context.beginPath(); context.rect(keyboardWidth(), RULER, w - keyboardWidth(), noteBottom - RULER); context.clip();
     for (let row = Math.max(0, Math.floor(scroll.current.y / ROW)); row <= Math.min(127, Math.ceil((scroll.current.y + noteBottom) / ROW)); row++) {
       const midi = 127 - row, y = RULER + row * ROW - scroll.current.y;
-      context.fillStyle = black(midi) ? '#26272a' : '#2c2d30'; context.fillRect(KEYBOARD, y, w - KEYBOARD, ROW);
-      context.strokeStyle = midi % 12 === 0 ? '#4c4e52' : '#323438'; context.beginPath(); context.moveTo(KEYBOARD, y + ROW); context.lineTo(w, y + ROW); context.stroke();
+      context.fillStyle = p.drumRows ? (p.drumRows.some(row => row.midi === midi && row.mapped) ? '#293c3f' : '#232a36') : black(midi) ? '#202631' : '#272f3b'; context.fillRect(keyboardWidth(), y, w - keyboardWidth(), ROW);
+      const range = p.drumRows ? rowLabels.get(midi)?.range ?? 'unmapped' : inNoteBlockRange(midi, rootMidi) ? 'in' : 'out';
+      if (range !== 'in') { context.fillStyle = range === 'mixed' ? '#00000032' : '#00000070'; context.fillRect(keyboardWidth(), y, w - keyboardWidth(), ROW); }
+      context.strokeStyle = midi % 12 === 0 ? '#485568' : '#313b4a'; context.beginPath(); context.moveTo(keyboardWidth(), y + ROW); context.lineTo(w, y + ROW); context.stroke();
     }
-    const grid = p.meter.grid(p.origin + scroll.current.x / scale(), p.origin + (scroll.current.x + w - KEYBOARD) / scale(), scale(), p.snap ? p.ppq * 4 / p.snap : p.ppq / 4);
+    const grid = p.meter.grid(p.origin + scroll.current.x / scale(), p.origin + (scroll.current.x + w - keyboardWidth()) / scale(), scale(), p.snap ? p.ppq * 4 / p.snap : p.ppq / 4);
     for (const mark of grid) {
-      const x = KEYBOARD + (mark.tick - p.origin) * scale() - scroll.current.x;
-      context.strokeStyle = mark.kind === 'bar' ? '#505257' : mark.kind === 'beat' ? '#3e4044' : '#323438';
+      const x = keyboardWidth() + (mark.tick - p.origin) * scale() - scroll.current.x;
+      context.strokeStyle = mark.kind === 'bar' ? '#4b596e' : mark.kind === 'beat' ? '#394557' : '#313b4a';
       context.beginPath(); context.moveTo(x + 0.5, RULER); context.lineTo(x + 0.5, noteBottom); context.stroke();
     }
     const playingRegion = previewRegion(), ranges = regionSourceRanges(p.pattern.length, playingRegion);
-    let previousEnd = KEYBOARD;
+    let previousEnd = keyboardWidth();
     for (const range of ranges) {
-      const left = KEYBOARD + range.start * scale() - scroll.current.x, right = KEYBOARD + range.end * scale() - scroll.current.x;
+      const left = keyboardWidth() + range.start * scale() - scroll.current.x, right = keyboardWidth() + range.end * scale() - scroll.current.x;
       context.fillStyle = '#00000030'; context.fillRect(previousEnd, RULER, Math.max(0, left - previousEnd), noteBottom - RULER);
-      context.fillStyle = '#b1e7cb09'; context.fillRect(left, RULER, right - left, noteBottom - RULER);
+      context.fillStyle = '#bdd7ff05'; context.fillRect(left, RULER, right - left, noteBottom - RULER);
       previousEnd = Math.max(previousEnd, right);
     }
     context.fillStyle = '#00000030'; context.fillRect(previousEnd, RULER, Math.max(0, w - previousEnd), noteBottom - RULER);
-    const query = queryFor(KEYBOARD, RULER, w, noteBottom);
+    const query = queryFor(keyboardWidth(), RULER, w, noteBottom);
+    const visible = noteIndex().query(query).filter(note => { const rect=rectFor(note); return rect.x+rect.width>=keyboardWidth() && rect.x<=w && rect.y+rect.height>=RULER && rect.y<noteBottom; });
+    visibleBeforeDelete.current = deletionFeedbackCandidates(visible,p.selected,p.track.color);
+    if (active?.kind === 'erase') {
+      const erased = visible.filter(note => active.ids.has(note.id) && !erasePreviewed.current.has(note.id)).slice(0,256).map(note => ({note,color:p.selected.has(note.id)?'#e4f5ec':p.track.color}));
+      deletion.current.enqueue(erased,now,reducedMotion.current);
+      for (const item of erased) erasePreviewed.current.add(item.note.id);
+    }
+    const ghostFrames = deletion.current.frame(now);
+    if (element.dataset) {
+      element.dataset.deletionFeedbackCount = String(ghostFrames.length);
+      element.dataset.deletionFeedbackProgress = String(ghostFrames.length ? Math.max(...ghostFrames.map(ghost=>ghost.progress)) : 1);
+      element.dataset.deletionFeedbackActive = String(ghostFrames.length > 0);
+      element.dataset.copyPreviewCount = String(active?.copyIds?.size ?? 0);
+    }
+    // Ghosts precede live notes, so immediate redraw at the same position wins.
+    for (const ghost of ghostFrames) {
+      const rect=rectFor(ghost.note), width=Math.max(1,(rect.width-2)*ghost.scale), height=Math.max(.5,rect.height*ghost.scale);
+      context.globalAlpha=ghost.opacity; context.fillStyle=ghost.color; context.beginPath();
+      context.roundRect(rect.x+1+(rect.width-2-width)/2,rect.y+1+(rect.height-height)/2,width,height,2); context.fill();
+    }
+    context.globalAlpha=1;
+    animateDeletion();
     const preview = active ? { ...active, addedPreview: placedNote(active) } : null;
     const notes = previewPianoNotes(noteIndex(), active?.selection, preview, query, 'body');
     for (const note of notes) {
-      const r = rectFor(note); if (r.x + r.width < KEYBOARD || r.x > w || r.y + ROW < RULER || r.y > noteBottom) continue;
-      const selected = active?.kind !== 'select' && p.selected.has(note.id);
+      const r = rectFor(note); if (r.x + r.width < keyboardWidth() || r.x > w || r.y + ROW < RULER || r.y > noteBottom) continue;
+      const selected = active?.kind !== 'select' && (active?.copyIds ? active.copiedSelection?.has(note.id) : p.selected.has(note.id));
       context.globalAlpha = (0.55 + note.velocity * 0.45) * (ranges.some(range => note.tick >= range.start && note.tick < range.end) ? 1 : .35);
-      context.fillStyle = selected ? '#e3f5eb' : p.track.color; context.beginPath(); context.roundRect(r.x + 1, r.y + 1, r.width - 2, r.height, 2); context.fill(); context.globalAlpha = 1;
-      context.fillStyle = selected ? '#273c32' : '#1f352d';
-      if (r.width > 30 && ROW >= 12) { context.font = '10px "Segoe UI", sans-serif'; context.fillText(noteName(note.midi), r.x + 5, r.y + 12); }
+      context.fillStyle = selected ? '#e4f5ec' : p.track.color; context.beginPath(); context.roundRect(r.x + 1, r.y + 1, r.width - 2, r.height, 2); context.fill(); context.globalAlpha = 1;
+      context.fillStyle = selected ? '#22342e' : '#152925';
+      if (r.width > 30 && ROW >= 12) { context.font = '10px system-ui, sans-serif'; context.fillText(p.drumRows ? rowLabels.get(note.midi)?.mappingName ?? '未映射' : noteName(note.midi), r.x + 5, r.y + 12, Math.max(1,r.width-10)); }
       if (r.width > 12 && ROW >= 6) { context.fillStyle = 'rgba(0,0,0,.2)'; context.fillRect(r.x + r.width - 4, r.y + 3, 1, Math.min(10, ROW - 4)); }
-      if (note.midi < 54 || note.midi > 78) { context.fillStyle = '#f0c373'; context.fillRect(r.x + 1, r.y + 1, Math.min(r.width - 2, 12), 2); }
+      if (!p.drumRows && !inNoteBlockRange(note.midi + note.detune / 100, (p.instruments ?? INSTRUMENTS).find(instrument => instrument.id === (note.instrumentId ?? p.track.instrumentId))?.rootMidi ?? 66)) { context.fillStyle = '#f0c373'; context.fillRect(r.x + 1, r.y + 1, Math.min(r.width - 2, 12), 2); }
     }
     if (active?.kind === 'select') {
-      context.strokeStyle = '#a6ceb8'; context.fillStyle = '#a6ceb822';
+      context.strokeStyle = '#9bbdfb'; context.fillStyle = '#9bbdfb2e';
       const origin = { x: active.origin.x + active.scroll.x - scroll.current.x, y: active.origin.y + active.scroll.y - scroll.current.y };
       const x = Math.min(origin.x, active.point.x), y = Math.min(origin.y, active.point.y), width = Math.abs(active.point.x - origin.x), height = Math.abs(active.point.y - origin.y);
       context.fillRect(x, y, width, height); context.strokeRect(x + .5, y + .5, width, height);
     }
-    context.strokeStyle = '#9cd9b9'; context.lineWidth = 1;
+    if (active?.copyIds) { context.fillStyle = '#e4f5ec'; context.font = '11px system-ui, sans-serif'; context.fillText(`复制 ${active.copyIds.size} 个音符 · Esc 取消`, keyboardWidth() + 12, noteBottom - 10); }
+    context.strokeStyle = '#9bbdfb'; context.lineWidth = 1;
     for (const range of ranges) {
-      const left = KEYBOARD + range.start * scale() - scroll.current.x, right = KEYBOARD + range.end * scale() - scroll.current.x;
+      const left = keyboardWidth() + range.start * scale() - scroll.current.x, right = keyboardWidth() + range.end * scale() - scroll.current.x;
       context.strokeRect(left + .5, RULER + 1.5, right - left - 1, noteBottom - RULER - 3);
-      const labelX = Math.max(KEYBOARD + 7, left + 7);
-      if (right - labelX > 120) { context.fillStyle = '#9cd9b9'; context.font = '10px "Segoe UI", sans-serif'; context.fillText(playingRegion?.loop ? '当前副本源音符范围 · 循环' : '当前副本播放范围', labelX, RULER + 15); }
     }
-    const sourceEndX = KEYBOARD + p.pattern.length * scale() - scroll.current.x;
+    const sourceEndX = keyboardWidth() + p.pattern.length * scale() - scroll.current.x;
     context.strokeStyle = '#c9ad76'; context.setLineDash([4, 4]); context.beginPath(); context.moveTo(sourceEndX + .5, RULER); context.lineTo(sourceEndX + .5, noteBottom); context.stroke(); context.setLineDash([]);
-    if (sourceEndX > KEYBOARD + 86 && sourceEndX < w + 80) { context.fillStyle = '#c9ad76'; context.font = '10px "Segoe UI", sans-serif'; context.fillText('源片段结束', sourceEndX - 72, noteBottom - 9); }
+    if (sourceEndX > keyboardWidth() + 86 && sourceEndX < w + 80) { context.fillStyle = '#c9ad76'; context.font = '10px system-ui, sans-serif'; context.fillText('源片段结束', sourceEndX - 72, noteBottom - 9); }
     context.restore();
-    context.fillStyle = '#202124'; context.fillRect(0, 0, w, RULER);
-    context.font = '10px "Segoe UI", sans-serif';
+    context.fillStyle = '#202631'; context.fillRect(0, 0, w, RULER);
+    context.font = '10px system-ui, sans-serif';
     let previousLabelEnd = -Infinity;
     for (const mark of grid) {
-      const x = KEYBOARD + (mark.tick - p.origin) * scale() - scroll.current.x;
-      if (x < KEYBOARD || !mark.label) continue;
-      context.strokeStyle = mark.kind === 'bar' ? '#505257' : '#34363a'; context.beginPath(); context.moveTo(x + .5, 0); context.lineTo(x + .5, RULER); context.stroke();
+      const x = keyboardWidth() + (mark.tick - p.origin) * scale() - scroll.current.x;
+      if (x < keyboardWidth() || !mark.label) continue;
+      context.strokeStyle = mark.kind === 'bar' ? '#4b596e' : '#354252'; context.beginPath(); context.moveTo(x + .5, 0); context.lineTo(x + .5, RULER); context.stroke();
       const label = mark.signature ? `${mark.label} · ${mark.signature}` : mark.label;
       if (x + 6 < previousLabelEnd) continue;
-      context.fillStyle = mark.kind === 'bar' ? '#d8dadc' : '#777a80'; context.fillText(label, x + 6, 17); previousLabelEnd = x + 14 + context.measureText(label).width;
+      context.fillStyle = mark.kind === 'bar' ? '#ebf1fc' : '#a2afc2'; context.fillText(label, x + 6, 17); previousLabelEnd = x + 14 + context.measureText(label).width;
     }
-    context.save(); context.beginPath(); context.rect(KEYBOARD, TIMELINE, w - KEYBOARD, RULER - TIMELINE); context.clip();
-    context.fillStyle = '#181b1a'; context.fillRect(KEYBOARD, TIMELINE, w - KEYBOARD, RULER - TIMELINE);
-    const playback = playbackBounds(), rangeLeft = KEYBOARD + playback.start * scale() - scroll.current.x, rangeRight = KEYBOARD + playback.end * scale() - scroll.current.x;
-    context.fillStyle = '#344b3e'; context.fillRect(rangeLeft, TIMELINE + 1, rangeRight - rangeLeft, RULER - TIMELINE - 2);
-    context.strokeStyle = '#9cd9b9'; context.strokeRect(rangeLeft + .5, TIMELINE + 1.5, rangeRight - rangeLeft - 1, RULER - TIMELINE - 3);
-    context.fillStyle = p.track.locked ? '#63766a' : '#b2e2c7';
+    context.save(); context.beginPath(); context.rect(keyboardWidth(), TIMELINE, w - keyboardWidth(), RULER - TIMELINE); context.clip();
+    context.fillStyle = '#171c25'; context.fillRect(keyboardWidth(), TIMELINE, w - keyboardWidth(), RULER - TIMELINE);
+    const playback = playbackBounds(), rangeLeft = keyboardWidth() + playback.start * scale() - scroll.current.x, rangeRight = keyboardWidth() + playback.end * scale() - scroll.current.x;
+    context.fillStyle = '#384f70'; context.fillRect(rangeLeft, TIMELINE + 1, rangeRight - rangeLeft, RULER - TIMELINE - 2);
+    context.strokeStyle = '#9bbdfb'; context.strokeRect(rangeLeft + .5, TIMELINE + 1.5, rangeRight - rangeLeft - 1, RULER - TIMELINE - 3);
+    context.fillStyle = p.track.locked ? '#6a7c99' : '#b0cbf1';
     context.fillRect(rangeLeft, TIMELINE + 2, 6, RULER - TIMELINE - 4); context.fillRect(rangeRight - 6, TIMELINE + 2, 6, RULER - TIMELINE - 4);
-    const ribbonLabelX = Math.max(KEYBOARD + 10, rangeLeft + 10);
+    const ribbonLabelX = Math.max(keyboardWidth() + 10, rangeLeft + 10);
     if (rangeRight - ribbonLabelX > 94) {
-      context.fillStyle = '#d4e9dc'; context.font = '10px "Segoe UI", sans-serif';
+      context.fillStyle = '#e3efff'; context.font = '10px system-ui, sans-serif';
       const label = playingRegion ? `${p.meter.format(playingRegion.start)} — ${p.meter.format(playingRegion.start + playingRegion.length)}${playingRegion.loop ? ' · 循环播放范围' : ' · 播放范围'}` : '副本播放范围';
       context.fillText(label, ribbonLabelX, RULER - 4, Math.max(1, rangeRight - ribbonLabelX - 10));
     }
     context.restore();
-    context.fillStyle = '#202124'; context.fillRect(0, RULER, KEYBOARD, noteBottom - RULER);
+    if (!p.drumRows) {
+      context.fillStyle = '#aab8ca'; context.font = '10px system-ui, sans-serif';
+      context.fillText('音高', 10, 17);
+    }
+    context.fillStyle = '#181d26'; context.fillRect(0, RULER, keyboardWidth(), noteBottom - RULER);
     for (let row = Math.max(0, Math.floor(scroll.current.y / ROW)); row <= Math.min(127, Math.ceil((scroll.current.y + noteBottom) / ROW)); row++) {
       const midi = 127 - row, y = RULER + row * ROW - scroll.current.y; if (y < RULER - ROW || y > noteBottom) continue;
-      context.save(); context.beginPath(); context.rect(0, RULER, KEYBOARD, noteBottom - RULER); context.clip();
-      context.fillStyle = black(midi) ? '#18191b' : '#b9babb'; context.fillRect(0, y, black(midi) ? 38 : KEYBOARD - 1, Math.max(.5, ROW - 1));
-      context.fillStyle = black(midi) ? '#888c92' : '#3a3c3f'; context.font = '9px "Segoe UI", sans-serif'; if (ROW >= 12 && (midi % 12 === 0 || black(midi)) || ROW >= 1 && midi % 12 === 0) context.fillText(noteName(midi), black(midi) ? 5 : 34, y + Math.min(12, ROW));
+      context.save(); context.beginPath(); context.rect(0, RULER, keyboardWidth(), noteBottom - RULER); context.clip();
+      if (p.drumRows) {
+        const row = rowLabels.get(midi), mapped = row?.mapped ?? false;
+        context.fillStyle = mapped ? '#344b4e' : '#28313f'; context.fillRect(0,y,keyboardWidth()-1,Math.max(.5,ROW-1));
+        if (mapped) { context.fillStyle = '#96d5bc'; context.fillRect(0,y,3,Math.max(.5,ROW-1)); }
+      } else {
+        const isBlack = black(midi), octave = midi % 12 === 0, height = Math.max(.5, ROW - 1);
+        context.fillStyle = octave ? '#e2e7f0' : '#bac3d0';
+        context.fillRect(0, y, keyboardWidth() - 1, height);
+        if (isBlack) {
+          context.fillStyle = '#232c38';
+          context.fillRect(0, y, 37, height);
+        }
+        context.fillStyle = isBlack ? '#c0cad9' : '#344153';
+        context.font = '9px system-ui, sans-serif';
+        if (ROW >= 12 && (octave || isBlack) || ROW >= 1 && octave) context.fillText(noteName(midi), isBlack ? 5 : 34, y + Math.min(12, ROW));
+      }
       context.restore();
     }
-    context.fillStyle = '#202124'; context.fillRect(0, noteBottom, w, VELOCITY);
-    context.strokeStyle = '#44464b'; context.beginPath(); context.moveTo(0, noteBottom + .5); context.lineTo(w, noteBottom + .5); context.stroke();
-    context.fillStyle = '#868990'; context.font = '10px "Segoe UI", sans-serif'; context.fillText('力度', 14, noteBottom + 20);
+    context.fillStyle = '#181e27'; context.fillRect(0, noteBottom, w, VELOCITY);
+    context.fillStyle = '#222a36'; context.fillRect(0, noteBottom, keyboardWidth(), VELOCITY);
+    context.strokeStyle = '#2b3747';
+    for (const level of [.25, .5, .75]) {
+      const y = Math.round(h - 10 - level * (VELOCITY - 22)) + .5;
+      context.beginPath(); context.moveTo(keyboardWidth(), y); context.lineTo(w, y); context.stroke();
+    }
+    context.strokeStyle = '#475468'; context.beginPath(); context.moveTo(0, noteBottom + .5); context.lineTo(w, noteBottom + .5); context.stroke();
+    context.fillStyle = '#aab8ca'; context.font = '10px system-ui, sans-serif'; context.fillText('力度', 14, noteBottom + 20);
     for (const note of previewPianoNotes(noteIndex(), active?.selection, preview, query, 'velocity')) {
-      const x = KEYBOARD + note.tick * scale() - scroll.current.x; if (x < KEYBOARD || x > w) continue;
-      context.strokeStyle = p.selected.has(note.id) ? '#e2f5e9' : p.track.color; context.lineWidth = p.selected.has(note.id) ? 3 : 2;
+      const x = pianoGridX(note.tick, scroll.current.x, current.current.ppq, current.current.zoom, keyboardWidth()); if (x < keyboardWidth() || x > w) continue;
+      const selected = active?.copyIds ? active.copiedSelection?.has(note.id) : p.selected.has(note.id);
+      context.strokeStyle = selected ? '#e2f5e9' : p.track.color; context.lineWidth = selected ? 3 : 2;
       const y = h - 10 - note.velocity * (VELOCITY - 22); context.beginPath(); context.moveTo(x + 2, h - 8); context.lineTo(x + 2, y); context.stroke(); context.fillStyle = context.strokeStyle; context.fillRect(x, y - 1, 4, 3);
     }
     context.lineWidth = 1;
     if (p.playhead >= 0) {
-      const x = KEYBOARD + p.playhead * scale() - scroll.current.x;
-      if (x >= KEYBOARD && x < w) { context.strokeStyle = '#e8e9ea'; context.beginPath(); context.moveTo(x + .5, 0); context.lineTo(x + .5, h); context.stroke(); context.fillStyle = '#e8e9ea'; context.beginPath(); context.moveTo(x - 4, 0); context.lineTo(x + 4, 0); context.lineTo(x, 7); context.fill(); }
+      const x = keyboardWidth() + p.playhead * scale() - scroll.current.x;
+      if (x >= keyboardWidth() && x < w) { context.strokeStyle = '#eef3ff'; context.beginPath(); context.moveTo(x + .5, 0); context.lineTo(x + .5, h); context.stroke(); context.fillStyle = '#eef3ff'; context.beginPath(); context.moveTo(x - 4, 0); context.lineTo(x + 4, 0); context.lineTo(x, 7); context.fill(); }
     }
   };
   useLayoutEffect(() => {
@@ -295,7 +391,7 @@ export function PianoRoll(props: Props) {
         cancelDrag();
         const zoom = clampPianoZoom(p.zoom * (event.deltaY < 0 ? 1.1 : .9));
         if (zoom === p.zoom) { pendingView.current = null; return; }
-        const anchor = clamp(event.clientX - element.getBoundingClientRect().left - KEYBOARD, 0, viewportWidth());
+        const anchor = clamp(event.clientX - element.getBoundingClientRect().left - keyboardWidth(), 0, viewportWidth());
         pendingView.current = { x: (scroll.current.x + anchor) * zoom / p.zoom - anchor, y: scroll.current.y, zoom };
         p.onZoom(zoom);
       }
@@ -308,8 +404,18 @@ export function PianoRoll(props: Props) {
     return () => element.removeEventListener('wheel', handleWheel);
   }, []);
   useEffect(() => { drawRef.current(); });
+  useLayoutEffect(() => {
+    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const update = () => { reducedMotion.current = media?.matches ?? true; if (reducedMotion.current) clearDeletionFeedback(); drawRef.current(); };
+    update(); media?.addEventListener?.('change',update);
+    return () => { media?.removeEventListener?.('change',update); clearDeletionFeedback(); };
+  }, []);
   useLayoutEffect(() => { if (drag.current && !validDrag(drag.current)) cancelDrag(false); }, [props.pattern.id, props.pattern.notes, props.region, props.track.id, props.track.locked, props.gestureOwner]);
   useLayoutEffect(() => { syncNavigation.current(); }, [props.viewKey, props.pattern.id, props.region?.id, props.track.id, props.viewRequest?.id]);
+  useLayoutEffect(() => {
+    cancelDrag(false); navigation.current.key = undefined; syncNavigation.current();
+    setScroll(scroll.current.x, scroll.current.y); drawRef.current();
+  }, [!!props.drumRows]);
   useLayoutEffect(() => {
     const pending = pendingView.current;
     if (pending && pending.zoom === props.zoom) { pendingView.current = null; setScroll(pending.x, pending.y); }
@@ -324,6 +430,55 @@ export function PianoRoll(props: Props) {
   useEffect(() => { setScroll(scroll.current.x, scroll.current.y); }, [props.pattern.length, props.region?.length, props.region?.offset]);
   useEffect(() => { const blur = () => cancelDrag(); window.addEventListener('blur', blur); return () => window.removeEventListener('blur', blur); }, []);
   useEffect(() => () => cancelAnimationFrame(animation.current), []);
+  const contextCurrent = (menu: NoteContextMenu) => {
+    const p = current.current;
+    return p.pattern.id === menu.patternId && p.pattern.notes === menu.notes && p.track.id === menu.trackId && p.region === menu.region
+      && p.gestureOwner === menu.owner && (!p.getGestureOwner || p.getGestureOwner() === menu.owner);
+  };
+  const closeContextMenu = () => { setContextMenu(null); canvas.current?.focus({ preventScroll: true }); };
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener('pointerdown', close); window.addEventListener('blur', close);
+    const frame = requestAnimationFrame(() => menuElement.current?.querySelector?.<HTMLElement>('button:not(:disabled)')?.focus());
+    return () => { window.removeEventListener('pointerdown', close); window.removeEventListener('blur', close); cancelAnimationFrame(frame); };
+  }, [contextMenu]);
+  useEffect(() => { if (contextMenu && !contextCurrent(contextMenu)) setContextMenu(null); }, [props.pattern.id, props.pattern.notes, props.track.id, props.region, props.gestureOwner, contextMenu]);
+  const openContextMenu = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
+    if (current.current.preset !== 'logic') return;
+    event.stopPropagation(); cancelDrag();
+    let ready = false;
+    flushSync(() => { if (current.current.onPrepareGesture?.() === false) return; current.current.onFocus(); ready = true; });
+    if (!ready) return;
+    const p = current.current, point = position(event), note = point.x >= keyboardWidth() && point.y >= RULER && point.y < size.current.height - VELOCITY ? hit(point.x, point.y) : undefined;
+    const ids = note ? p.selected.has(note.id) ? new Set(p.selected) : new Set([note.id]) : new Set(p.selected);
+    if (note) p.onSelect(ids);
+    setContextMenu({ x: event.clientX, y: event.clientY, ids, notes: p.pattern.notes, patternId: p.pattern.id, trackId: p.track.id, region: p.region, owner: p.gestureOwner });
+  };
+  const contextEdit = (action: 'delete' | 'duplicate' | 'select-all') => {
+    const menu = contextMenu, p = current.current; if (!menu || !contextCurrent(menu)) { closeContextMenu(); return; }
+    if (action === 'select-all') { p.onSelect(new Set(p.pattern.notes.map(note => note.id))); closeContextMenu(); return; }
+    if (p.track.locked || !menu.ids.size) return;
+    if (action === 'delete') { if (p.onEdit('删除音符', notes => notes.filter(note => !menu.ids.has(note.id))) !== false) p.onSelect(new Set()); }
+    else {
+      const source = menu.notes.filter(note => menu.ids.has(note.id));
+      if (!source.length) { closeContextMenu(); return; }
+      const start = source.reduce((value, note) => Math.min(value, note.tick), Infinity), end = source.reduce((value, note) => Math.max(value, note.tick + note.duration), 0);
+      const added = source.map(note => ({ ...note, id: newNote(0, 0).id, tick: note.tick + Math.max(1, end - start), midiSource: undefined }));
+      if (p.onEdit('独立复制音符', notes => [...notes, ...added]) !== false) p.onSelect(new Set(added.map(note => note.id)));
+    }
+    closeContextMenu();
+  };
+  const keyboardContextMenu = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
+    if (current.current.preset !== 'logic' || event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return false;
+    const selected = current.current.pattern.notes.find(note => current.current.selected.has(note.id));
+    const note = selected ? rectFor(selected) : undefined, bounds = canvas.current!.getBoundingClientRect();
+    const x = note ? clamp(note.x + 4, keyboardWidth() + 4, size.current.width - 4) : keyboardWidth() + 20;
+    const y = note ? clamp(note.y + 4, RULER + 4, size.current.height - VELOCITY - 4) : RULER + 20;
+    openContextMenu({ clientX: bounds.left + x, clientY: bounds.top + y, preventDefault: () => event.preventDefault(), stopPropagation: () => event.stopPropagation() } as React.MouseEvent<HTMLCanvasElement>);
+    return true;
+  };
   const seekAt = (point: { x: number; y: number }) => {
     const p = current.current;
     p.onSeek(Math.max(0, p.meter.snap(p.origin + toTick(point.x), step())));
@@ -338,7 +493,7 @@ export function PianoRoll(props: Props) {
       const previous = active.erasePoint ?? contentPoint;
       const from = { x: previous.x - scroll.current.x, y: previous.y - scroll.current.y };
       for (const note of notesAlongStroke(noteIndex().query(queryFor(from.x, from.y, point.x, point.y)), from, point, rectFor,
-        { x: KEYBOARD, y: RULER, width: viewportWidth(), height: viewportHeight() }, active.ids)) active.ids.add(note.id);
+        { x: keyboardWidth(), y: RULER, width: viewportWidth(), height: viewportHeight() }, active.ids)) active.ids.add(note.id);
       active.erasePoint = contentPoint;
       return;
     }
@@ -375,7 +530,7 @@ export function PianoRoll(props: Props) {
     if (!active.moved && active.kind !== 'seek') { animation.current = requestAnimationFrame(autoScroll); return; }
     const { width, height } = size.current, point = active.point;
     const edge = (value: number, start: number, end: number) => value < start + 24 ? -Math.min(18, (start + 24 - value) * .45) : value > end - 24 ? Math.min(18, (value - end + 24) * .45) : 0;
-    const dx = edge(point.x, KEYBOARD, width), dy = active.kind === 'seek' || active.kind.startsWith('trim-') ? 0 : edge(point.y, RULER, height - VELOCITY);
+    const dx = edge(point.x, keyboardWidth(), width), dy = active.kind === 'seek' || active.kind.startsWith('trim-') ? 0 : edge(point.y, RULER, height - VELOCITY);
     if (setScroll(scroll.current.x + dx, scroll.current.y + dy)) { updateDrag(active, point); drawRef.current(); }
     animation.current = requestAnimationFrame(autoScroll);
   };
@@ -410,14 +565,16 @@ export function PianoRoll(props: Props) {
     if (!prepared || drag.current || canvas.current !== e.currentTarget || p.getGestureOwner && p.getGestureOwner() !== p.gestureOwner
       || p.viewKey !== before.viewKey || p.pattern.id !== before.pattern.id || p.track.id !== before.track.id || p.region?.id !== before.region?.id) return;
     const point = position(e);
+    if (e.button === 2 && p.preset === 'logic') return;
+    setContextMenu(null);
     const notes = p.pattern.notes;
     const common = { origin: point, point, scroll: { ...scroll.current }, pointerId: e.pointerId, notes, ids: new Set<string>(), anchorTick: 0, deltaTick: 0, deltaPitch: 0, value: 0,
       selectionBefore: new Set(p.selected), target: { patternId: p.pattern.id, trackId: p.track.id, region: p.region, owner: p.gestureOwner } };
     if (e.button === 1) { if (beginDrag({ ...common, kind: 'pan' })) canvas.current!.style.cursor = 'grabbing'; return; }
-    if (point.x < KEYBOARD) { if (e.button === 0 && point.y > RULER && point.y < size.current.height - VELOCITY) p.onAudition(toPitch(point.y)); return; }
+    if (point.x < keyboardWidth()) { if (e.button === 0 && point.y > RULER && point.y < size.current.height - VELOCITY) p.onAudition(toPitch(point.y)); return; }
     if (point.y < RULER) {
       if (e.button === 0) {
-        const bounds = playbackBounds(), startX = KEYBOARD + bounds.start * scale() - scroll.current.x, endX = KEYBOARD + bounds.end * scale() - scroll.current.x;
+        const bounds = playbackBounds(), startX = keyboardWidth() + bounds.start * scale() - scroll.current.x, endX = keyboardWidth() + bounds.end * scale() - scroll.current.x;
         const trimStart = point.y >= TIMELINE && Math.abs(point.x - startX - 3) <= 7, trimEnd = point.y >= TIMELINE && Math.abs(point.x - endX + 3) <= 7;
         if (p.region && !p.track.locked && (trimStart || trimEnd)) {
           const edge = trimStart && (!trimEnd || point.x < (startX + endX) / 2) ? 'start' : 'end';
@@ -445,8 +602,11 @@ export function PianoRoll(props: Props) {
     } else if (existing) {
       const ids = p.selected.has(existing.id) ? new Set(p.selected) : new Set([existing.id]);
       p.onSelect(ids);
-      const rect = rectFor(existing), resize = point.x >= rect.x + rect.width - noteResizeHandleWidth(rect.width);
-      if (!beginDrag({ ...common, kind: resize ? 'resize' : 'move', anchorTick: existing.tick + (resize ? existing.duration : 0), ids })) return;
+      const copy = p.preset === 'logic' && e.altKey;
+      const rect = rectFor(existing), resize = !copy && point.x >= rect.x + rect.width - noteResizeHandleWidth(rect.width);
+      const copyIds = copy ? new Map(notes.filter(note => ids.has(note.id)).map(note => [note.id, newNote(0, 0).id])) : undefined;
+      if (!beginDrag({ ...common, kind: resize ? 'resize' : 'move', anchorTick: existing.tick + (resize ? existing.duration : 0), ids, ...(copyIds ? { copyIds, copiedSelection: new Set(copyIds.values()) } : {}) })) return;
+      if (copy) e.currentTarget.style.cursor = 'copy';
       p.onAudition(existing.midi, existing);
     } else {
       const added = newNote(snap(toTick(point.x)), toPitch(point.y), Math.max(1, p.ppq * 4 / p.noteLength));
@@ -459,7 +619,7 @@ export function PianoRoll(props: Props) {
     if (!active) {
       const note = point.y >= RULER && point.y < size.current.height - VELOCITY ? hit(point.x, point.y) : undefined;
       const rect = note && rectFor(note);
-      e.currentTarget.style.cursor = point.x < KEYBOARD ? 'pointer' : point.y < RULER ? 'ew-resize' : rect ? point.x >= rect.x + rect.width - noteResizeHandleWidth(rect.width) ? 'ew-resize' : 'move' : 'crosshair';
+      e.currentTarget.style.cursor = point.x < keyboardWidth() ? 'pointer' : point.y < RULER ? 'ew-resize' : rect ? e.altKey && current.current.preset === 'logic' ? 'copy' : point.x >= rect.x + rect.width - noteResizeHandleWidth(rect.width) ? 'ew-resize' : 'move' : 'crosshair';
       return;
     }
     if (active.pointerId !== e.pointerId) return;
@@ -482,6 +642,7 @@ export function PianoRoll(props: Props) {
     const p = current.current;
     const edit = (label: string, change: (notes: Note[]) => Note[]) => {
       const accepted = p.onEdit(label, change) !== false;
+      if (!accepted && active.kind === 'erase') { deletion.current.remove(erasePreviewed.current); erasePreviewed.current.clear(); }
       if (!accepted && validDrag(active)) current.current.onSelect(new Set(active.selectionBefore));
       return accepted;
     };
@@ -496,9 +657,19 @@ export function PianoRoll(props: Props) {
     else if (active.kind === 'velocity' && (active.velocityMode !== 'relative' || active.value !== 0)) edit('调整力度', notes => changeNoteVelocities(notes, active.ids, active.value, active.velocityMode));
     else if ((active.kind === 'move' || active.kind === 'resize') && (active.deltaTick || active.kind === 'move' && active.deltaPitch)) {
       const kind = active.kind;
-      edit(kind === 'move' ? '移动音符' : '调整显示时值', notes => dragNotes(notes, active.ids, kind, active.deltaTick, active.deltaPitch));
+      if (active.copyIds && kind === 'move') {
+        const copied = dragNotes(active.selection!.notes, active.ids, 'move', active.deltaTick, active.deltaPitch).map(note => ({ ...note, id: active.copyIds!.get(note.id)!, midiSource: undefined }));
+        if (edit('拖动复制音符', notes => [...notes, ...copied])) p.onSelect(new Set(copied.map(note => note.id)));
+      } else edit(kind === 'move' ? '移动音符' : '调整显示时值', notes => dragNotes(notes, active.ids, kind, active.deltaTick, active.deltaPitch));
     }
     drawRef.current();
   };
-  return <div className="piano-surface" data-testid="piano-roll" onFocus={props.onFocus}><div className="piano-viewport" ref={container}><canvas id={canvasId} ref={canvas} data-zoom={props.zoom} data-row-height={rowHeight.current} data-scroll-x={scroll.current.x} data-scroll-y={scroll.current.y} tabIndex={0} title="力度区：多选拖动保留力度差值；检查器可统一设置力度。" aria-label={`钢琴卷帘：${props.preset === 'fl' ? '按下放置新音符后拖动可移动位置和音高；' : ''}拖动音符右边缘调整时值；按住标尺拖动定位；标尺下范围带的左右手柄裁剪当前副本；中键拖动平移；右键擦除；Ctrl / Cmd 从音符、右边缘或空白处框选并替换选择，Shift 框选或与 Ctrl / Cmd 同按时追加选择；Esc 取消当前拖动；Ctrl / Cmd 加滚轮横向缩放，配合 Shift 纵向缩放；力度区多选拖动保留差值，检查器可统一设置力度。绿色框为当前副本播放范围，虚线为源片段结束。`} onContextMenu={e => e.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onKeyDown={e => { if (e.key === 'Escape' && drag.current) { e.preventDefault(); e.stopPropagation(); cancelDrag(); } }} onBlur={() => cancelDrag()} onPointerCancel={e => { if (drag.current?.pointerId === e.pointerId) cancelDrag(); }} onLostPointerCapture={e => { if (drag.current?.pointerId === e.pointerId) cancelDrag(); }} /></div><EditorScrollbar orientation="vertical" label="钢琴卷帘垂直滚动" controls={canvasId} value={viewport.y} viewportSize={Math.max(1, viewport.height - RULER - VELOCITY)} contentSize={rowHeight.current * 128} onChange={value => setScroll(scroll.current.x, value)} /><EditorScrollbar orientation="horizontal" label="钢琴卷帘水平滚动" controls={canvasId} value={viewport.x} viewportSize={Math.max(1, viewport.width - KEYBOARD)} contentSize={contentWidth()} onChange={value => setScroll(value, scroll.current.y)} /><span className="piano-scroll-corner" aria-hidden="true" /></div>;
+  return <div className="piano-surface" data-testid="piano-roll" data-keyboard-width={pianoRowHeaderWidth(!!props.drumRows)} data-range-guide={props.drumRows ? 'mapped-output' : 'instrument-root'} data-row-mode={props.drumRows ? 'drums' : 'piano'} onFocus={props.onFocus}><div className="piano-viewport" ref={container}><canvas id={canvasId} ref={canvas} data-keyboard-width={pianoRowHeaderWidth(!!props.drumRows)} data-range-min={noteBlockMidiRange((props.instruments ?? INSTRUMENTS).find(instrument=>instrument.id===props.track.instrumentId)?.rootMidi).min} data-range-max={noteBlockMidiRange((props.instruments ?? INSTRUMENTS).find(instrument=>instrument.id===props.track.instrumentId)?.rootMidi).max} data-zoom={props.zoom} data-row-height={rowHeight.current} data-scroll-x={scroll.current.x} data-scroll-y={scroll.current.y} tabIndex={0} title={props.drumRows ? '背景按映射后的实际子音符判断：范围外更暗；部分超出时半暗。触发编号不作为实际音高。' : '背景按当前轨道／绘制乐器的采样基准判断原版调音范围；范围外更暗，仍可自由编辑。'} aria-label={`${props.drumRows ? '鼓组触发卷帘，GM 编号从高到低。' : '钢琴卷帘。'}${props.preset === 'fl' ? '按下放置新音符后拖动可移动位置和音高；' : ''}拖动音符右边缘调整时值；按住标尺拖动定位；标尺下范围带的左右手柄裁剪当前副本；中键拖动平移；${props.preset === 'logic' ? '右键打开音符菜单；Alt / Option 拖动复制音符' : '右键擦除'}；Ctrl / Cmd 从音符、右边缘或空白处框选并替换选择，Shift 框选或与 Ctrl / Cmd 同按时追加选择；Esc 取消当前拖动；Ctrl / Cmd 加滚轮横向缩放，配合 Shift 纵向缩放；力度区多选拖动保留差值，检查器可统一设置力度。绿色框为当前副本播放范围，虚线为源片段结束。`} onContextMenu={openContextMenu} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onKeyDown={e => { if (keyboardContextMenu(e)) return; if (e.key === 'Escape' && drag.current) { e.preventDefault(); e.stopPropagation(); cancelDrag(); } }} onBlur={() => cancelDrag()} onPointerCancel={e => { if (drag.current?.pointerId === e.pointerId) cancelDrag(); }} onLostPointerCapture={e => { if (drag.current?.pointerId === e.pointerId) cancelDrag(); }} /></div>{contextMenu && <div ref={menuElement} className="audio-region-menu context-menu piano-context-menu" data-glass-surface="menu" role="menu" aria-label="音符编辑菜单" tabIndex={-1} style={{ "--context-x": contextMenu.x + "px", "--context-y": contextMenu.y + "px" } as React.CSSProperties} onPointerDown={event => event.stopPropagation()} onContextMenu={event => event.preventDefault()} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setContextMenu(null); }} onKeyDown={event => {
+      event.stopPropagation();
+      if (event.key === 'Escape' || event.key === 'Tab') { event.preventDefault(); closeContextMenu(); return; }
+      if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+        event.preventDefault(); const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')], index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length]?.focus();
+      }
+    }}><button role="menuitem" disabled={props.track.locked || !contextMenu.ids.size} onClick={() => contextEdit('duplicate')}>独立复制所选音符</button><button className="context-danger" role="menuitem" disabled={props.track.locked || !contextMenu.ids.size} onClick={() => contextEdit('delete')}>删除所选音符</button><button role="menuitem" disabled={!props.pattern.notes.length} onClick={() => contextEdit('select-all')}>全选音符</button><small>Alt / Option 拖动复制 · Esc 关闭</small></div>}{props.drumRows && <><button type="button" data-testid="locate-mapped-drums" disabled={!props.drumRows.some(row=>row.mapped)} style={{position:'absolute',top:3,left:4,width:pianoRowHeaderWidth(true)-8,height:21,padding:'1px 4px',fontSize:10,zIndex:1}} onClick={()=>{const notes=current.current.drumRows!.filter(row=>row.mapped).map(row=>newNote(0,row.midi)); if(!notes.length)return;cancelDrag();const plan=planPianoView({notes,ppq:props.ppq,width:viewportWidth(),height:viewportHeight(),zoom:props.zoom,mode:'locate'});rowHeight.current=plan.rowHeight;setScroll(scroll.current.x,plan.y);props.onRowHeight?.(plan.rowHeight);publishViewport();drawRef.current();}}>定位已映射 · {props.drumRows.filter(row=>row.mapped).length}</button><div role="list" aria-label="GM 触发行（MIDI 从高到低）" className="drum-row-headers" style={{position:'absolute',left:0,top:RULER,width:pianoRowHeaderWidth(true),height:Math.max(0,viewport.height-RULER-VELOCITY),overflow:'hidden'}} onWheel={event=>{event.stopPropagation();setScroll(scroll.current.x,scroll.current.y+event.deltaY);}}>{visibleDrumRows(props.drumRows,viewport.y,viewport.rowHeight,Math.max(0,viewport.height-RULER-VELOCITY)).map(row=><div key={row.midi} role="listitem" data-testid="drum-row-header" className="drum-row-header" data-midi={row.midi} data-mapped={row.mapped} data-range={row.range ?? 'unmapped'} data-condensed={viewport.rowHeight<12} title={`${row.mappingName ?? (row.mapped ? '未命名映射' : '未映射')} · ${row.label} · ${noteName(row.midi)} / MIDI ${row.midi} · ${row.range === 'in' ? '全部实际子音符在原版音域内' : row.range === 'mixed' ? '部分实际子音符超出原版音域' : row.range === 'out' ? '全部实际子音符超出原版音域' : '未映射：没有实际输出'}`} style={{position:'absolute',left:0,top:(127-row.midi)*viewport.rowHeight-viewport.y,height:viewport.rowHeight,width:pianoRowHeaderWidth(true),fontSize:viewport.rowHeight>=12?11:0}} onPointerDown={event=>{if(event.button===0){event.preventDefault();props.onFocus();props.onAudition(row.midi);}}}><span className="drum-row-name">{row.mappingName ?? (row.mapped ? '未命名映射' : '未映射')}</span><span className="drum-row-key">{noteName(row.midi)} · {row.midi}</span><span className="sr-only">{row.label} · {row.mapped ? '已映射' : '未映射'}</span></div>)}</div></>}<EditorScrollbar orientation="vertical" label="钢琴卷帘垂直滚动" controls={canvasId} value={viewport.y} viewportSize={Math.max(1, viewport.height - RULER - VELOCITY)} contentSize={rowHeight.current * 128} onChange={value => setScroll(scroll.current.x, value)} /><EditorScrollbar orientation="horizontal" label="钢琴卷帘水平滚动" controls={canvasId} value={viewport.x} viewportSize={Math.max(1, viewport.width - keyboardWidth())} contentSize={contentWidth()} onChange={value => setScroll(value, scroll.current.y)} /><span className="piano-scroll-corner" aria-hidden="true" /></div>;
 }

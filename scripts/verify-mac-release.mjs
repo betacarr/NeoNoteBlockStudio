@@ -5,12 +5,15 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 if (process.platform !== 'darwin') throw new Error('Run macOS release verification on a Mac.');
-if (execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()) throw new Error('Verify a committed source tree without tracked modifications.');
+const args = process.argv.slice(2), candidate = args[0] === '--candidate';
+if (!candidate && execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { encoding: 'utf8' }).trim()) throw new Error('Verify a committed source tree without local modifications.');
+if (candidate && !process.env.NEONBS_RELEASE_DIR) throw new Error('Set NEONBS_RELEASE_DIR to a separate local candidate directory.');
 const metadata = JSON.parse(await readFile('package.json', 'utf8'));
-const architectures = process.argv.slice(2);
+const architectures = candidate ? args.slice(1) : args;
 if (!architectures.length) architectures.push('arm64', 'x64');
-if (architectures.some(arch => !['arm64', 'x64'].includes(arch))) throw new Error('Usage: verify-mac-release.mjs [arm64] [x64]');
-const root = path.resolve('release', metadata.version), checks = [];
+if (architectures.some(arch => !['arm64', 'x64'].includes(arch))) throw new Error('Usage: verify-mac-release.mjs [--candidate] [arm64] [x64]');
+const root = path.resolve(process.env.NEONBS_RELEASE_DIR || path.join('release', metadata.version)), checks = [];
+const audioRuntime = process.env.NEONBS_AUDIO_RUNTIME_FIXTURE && path.resolve(process.env.NEONBS_AUDIO_RUNTIME_FIXTURE);
 const fixtureBase = path.resolve('.local/mac-release-verification'); await mkdir(fixtureBase, { recursive: true });
 async function run(script, args) {
   console.log(`Checking ${path.basename(script)} ${args.join(' ')}`);
@@ -37,9 +40,14 @@ for (const arch of new Set(architectures)) {
   checks.push({ arch, check: 'dmg-install-and-zip-crc', status: 'passed' });
   const executable = path.join(installed, 'Contents/MacOS/NeoNBS');
   if (!((await stat(executable)).mode & 0o111)) throw new Error('Installed application is not executable.');
-  for (const script of ['smoke-macos.mjs', 'smoke-preview-desktop.mjs', 'smoke-diagnostics-desktop.mjs', 'smoke-file-lifecycle.mjs', 'smoke-midi-desktop.mjs', 'smoke-nbs-desktop.mjs']) {
+  for (const script of ['smoke-macos.mjs', 'smoke-preview-desktop.mjs', 'smoke-diagnostics-desktop.mjs', 'smoke-file-lifecycle.mjs', 'smoke-midi-desktop.mjs', 'smoke-nbs-desktop.mjs', 'smoke-native-glass.mjs']) {
     await run(`scripts/${script}`, ['--packaged', executable]);
     checks.push({ arch, check: script, status: 'passed' });
+  }
+  if (audioRuntime) {
+    await run('scripts/smoke-smart-tempo.mjs', ['--packaged', executable, '--audio-runtime', audioRuntime]);
+    execFileSync('codesign', ['--verify', '--deep', '--strict', installed], { stdio: 'pipe' });
+    checks.push({ arch, check: 'packaged-smart-tempo-and-post-use-signature', status: 'passed' });
   }
 }
 await run('scripts/check-release.mjs', ['--mac', ...architectures]);
@@ -53,9 +61,12 @@ for (const arch of new Set(architectures)) for (const ext of ['dmg', 'zip']) {
 }
 // This summary contains fixed check names and artifact hashes, without the
 // private paths, screenshots or project data in the local detailed reports.
+const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const report = { schema: 1, status: 'passed', version: metadata.version,
-  sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  ...(candidate ? { candidate: true, baseCommit: head } : { sourceCommit: head }),
   host: { platform: 'darwin', arch: process.arch, osVersion: execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim() }, checks, assets,
   limitations: ['Software playback signals do not verify physical audio or MIDI hardware.', 'An x64 application run through Rosetta is not physical Intel Mac validation.', 'Ad-hoc signature validation is not Apple Developer ID signing or notarization.'] };
-await writeFile(path.join(root, 'macos-verification.json'), JSON.stringify(report, null, 2) + '\n');
+const archSuffix = new Set(architectures).size === 1 ? `-${architectures[0]}` : '';
+const reportName = `${candidate ? 'macos-candidate-verification' : 'macos-verification'}${archSuffix}.json`;
+await writeFile(path.join(root, reportName), JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report, null, 2));

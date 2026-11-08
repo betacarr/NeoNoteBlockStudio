@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { applyNoteEdit } from '../src/core/note-edit';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
@@ -43,9 +44,9 @@ function controlCode(start: string, end: string) {
 }
 const controls = {
   target: controlCode('<select aria-label="片段所属轨道"', '</select>'),
-  name: controlCode('<input aria-label="片段名称"', '/>'),
+  name: controlCode('<CommitTextInput aria-label="片段名称"', '/>'),
   length: controlCode('<CommitNumberInput aria-label="片段长度"', '/>'),
-  duplicate: controlCode('<button disabled={!!regionGroupIssue} onClick={duplicateCurrentRegion}', '</button>'),
+  duplicate: controlCode('<button disabled={selectedAudioClips.size ? !!audioSelectionIssue : !!regionGroupIssue} onClick={duplicateCurrentRegion}', '</button>'),
   loop: controlCode("<button className={region?.loop ? 'selected-text' : ''}", '</button>'),
 };
 const NumberInput = () => null;
@@ -86,7 +87,7 @@ function fixture() {
     const project = projectRef.current, resolved = resolveEditorSelection(project, { trackId: state.selectedTrack, regionId: state.selectedRegion, noteIds: [...state.selectedNotes], focus: state.focus });
     const clipboardTarget = { documentKey: 1, focus: state.focus, trackId: state.selectedTrack, regionId: state.selectedRegion, regions: state.selectedRegions, notes: state.selectedNotes, filter: state.instrumentFilter };
     const { track, region, pattern, notes: selected } = resolved;
-    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration: numberEditOwner.current.generation,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration: numberEditOwner.current.generation,
       ...state, selectedRegionsRef, instrumentFilterRef, history, future, clipboard, produce, normalizeEditorSelection, resolveEditorSelection, filterTracks, clipboardTarget, liveClipboardTarget: { current: clipboardTarget },
       applyRegionGroupMove, deleteRegionGroup, duplicateRegionGroup, moveRegion, MAX_PROJECT_TICK,
       setProject: vi.fn(), setSelectedTrack: (id: string) => { state.selectedTrack = id; }, setSelectedRegion: (id: string) => { state.selectedRegion = id; },
@@ -104,7 +105,7 @@ function fixture() {
     const api = Function(...Object.keys(scope), `${code}\nreturn {selectionSnapshot,restoreSelection,selectRegion,selectRegionGroup,selectTrack,selectAllInEditor,filterInstruments,changeRegionGroup,changeRegion,trimCurrentRegion,renameCurrentRegion,commitRegionLength,commit,undo,redo,duplicate,duplicateCurrentRegion,deleteSelection,copyNotes,cutNotes,pasteNotes,addTrack,createRegion,adopt,regionGroupProblem,regionSplitProblem};`)(...Object.values(scope)) as Commands;
     const groupIssue = api.regionGroupProblem(project, state.selectedRegions, state.instrumentFilter);
     const visible = new Set(filterTracks(project.tracks, state.instrumentFilter).map(track => track.id));
-    const uiScope = { ...scope, ...api, element, CommitNumberInput: NumberInput, Copy: () => null, Repeat: () => null,
+    const uiScope = { ...scope, ...api, element, CommitNumberInput: NumberInput, CommitTextInput: NumberInput, Copy: () => null, Repeat: () => null,
       regionGroupIssue: groupIssue, regionSplitIssue: api.regionSplitProblem(project, state.selectedRegions, state.instrumentFilter, scope.positionRef.current), regionCopyIssue: api.regionGroupProblem(project, state.selectedRegions, state.instrumentFilter, true),
       lastClipboardKind: { current: clipboard.current ? 'notes' : undefined }, canPasteRegionSelection: false,
       canEditSelection: state.focus === 'piano' && canEditSelectedNotes(track, pattern, state.selectedNotes),
@@ -213,7 +214,7 @@ describe('App batch commands, context menus and complete-project persistence', (
   it('selects only visible regions from arrangement Ctrl+A and leaves piano Ctrl+A in the note domain', () => {
     const t = fixture(); t.group(); const initial = structuredClone(t.initial); t.setFilter('bass'); t.render().selectAllInEditor();
     expect(t.state.selectedRegions).toEqual(new Set(['region-1'])); expect(t.state.selectedRegion).toBe('region-1'); expect(t.state.focus).toBe('arrangement');
-    expect(t.render().menu().items.find(item => item.command === 'select-all')?.label).toBe('全选可见片段');
+    expect(t.render().menu().items.find(item => item.command === 'select-all')?.label).toBe('全选可见音符片段');
     t.state.focus = 'piano'; t.render().selectAllInEditor(); expect(t.state.selectedNotes).toEqual(new Set(['note-1'])); expect(t.state.selectedRegions).toEqual(new Set(['region-1']));
     expect(t.render().menu().items.find(item => item.command === 'select-all')?.label).toBe('全选音符');
     t.state.focus = 'arrangement'; t.setFilter('not-found'); t.render().selectAllInEditor(); expect(t.state.selectedRegions.size).toBe(0); expect(t.state.selectedRegion).toBe('');
@@ -236,7 +237,7 @@ describe('App batch commands, context menus and complete-project persistence', (
     t.group(); const before = t.projectRef.current;
     for (const name of ['target', 'name', 'length', 'loop'] as const) expect(t.render().control(name).props.disabled).toBe(true);
     t.render().control('target').props.onChange({ currentTarget: { value: 'track-2' } });
-    capturedName.props.onChange({ target: { value: 'Late name' } }); capturedLength.props.onCommit(2);
+    capturedName.props.onCommit('Late name'); capturedLength.props.onCommit(2);
     t.render().control('loop').props.onClick();
     expect(t.projectRef.current).toBe(before); expect(t.history.current).toEqual([]); expect(t.state.selectedRegions).toEqual(new Set(['region-0', 'region-1']));
   });
@@ -250,7 +251,7 @@ describe('App batch commands, context menus and complete-project persistence', (
     t.render().control('target').props.onChange({ currentTarget: { value: 'track-0' } });
     expect(t.projectRef.current.regions[0].trackId).toBe('track-0'); expect(t.state.instrumentFilter).toBe('bass'); expect(t.state.selectedRegions).toEqual(new Set(['region-0']));
     expect(t.render().control('name').props.disabled).toBe(false); expect(t.render().control('length').props.disabled).toBe(false);
-    t.render().control('name').props.onChange({ target: { value: 'Still editable while hidden' } });
+    t.render().control('name').props.onCommit('Still editable while hidden');
     expect(t.projectRef.current.patterns[0].name).toBe('Still editable while hidden'); roundtrip(t.projectRef.current);
   });
 

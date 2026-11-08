@@ -1,3 +1,4 @@
+import { inspectSampleReplacement, applySampleReplacement } from '../src/core/sample-replacement';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { produce } from 'immer';
@@ -28,7 +29,7 @@ const code = transformSync([
 
 interface AppFunctions {
   audition: (midi: number, note?: Note, origin?: number) => Promise<void>;
-  locateSample: () => Promise<void>;
+  locateSample: (shared?: boolean) => Promise<void>;
   midiDown: (key: string, pitch: number, velocity: number) => void;
 }
 
@@ -56,7 +57,7 @@ function fixture(backend: 'native' | 'web' = 'native', ppq = 480, noteLength = 1
   const commit = (_label: string, change: (project: Project) => void) => { projectRef.current = produce(projectRef.current, draft => { change(draft); }); };
   function functions(editorDocumentKey = 1, playbackMode: PlaybackMode = backend === 'native' ? 'native-compare' : 'realtime'): AppFunctions {
     const midiDown = { current: (_key: string, _pitch: number, _velocity: number) => {} };
-    const scope = { track, pattern, region, sourceOrigin: patternOrigin(region, pattern), positionRef, projectRef, library, engine,
+    const scope = { sampleReplacement: { scope: 'track', instrumentId: track.instrumentId, trackId: track.id, noteIds: [] }, sampleReplacing: false, modalRef: { current: 'sample-replace' }, inspectSampleReplacement, applySampleReplacement, AudioContext: class { async decodeAudioData() { return {}; } async close() {} }, setSampleReplacing: vi.fn(), setModal: vi.fn(), setSampleReplacement: vi.fn(), setSelectedNotes: vi.fn(), track, pattern, region, sourceOrigin: patternOrigin(region, pattern), positionRef, projectRef, library, engine,
       createAuditionProject, previewBackendForProject, preferences: { noteLength, snap: 0 }, stopEpoch: { current: 0 }, auditionCache,
       playbackMode, editorDocumentKey, window: { desktop: { renderNative, openFile } }, setMessage, firstNote: pattern.notes[0],
       ensurePreviewSamples: vi.fn(async () => 20),
@@ -120,11 +121,28 @@ describe('App Delay audition trigger context', () => {
 });
 
 describe('App native audition sample cache', () => {
+  it('the default replacement isolates the explicit track instrument and invalidates its cached audition', async () => {
+    const test = fixture(), app = test.functions(), sourceInstrument = structuredClone(test.project.instruments.find(instrument => instrument.id === test.track.instrumentId)!);
+    // A selected override is deliberately unrelated to the captured track target.
+    test.pattern.notes[0].instrumentId = 'bass';
+    await app.audition(60); expect(test.auditionCache.current.size).toBe(1);
+    await app.locateSample();
+    const next = test.projectRef.current, targetTrack = next.tracks.find(track => track.id === test.track.id)!;
+    expect(targetTrack.instrumentId).not.toBe(sourceInstrument.id);
+    expect(next.instruments.find(instrument => instrument.id === sourceInstrument.id)).toEqual(sourceInstrument);
+    expect(next.patterns[0].notes[0].instrumentId).toBe('bass');
+    expect(next.instruments.find(instrument => instrument.id === targetTrack.instrumentId)?.assetId).toBe(next.assets[0].id);
+    expect(test.auditionCache.current.size).toBe(0);
+    await app.audition(60);
+    expect(test.engine.nativeRequest).toHaveBeenCalledTimes(2);
+    expect(test.previews[1].tracks[0].instrumentId).toBe(targetTrack.instrumentId);
+  });
+
   it('reuses an unchanged preview, then clears and rerenders after replacing its instrument sample', async () => {
     const test = fixture(), app = test.functions(), note = test.pattern.notes[0];
     await app.audition(note.midi, note); await app.audition(note.midi, note);
     expect(test.engine.nativeRequest).toHaveBeenCalledOnce(); expect(test.auditionCache.current.size).toBe(1);
-    await app.locateSample();
+    await app.locateSample(true);
     expect(test.auditionCache.current.size).toBe(0);
     expect(test.engine.loadProjectSamples).toHaveBeenCalledExactlyOnceWith(test.projectRef.current);
     await app.audition(note.midi, note);
@@ -138,7 +156,7 @@ describe('App native audition sample cache', () => {
     let release!: (value: { wav: Uint8Array }) => void;
     test.renderNative.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
     const oldPreview = app.audition(note.midi, note); await Promise.resolve();
-    await app.locateSample(); release({ wav: Uint8Array.of(99) }); await oldPreview;
+    await app.locateSample(true); release({ wav: Uint8Array.of(99) }); await oldPreview;
     expect(test.auditionCache.current.size).toBe(1);
     await app.audition(note.midi, note);
     expect(test.engine.nativeRequest).toHaveBeenCalledTimes(2);

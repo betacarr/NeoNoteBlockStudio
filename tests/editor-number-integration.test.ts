@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { applyNoteEdit } from '../src/core/note-edit';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
@@ -78,7 +79,7 @@ function fixture({ locked = false, missingPattern = false, missingRegion = false
   const selectionSnapshot = (value = projectRef.current) => normalizeEditorSelection(value, { trackId: track.id, regionId: region?.id, noteIds: [...selectedNotes], focus: 'piano' });
   let onFlush: () => boolean = () => true;
   const flushActiveNumberInput = vi.fn(() => onFlush());
-  const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, pattern, track, region, selectedNotes, numberContext, liveNumberContext, numberGeneration, numberEditOwner, numberDrafts, setHasNumberDraft, setMessage,
+  const scope = { ...noteOnlyAppHarnessBoundaries(), recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, pattern, track, region, selectedNotes, numberContext, liveNumberContext, numberGeneration, numberEditOwner, numberDrafts, setHasNumberDraft, setMessage,
     produce, history, future, selectionSnapshot, setProject, setDirty, setRevision, changeSelectedNotes, notesUnchanged, applyNoteEdit, growEditedPattern, inspectorBeatTicks, noteTimingError, regionLengthError, MAX_PROJECT_TICK,
     portable: false, library: undefined, flattenNotes, bytesToBase64, flushActiveNumberInput,
     savedSnapshot, setFilePath, stop: vi.fn(), playbackMode: 'realtime', finishHeld: { current: vi.fn() }, seek: vi.fn(), restoreSelection: vi.fn(), setEditorDocumentKey: vi.fn(), setPianoViewRequest: vi.fn(),
@@ -103,7 +104,7 @@ function fixture({ locked = false, missingPattern = false, missingRegion = false
   const clearRecovery = vi.fn(async (_id: string) => {});
   const download = vi.fn(() => { throw new Error('Desktop fixture must not use browser download'); });
   const localStorage = { removeItem: vi.fn(() => { throw new Error('Desktop fixture must not use browser localStorage'); }) };
-  const saveScope = { finishNumberDraft: functions.finishNumberDraft, projectRef, projectForSave, saveNbsx: encode,
+  const saveScope = { ...noteOnlyAppHarnessBoundaries(), finishNumberDraft: functions.finishNumberDraft, projectRef, projectForSave, saveNbsx: encode,
     previewRecordingProject, recordingProjectsEqual, keysHeld: { current: new Map() }, engine: { position: () => undefined }, editorDocumentKey: 4,
     window: { desktop: { saveFile, clearRecovery } }, filePath: state.filePath, savedSnapshot, setFilePath, setDirty, setMessage,
     portable: false, setRecovery, download, localStorage };
@@ -262,7 +263,7 @@ describe('actual App number commit and desktop save functions (isolated integrat
     expect(test.flushActiveNumberInput).toHaveBeenCalledOnce(); expect(test.readProject).not.toHaveBeenCalled();
     expect(test.projectForSave).not.toHaveBeenCalled(); expect(test.encode).not.toHaveBeenCalled(); expect(test.saveFile).not.toHaveBeenCalled();
     expect(test.savedSnapshot.current).toBe(test.capturedProject); expect(test.numberDrafts.current).toEqual(new Set(['note-height']));
-    expect(test.setMessage).toHaveBeenCalledWith('属性中有未完成或超出范围的数字，请修正后再继续。');
+    expect(test.setMessage).toHaveBeenCalledWith('属性输入尚未完成或超出范围，请修正后再继续。');
   });
 
   it.each([false, true])('flushes the actual note commit before encoding the full saved NBSX (save as: %s)', async as => {

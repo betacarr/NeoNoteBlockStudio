@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { applyNoteEdit } from '../src/core/note-edit';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
@@ -113,7 +114,7 @@ function fixture(initial = sourceProject()) {
     const numberGeneration = numberEditOwner.current.generation;
     const numberContext = Function('editorDocumentKey', 'project', 'numberGeneration', 'region', 'pattern', 'selectedNotes', `return ${numberContextCode}`)(state.editorDocumentKey, project, numberGeneration, region, pattern, state.selectedNotes) as string;
     liveNumberContext.current = numberContext;
-    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, ...state, history, future, selectedRegionsRef, instrumentFilterRef,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, ...state, history, future, selectedRegionsRef, instrumentFilterRef,
       clipboard, regionClipboard, lastClipboardKind, liveClipboardTarget, clipboardTarget, liveNumberContext, numberContext, numberDrafts,
       track, region, pattern, selected, positionRef, preferences, meterMap: createMeterMap(project), sourceOrigin: region && pattern ? patternOrigin(region, pattern) : 0,
       produce, normalizeEditorSelection, resolveEditorSelection, createMeterMap, patternOrigin, patternTickAt, createProject, newNote, newTrack, uid,
@@ -134,7 +135,7 @@ function fixture(initial = sourceProject()) {
     const regionPasteTargetIssue = track?.locked ? '目标轨道已锁定' : state.instrumentFilter && track && track.instrumentId !== state.instrumentFilter ? '目标轨道被筛选隐藏' : '';
     const uiScope = { ...scope, ...api, bindings: {}, visibleRegionIds: new Set(), canEditSelection: state.focus === 'piano' && canEditSelectedNotes(track, pattern, state.selectedNotes),
       regionGroupIssue, regionCopyIssue, regionSplitIssue: api.regionSplitProblem(project, state.selectedRegions, state.instrumentFilter, positionRef.current), regionPasteTargetIssue, canPasteRegionSelection: lastClipboardKind.current === 'regions' && !!regionClipboard.current?.regions.length && !regionPasteTargetIssue,
-      element: (_type: unknown, props: unknown) => ({ props }) };
+      ClipboardText: () => null, element: (_type: unknown, props: unknown) => ({ props }) };
     api.menu = () => Function(...Object.keys(uiScope), menuCode)(...Object.values(uiScope));
     api.pasteButton = () => Function(...Object.keys(uiScope), pasteButton)(...Object.values(uiScope));
     return api;
@@ -258,7 +259,7 @@ describe('Actual App note/region domain, live numeric flush and stale callback g
       for (const command of ['copySelection', 'cutSelection', 'pasteSelection'] as const) t.render()[command]();
     }
     expect(t.projectRef.current).toBe(before); expect(t.future.current).toBe(redo); expect(t.history.current).toEqual([]); expect(t.regionClipboard.current).toBe(old); expect(t.clipboard.current).toBeUndefined(); expect(t.lastClipboardKind.current).toBe('regions');
-    expect(t.state.message).toContain('数字'); expect(t.state.selectedRegions).toEqual(new Set(['region-a', 'region-b']));
+    expect(t.state.message).toContain('输入'); expect(t.state.selectedRegions).toEqual(new Set(['region-a', 'region-b']));
   });
 
   it('uses the post-flush note data for piano and region copy, including a numeric commit in the same callback', () => {

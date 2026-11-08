@@ -75,7 +75,7 @@ else {
   const flush = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const readDom = () => page.evaluate(() => {
     const editor = document.querySelector('[data-testid="delay-editor"]'), curve = editor?.querySelector('.delay-envelope'), active = document.activeElement;
-    const controls = Object.fromEntries([...(editor?.querySelectorAll('input[aria-label],select[aria-label]') ?? [])].map(element => [element.getAttribute('aria-label'), { value: element.value, type: element.type, checked: element.type === 'checkbox' ? element.checked : undefined, disabled: element.matches(':disabled'), invalid: element.getAttribute('aria-invalid') }]));
+    const controls = Object.fromEntries([...(editor?.querySelectorAll('input[aria-label],select[aria-label]') ?? [])].map(element => [element.getAttribute('aria-label'), { value: element.type === 'range' ? element.parentElement.querySelector('output').dataset.value : element.value, type: element.type, checked: element.type === 'checkbox' ? element.checked : undefined, disabled: element.matches(':disabled'), invalid: element.getAttribute('aria-invalid') }]));
     const presets = [...(editor?.querySelectorAll('.delay-presets button') ?? [])].map(button => ({ label: button.getAttribute('aria-label'), pressed: button.getAttribute('aria-pressed'), disabled: button.matches(':disabled') }));
     const heading = document.querySelector('.editor-heading')?.textContent ?? '', rect = editor?.getBoundingClientRect();
     return { title: document.title, selectedNotes: Number(heading.match(/已选择\s*(\d+)\s*个音符/)?.[1] ?? 0), heading, editorCount: document.querySelectorAll('[data-testid="delay-editor"]').length,
@@ -99,7 +99,7 @@ else {
     assert.equal(dom.editorCount, 1, label); assert.equal(dom.selectedNotes, 2, label); assert.equal(dom.regionCount, 1, label); assert(!dom.title.startsWith('●'), label + ': read-only checks dirtied the project');
     assert.equal(dom.enabled, 'true', label); assert.equal(dom.mode, effect.mode, label); assert.equal(dom.locked, locked, label); assert.equal(dom.muted, fixture.project.tracks[0].muted, label);
     assert.equal(dom.controls['启用轨道 Delay']?.checked, true, label); assert.equal(dom.controls['Delay 模式']?.value, effect.mode, label); assert.equal(dom.controls['Delay 时间单位']?.value, effect.timeUnit, label);
-    for (const [name, expected] of Object.entries(fixture.expected.numeric)) { const control = dom.controls[name]; assert(control, label + ': missing ' + name); assert.equal(Number(control.value), expected, label + ': ' + name); assert.equal(control.invalid, null, label + ': ' + name); }
+    for (const [name, expected] of Object.entries(fixture.expected.numeric)) { const control = dom.controls[name]; assert(control, label + ': missing ' + name); assert.equal(control.type, 'range', label + ': ' + name); assert.equal(Number(control.value), expected, label + ': ' + name); assert.equal(control.invalid, null, label + ': ' + name); }
     for (const [name, control] of Object.entries(dom.controls)) assert.equal(control.disabled, locked, label + ': disabled ' + name);
     assert.equal(Object.keys(dom.controls).length, Object.keys(fixture.expected.numeric).length + 3, label + ': unexpected controls');
     assert.deepEqual(dom.presets.map(preset => preset.pressed === 'true'), fixture.expected.presets, label + ': interval presets');

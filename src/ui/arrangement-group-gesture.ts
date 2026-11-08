@@ -1,5 +1,5 @@
 import type { MeterMap } from '../core/meter';
-import type { Project, Region, Track } from '../core/types';
+import type { Project, Region, ShortcutPreset, Track } from '../core/types';
 import { planRegionGroupMove, type RegionMove } from '../core/region-batch';
 import { arrangementTrackAt } from './arrangement-track-drop';
 import { captureEditorPointer } from './pointer-capture';
@@ -9,25 +9,33 @@ export interface ArrangementGestureContext {
   project: Project; tracks: readonly Track[]; selected: ReadonlySet<string>; primary?: string;
   scale: number; meter: MeterMap; step: number; trackTop: number; scroll: HTMLElement | null;
   owner?: object; liveOwner?: () => object;
+  preset?: ShortcutPreset;
+  copyAllowed?: boolean;
 }
 export interface ArrangementGroupRegionPreview {
-  region: Region; track?: Track; offsetY: number; blocked: boolean; prepend: number;
+  region: Region; track?: Track; offsetY: number; blocked: boolean; prepend: number; copying?: boolean;
 }
 export interface ArrangementGroupPreview {
   owner: object; kind: 'select' | 'move'; selected: ReadonlySet<string>;
   box?: { left: number; top: number; width: number; height: number };
   regions?: ReadonlyMap<string, ArrangementGroupRegionPreview>;
   target?: string; blocked?: boolean; message?: string; end?: number;
+  copying?: boolean;
+  chordDrop?: boolean;
 }
 interface Pointer {
   clientX: number; clientY: number; pointerId: number; currentTarget: HTMLElement;
   shiftKey?: boolean;
+  altKey?: boolean;
 }
 interface Options {
   read: () => ArrangementGestureContext;
   publish: (preview: ArrangementGroupPreview | null, owner: object) => void;
   select: (ids: Set<string>, primary?: string) => void;
   commit: (changes: RegionMove[]) => void;
+  copy?: (changes: RegionMove[]) => void;
+  acceptsChordDrop?: (x: number, y: number) => boolean;
+  dropChords?: (anchor: Region, selected: ReadonlySet<string>) => void;
   message: (message: string) => void;
 }
 interface Active {
@@ -37,6 +45,7 @@ interface Active {
   contentX: number; contentY: number; moved: boolean; additive: boolean; anchor?: Region;
   selected: Set<string>; stop: () => void; horizontal?: HorizontalEdgeScrollController; vertical?: HorizontalEdgeScrollController;
   geometry: string;
+  copying: boolean;
 }
 
 /** One temporary arrangement gesture; document writes are delegated only on release. */
@@ -49,7 +58,7 @@ export class ArrangementGroupGesture {
   private valid(active: Active): boolean {
     const now = this.options.read(), before = active.context;
     return now.project === before.project && now.tracks === before.tracks && now.scale === before.scale
-      && now.meter === before.meter && now.step === before.step && now.trackTop === before.trackTop
+      && now.meter === before.meter && now.step === before.step && now.trackTop === before.trackTop && now.preset === before.preset && now.copyAllowed === before.copyAllowed
       && now.scroll === before.scroll && now.owner === before.owner && (!now.liveOwner || now.liveOwner() === before.owner)
       && now.selected.size === active.selected.size && [...active.selected].every(id => now.selected.has(id));
   }
@@ -86,20 +95,23 @@ export class ArrangementGroupGesture {
       }
       return { owner: active, kind: 'select', selected, box: { left, top, width: right - left, height: bottom - top } };
     }
+    if (!active.copying && this.options.acceptsChordDrop?.(active.clientX, active.clientY)) {
+      return { owner: active, kind: 'move', selected: active.selected, chordDrop: true, message: '将所选片段的和弦写入和弦轨' };
+    }
     const plan = this.plan(active), regions = new Map<string, ArrangementGroupRegionPreview>();
     const byId = new Map(context.project.regions.map(region => [region.id, region])), tracks = new Map(context.tracks.map((track, index) => [track.id, { track, index }]));
     let end: number | undefined;
     if (plan.ok) for (const change of plan.changes) {
       const original = byId.get(change.id)!, source = tracks.get(original.trackId)!, destination = tracks.get(change.trackId)!;
       const region = { ...original, start: change.start, trackId: change.trackId };
-      regions.set(change.id, { region, track: destination.track, offsetY: (destination.index - source.index) * 52, blocked: false, prepend: 0 });
+      regions.set(change.id, { region, track: destination.track, offsetY: (destination.index - source.index) * 52, blocked: false, prepend: 0, ...(active.copying ? { copying: true } : {}) });
       end = Math.max(end ?? 0, region.start + region.length);
     }
     else for (const id of active.selected) {
       const region = byId.get(id); if (region) regions.set(id, { region, track: tracks.get(region.trackId)?.track, offsetY: 0, blocked: true, prepend: 0 });
     }
     return { owner: active, kind: 'move', selected: active.selected, regions, target: plan.ok ? regions.get(active.anchor!.id)?.region.trackId : undefined,
-      blocked: !plan.ok, message: plan.ok ? undefined : plan.reason, end };
+      blocked: !plan.ok, message: plan.ok ? active.copying ? `复制 ${active.selected.size} 个片段` : undefined : plan.reason, end, ...(active.copying ? { copying: true } : {}) };
   }
   private update(active: Active) {
     if (this.active !== active) return;
@@ -117,7 +129,7 @@ export class ArrangementGroupGesture {
     if (kind === 'select' && (event.clientY < top + 26 || event.clientY >= top + scroll.clientHeight || contentY < context.trackTop)) return;
     const active: Active = { epoch: ++this.epoch, context, kind, pointer: event.pointerId, element: event.currentTarget, x: event.clientX, y: event.clientY, clientX: event.clientX, clientY: event.clientY,
       scrollX: scroll.scrollLeft, scrollY: scroll.scrollTop, contentX: event.clientX - bounds.left - (scroll.clientLeft || 0) + scroll.scrollLeft,
-      contentY, selected: new Set(context.selected), additive: !!event.shiftKey, moved: false, anchor, stop: () => {}, geometry: '' };
+      contentY, selected: new Set(context.selected), additive: !!event.shiftKey, moved: false, anchor, stop: () => {}, geometry: '', copying: kind === 'move' && context.preset === 'logic' && context.copyAllowed !== false && !!event.altKey && !!this.options.copy };
     this.active = active;
     const stop = captureEditorPointer(event.currentTarget, event.pointerId, () => this.cancel());
     if (this.active !== active) { stop(); return; }
@@ -146,7 +158,9 @@ export class ArrangementGroupGesture {
     const active = this.active; if (!active || active.pointer !== event.pointerId) return;
     active.clientX = event.clientX; active.clientY = event.clientY;
     if (!this.valid(active)) { this.cancel(); return; }
-    const preview = active.kind === 'select' ? this.preview(active) : undefined, plan = active.kind === 'move' ? this.plan(active) : undefined;
+    const preview = active.kind === 'select' ? this.preview(active) : undefined;
+    const chordDrop = active.kind === 'move' && !active.copying && this.options.acceptsChordDrop?.(event.clientX, event.clientY);
+    const plan = active.kind === 'move' && !chordDrop ? this.plan(active) : undefined;
     const clicked = active.kind === 'move' && !active.moved && Math.abs(event.clientX - active.x) < 2 && Math.abs(event.clientY - active.y) < 2
       && active.context.scroll!.scrollLeft === active.scrollX && active.context.scroll!.scrollTop === active.scrollY;
     this.finish(active, true); if (this.active || active.epoch !== this.epoch || !this.valid(active)) return;
@@ -154,7 +168,8 @@ export class ArrangementGroupGesture {
       const ids = new Set(preview.selected), primary = active.context.primary && ids.has(active.context.primary) ? active.context.primary : active.context.project.regions.find(region => ids.has(region.id))?.id;
       this.options.select(ids, primary);
     } else if (clicked) this.options.select(new Set([active.anchor!.id]), active.anchor!.id);
-    else if (plan?.ok) { if (plan.deltaTick !== 0 || plan.trackDelta !== 0) this.options.commit(plan.changes); }
+    else if (chordDrop) this.options.dropChords?.(active.anchor!, active.selected);
+    else if (plan?.ok) { if (plan.deltaTick !== 0 || plan.trackDelta !== 0) { if (active.copying) this.options.copy?.(plan.changes); else this.options.commit(plan.changes); } }
     else if (plan) this.options.message(plan.reason);
   }
   refresh() {

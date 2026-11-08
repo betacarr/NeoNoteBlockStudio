@@ -1,3 +1,5 @@
+import { ARRANGEMENT_AUDIO_FORMAT_LABEL, audioTrackChildren, audioTrackParents } from '../src/core/audio-clips';
+import { regionChords } from '../src/core/chord-track';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { describe, expect, it, vi } from 'vitest';
@@ -5,6 +7,7 @@ import { createProject, newNote } from '../src/core/project';
 import { createMeterMap } from '../src/core/meter';
 import { playbackEndTick } from '../src/core/reference';
 import { filterTracks } from '../src/core/track-filter';
+import { inspectTrackDelete } from '../src/core/track-management';
 import type { Project } from '../src/core/types';
 import { ArrangementNoteCache } from '../src/ui/arrangement-note-cache';
 import { regionPreviewGeometry } from '../src/ui/arrangement-preview';
@@ -82,7 +85,8 @@ function arrangementFixture(project = arrangementProject(), initialProps: Partia
   };
   const decoration = () => null;
   const dependencies = { useRef, useState, useMemo, useEffect, useLayoutEffect: useEffect, renderArrangementElement: element, ArrangementNoteCache: ObservedCache,
-    playbackEndTick, filterTracks, regionPreviewGeometry: measuredGeometry, regionDragPreview, arrangementTrackAt, ArrangementGroupGesture, captureEditorPointer, startHorizontalEdgeScroll, startVerticalEdgeScroll, ResizeObserver: ResizeObserverStub,
+    useChordGroupGesture: () => ({}),
+    playbackEndTick, filterTracks, inspectTrackDelete, ARRANGEMENT_AUDIO_FORMAT_LABEL, audioTrackChildren, audioTrackParents, regionChords, regionPreviewGeometry: measuredGeometry, regionDragPreview, arrangementTrackAt, ArrangementGroupGesture, captureEditorPointer, startHorizontalEdgeScroll, startVerticalEdgeScroll, ResizeObserver: ResizeObserverStub,
     window: view, LockSimple: decoration, Plus: decoration, InstrumentBlock: decoration, ReferenceHeader: decoration, ReferenceLane: decoration,
     requestAnimationFrame: view.requestAnimationFrame, cancelAnimationFrame: view.cancelAnimationFrame };
   const components = Function(...Object.keys(dependencies), `${componentCode}\nreturn {Arrangement,RegionClip,MiniNotes};`)(...Object.values(dependencies));
@@ -144,6 +148,57 @@ function arrangementFixture(project = arrangementProject(), initialProps: Partia
     activeCanvasObservers: () => [...observers].filter(observer => observer.target.getContext).length,
     disconnects: () => disconnects };
 }
+
+describe('Arrangement cycle range and drop routing callbacks', () => {
+  it('previews an upper-ruler cycle and commits its snapped range only on release', () => {
+    const change = vi.fn(), state = arrangementFixture(arrangementProject(), { onCycleChange: change });
+    const ruler = () => state.elements().find(item => item.props.className === 'arrangement-ruler')!;
+    const event = (x: number) => ({ button: 0, pointerId: 7, clientX: x, clientY: 5, currentTarget: ruler().dom, preventDefault: vi.fn() });
+    ruler().props.onPointerDown(event(96)); ruler().props.onPointerMove(event(384)); state.render();
+    expect(state.elements().find(item => item.props['data-testid'] === 'arrangement-cycle-range')?.props.style.width).toBe(288);
+    expect(change).not.toHaveBeenCalled(); expect(state.props().onSeek).not.toHaveBeenCalled();
+    ruler().props.onPointerUp(event(384)); state.render();
+    expect(change).toHaveBeenCalledExactlyOnceWith({ start: 480, end: 1920 }); expect(state.frames.size).toBe(0);
+  });
+
+  it('cancels cycle creation on Escape and rejects a stale document owner', () => {
+    const change = vi.fn(), owner = {}, state = arrangementFixture(arrangementProject(), { onCycleChange: change, gestureOwner: owner, getGestureOwner: () => owner });
+    const ruler = () => state.elements().find(item => item.props.className === 'arrangement-ruler')!;
+    const event = (x: number) => ({ button: 0, pointerId: 7, clientX: x, clientY: 5, currentTarget: ruler().dom, preventDefault: vi.fn() });
+    ruler().props.onPointerDown(event(96)); ruler().props.onPointerMove(event(384)); state.render();
+    const keydown = state.view.addEventListener.mock.calls.find((args: any[]) => args[0] === 'keydown')?.[1];
+    keydown({ key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() }); state.render();
+    expect(state.elements().some(item => item.props['data-testid'] === 'arrangement-cycle-range')).toBe(false); expect(change).not.toHaveBeenCalled();
+    ruler().props.onPointerDown(event(96)); state.update({ gestureOwner: {}, getGestureOwner: () => ({}) }); ruler().props.onPointerUp(event(384));
+    expect(change).not.toHaveBeenCalled(); expect(state.frames.size).toBe(0);
+  });
+
+  it('keeps lower-ruler navigation separate from cycle editing', () => {
+    const change = vi.fn(), state = arrangementFixture(arrangementProject(), { onCycleChange: change });
+    const ruler = state.elements().find(item => item.props.className === 'arrangement-ruler')!;
+    const event = { button: 0, pointerId: 7, clientX: 96, clientY: 20, currentTarget: ruler.dom, preventDefault: vi.fn() };
+    ruler.props.onPointerDown(event); ruler.props.onPointerUp(event);
+    expect(state.props().onSeek).toHaveBeenCalledWith(480); expect(change).not.toHaveBeenCalled();
+  });
+
+  it('forwards MIDI and audio files through the shared typed drop entry without consuming them as audio', () => {
+    const drop = vi.fn(), audio = vi.fn(), state = arrangementFixture(arrangementProject(), { onFilesDrop: drop, onAudioDrop: audio });
+    const node = state.elements().find(item => item.props.className === 'arrangement')!, files = [{ name: 'song.mid' }, { name: 'source.wav' }];
+    const event = { clientX: 96, dataTransfer: { files }, preventDefault: vi.fn(), stopPropagation: vi.fn(), target: { closest: () => ({ getAttribute: () => 'audio-target' }) } };
+    node.props.onDrop(event);
+    expect(drop).toHaveBeenCalledExactlyOnceWith(files, 480, 'audio-target'); expect(audio).not.toHaveBeenCalled(); expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+
+  it('uses the playhead for file drops on track headers and retains the target track', () => {
+    const drop = vi.fn(), message = vi.fn(), state = arrangementFixture(arrangementProject(), { onFilesDrop: drop, onGestureMessage: message, playhead: 960 });
+    const node = state.elements().find(item => item.props.className === 'arrangement')!;
+    const midi = [{ name: 'song.mid' }], event = { clientX: -100, target: { closest: () => null }, dataTransfer: { files: midi }, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    node.props.onDrop(event); expect(drop).toHaveBeenCalledExactlyOnceWith(midi, 960, undefined);
+    const audio = [{ name: 'recording.wav' }];
+    node.props.onDrop({ ...event, target: { closest: () => ({ getAttribute: () => 'audio-target' }) }, dataTransfer: { files: audio } });
+    expect(drop).toHaveBeenLastCalledWith(audio, 960, 'audio-target'); expect(message).not.toHaveBeenCalled();
+  });
+});
 
 describe('Arrangement actual thumbnail components and current-source cache (no physical input)', () => {
   it('shares one lazy source index between two visible copies and redraws without rebuilding for scroll, zoom or resize', () => {

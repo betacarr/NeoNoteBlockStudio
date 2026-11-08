@@ -1,5 +1,6 @@
 import { NBSX_SAVE_TIMESTAMP, sizeBudget } from './clipboard-resources';
 import { validateProject } from './project';
+import { audioTrackChildren } from './audio-clips';
 import type { Pattern, Project, Region, Track } from './types';
 
 export type TrackInspection = { ok: true } | { ok: false; reason: string };
@@ -10,6 +11,7 @@ interface TrackProjection {
   channels: Map<string, number>;
   regions: Region[];
   patterns: Pattern[];
+  audioClips?: Project['audioClips'];
 }
 type MovePlan = { ok: true; targetId: string; projection: TrackProjection } | { ok: false; reason: string };
 type DeletePlan = { ok: true; result: TrackDeleteResult; projection: TrackProjection } | { ok: false; reason: string };
@@ -42,7 +44,7 @@ function projectTracks(project: Project, tracks: Track[], regions = project.regi
     if (track.midiChannel !== undefined || channel === index % 16) return track;
     channels.set(track.id, channel); return { ...track, midiChannel: channel };
   });
-  return { tracks: projected, channels, regions, patterns };
+  return { tracks: projected, channels, regions, patterns, ...(project.audioClips?{audioClips:project.audioClips.filter(c=>tracks.some(t=>t.id===c.trackId))}:{}) };
 }
 
 function selectedTrack(project: Project, id: string, visibleIds?: ReadonlySet<string>): number {
@@ -57,10 +59,19 @@ function planMove(project: Project, id: string, direction: -1 | 1, visibleIds?: 
   try {
     if (direction !== -1 && direction !== 1) throw new Error('轨道移动方向无效。');
     const index = selectedTrack(project, id, visibleIds);
+    const sourceTrack = project.tracks[index];
     let target = index + direction;
-    while (target >= 0 && target < project.tracks.length && visibleIds !== undefined && !visibleIds.has(project.tracks[target].id)) target += direction;
+    while (target >= 0 && target < project.tracks.length) {
+      const candidate = project.tracks[target];
+      if (candidate.parentTrackId === sourceTrack.parentTrackId && (!visibleIds || visibleIds.has(candidate.id))) break;
+      target += direction;
+    }
     if (target < 0 || target >= project.tracks.length) throw new Error('已到可见轨道边界，无法继续移动。');
-    const tracks = project.tracks.slice(); [tracks[index], tracks[target]] = [tracks[target], tracks[index]];
+    const targetTrack = project.tracks[target];
+    const source = [sourceTrack, ...(sourceTrack.audioGroup ? audioTrackChildren(project.tracks, id) : [])];
+    const destination = [targetTrack, ...(targetTrack.audioGroup ? audioTrackChildren(project.tracks, targetTrack.id) : [])];
+    const moved = new Set([...source, ...destination].map(track => track.id));
+    const tracks = project.tracks.flatMap((track, at) => at === index ? destination : at === target ? source : moved.has(track.id) ? [] : [track]);
     const projection = projectTracks(project, tracks); assertBudget(project, projection);
     return { ok: true, targetId: project.tracks[target].id, projection };
   } catch (error) { return rejected(error); }
@@ -70,13 +81,15 @@ function planDelete(project: Project, id: string, visibleIds?: ReadonlySet<strin
   try {
     const index = selectedTrack(project, id, visibleIds);
     if (project.tracks[index].locked) throw new Error('所选轨道已锁定，无法删除。');
-    const removedRegions = project.regions.filter(region => region.trackId === id);
-    const regions = project.regions.filter(region => region.trackId !== id);
+    const removedIds = new Set([id, ...audioTrackChildren(project.tracks, id).map(t => t.id)]);
+    if(project.tracks.some(t=>removedIds.has(t.id)&&t.locked))throw new Error('分轨组内有锁定轨道，不能整体删除。');
+    const removedRegions = project.regions.filter(region => removedIds.has(region.trackId));
+    const regions = project.regions.filter(region => !removedIds.has(region.trackId));
     const unreferenced = new Set(removedRegions.map(region => region.patternId));
     for (const region of regions) unreferenced.delete(region.patternId);
     const removedPatterns = project.patterns.filter(pattern => unreferenced.has(pattern.id));
     const patterns = removedPatterns.length ? project.patterns.filter(pattern => !unreferenced.has(pattern.id)) : project.patterns;
-    const projection = projectTracks(project, project.tracks.filter(track => track.id !== id), removedRegions.length ? regions : project.regions, patterns);
+    const projection = projectTracks(project, project.tracks.filter(track => !removedIds.has(track.id)), removedRegions.length ? regions : project.regions, patterns);
     assertBudget(project, projection);
     return { ok: true, projection, result: { removedRegionIds: removedRegions.map(region => region.id), removedPatternIds: removedPatterns.map(pattern => pattern.id) } };
   } catch (error) { return rejected(error); }
@@ -94,6 +107,7 @@ function applyProjection(project: Project, projection: TrackProjection): void {
   project.tracks = projection.tracks.map(track => tracks.get(track.id)!);
   if (project.regions !== projection.regions) project.regions = projection.regions;
   if (project.patterns !== projection.patterns) project.patterns = projection.patterns;
+  if(projection.audioClips)project.audioClips=projection.audioClips;
 }
 
 /** Atomic mutator for an Immer draft; hidden canonical slots stay in place. */
@@ -109,7 +123,9 @@ export function inspectTrackDelete(project: Project, id: string, visibleIds?: Re
 /** Remove one track and only the sources made unreferenced by its own regions. */
 export function deleteTrack(project: Project, id: string, visibleIds?: ReadonlySet<string>): TrackDeleteResult | undefined {
   const plan = planDelete(project, id, visibleIds); if (!plan.ok) return;
-  applyProjection(project, plan.projection); return plan.result;
+  applyProjection(project, plan.projection);
+  if (project.audioClips) project.audioClips = project.audioClips.filter(c => c.trackId !== id);
+  return plan.result;
 }
 
 /** Prefer the old index-based channel, then the first unused channel, then reuse. */

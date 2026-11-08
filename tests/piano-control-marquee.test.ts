@@ -1,12 +1,13 @@
+import { NoteDeletionFeedback, deletionFeedbackCandidates } from '../src/ui/note-deletion-feedback';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { describe, expect, it, vi } from 'vitest';
 import { clamp, createProject, newNote } from '../src/core/project';
-import { noteName } from '../src/core/instruments';
+import { INSTRUMENTS, inNoteBlockRange, noteBlockMidiRange, noteName } from '../src/core/instruments';
 import { createMeterMap } from '../src/core/meter';
 import { constrainNoteMovement, dragNotes, dragPlacedNote, noteResizeHandleWidth, planRegionTrim, regionSourceRanges } from '../src/core/editor-interaction';
 import { noteAt, notesAlongStroke } from '../src/ui/piano-hit-test';
-import { clampPianoZoom, planPianoView, planPianoRowZoom } from '../src/ui/piano-view';
+import { clampPianoZoom, planPianoView, planPianoRowZoom, pianoRowHeaderWidth, pianoGridTick, pianoGridX, visibleDrumRows } from '../src/ui/piano-view';
 import { PianoNoteIndex } from '../src/ui/piano-note-index';
 import { previewPianoNotes } from '../src/ui/piano-preview';
 import { velocityBounds, constrainVelocityDelta, changeNoteVelocities } from '../src/core/note-velocity';
@@ -15,14 +16,14 @@ import { velocityBounds, constrainVelocityDelta, changeNoteVelocities } from '..
 // It compiles the current real component and runs its callbacks/ResizeObserver;
 // these checks are not browser or physical pointer/keyboard input.
 const component = readFileSync(new URL('../src/ui/PianoRoll.tsx', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
-const constants = component.indexOf('const KEYBOARD =');
+const constants = component.indexOf('const TIMELINE =');
 if (constants < 0) throw new Error('PianoRoll component constants were not found');
 const componentCode = transformSync(component.slice(constants).replace('export function PianoRoll(', 'function PianoRoll('), { loader: 'tsx', target: 'es2022', jsx: 'transform', jsxFactory: 'element' }).code;
 const existingHarness = readFileSync(new URL('./piano-gestures.test.ts', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const start = existingHarness.indexOf('function pianoFixture('), end = existingHarness.indexOf('\ndescribe(', start);
 if (start < 0 || end < 0) throw new Error('PianoRoll callback harness boundaries were not found');
 const harnessCode = transformSync(existingHarness.slice(start, end), { loader: 'ts', target: 'es2022' }).code;
-const dependencies = { componentCode, clamp, createProject, newNote, noteName, createMeterMap, constrainNoteMovement, dragNotes, dragPlacedNote, noteResizeHandleWidth, planRegionTrim, regionSourceRanges, noteAt, notesAlongStroke, clampPianoZoom, planPianoView, planPianoRowZoom, PianoNoteIndex, previewPianoNotes, velocityBounds, constrainVelocityDelta, changeNoteVelocities, expect, vi };
+const dependencies = { NoteDeletionFeedback, deletionFeedbackCandidates, componentCode, clamp, createProject, newNote, INSTRUMENTS, inNoteBlockRange, noteBlockMidiRange, noteName, createMeterMap, constrainNoteMovement, dragNotes, dragPlacedNote, noteResizeHandleWidth, planRegionTrim, regionSourceRanges, noteAt, notesAlongStroke, clampPianoZoom, planPianoView, planPianoRowZoom, pianoRowHeaderWidth, pianoGridTick, pianoGridX, visibleDrumRows, PianoNoteIndex, previewPianoNotes, velocityBounds, constrainVelocityDelta, changeNoteVelocities, expect, vi };
 const pianoFixture = Function(...Object.keys(dependencies), `${harnessCode}\nreturn pianoFixture;`)(...Object.values(dependencies));
 
 type Point = { x: number; y: number };

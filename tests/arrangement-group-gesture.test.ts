@@ -33,16 +33,33 @@ function fixture(options: { selected?: string[]; trackTop?: number; height?: num
   let context: ArrangementGestureContext = { project, tracks: project.tracks, selected: new Set(options.selected ?? ['a', 'b']), primary: (options.selected ?? ['a', 'b'])[0], scale: .1, meter: createMeterMap(project), step: 120, trackTop: options.trackTop ?? 26, scroll: scroller as unknown as HTMLElement, owner: liveOwner, liveOwner: () => liveOwner };
   let shown: ArrangementGroupPreview | null = null;
   const publish = vi.fn((preview: ArrangementGroupPreview | null, owner: object) => { if (preview) shown = preview; else if (shown?.owner === owner) shown = null; });
-  const select = vi.fn((ids: Set<string>, primary?: string) => { context = { ...context, selected: ids, primary }; }), commit = vi.fn(), message = vi.fn();
-  const controller = new ArrangementGroupGesture({ read: () => context, publish, select, commit, message });
+  const select = vi.fn((ids: Set<string>, primary?: string) => { context = { ...context, selected: ids, primary }; }), commit = vi.fn(), copy = vi.fn(), message = vi.fn();
+  const controller = new ArrangementGroupGesture({ read: () => context, publish, select, commit, copy, message });
   const event = (x: number, y: number, extra: Record<string, unknown> = {}) => ({ clientX: x, clientY: y, pointerId: 7, currentTarget: target as unknown as HTMLElement, ...extra });
   const begin = () => { controller.startMove(event(100, 52), project.regions[0]); };
-  return { project, original, controller, target, view, captures, scroller, frames, publish, select, commit, message, event, begin, preview: () => shown,
+  return { project, original, controller, target, view, captures, scroller, frames, publish, select, commit, copy, message, event, begin, preview: () => shown,
     context: () => context, update: (patch: Partial<ArrangementGestureContext>) => { context = { ...context, ...patch }; }, owner: (value: object) => { liveOwner = value; }, onRelease: (fn: () => void) => { onRelease = fn; },
     frame: () => { time += 16; for (const [id, fn] of [...frames]) if (frames.delete(id)) fn(time); }, lateFrame: (id: number) => { frames.delete(id); queued.get(id)?.(time + 100); } };
 }
 
 describe('ArrangementGroupGesture actual controller callbacks', () => {
+  it('copies a Logic Alt-drag group atomically while preserving the original project and preview origins', () => {
+    const s = fixture(); s.update({ preset: 'logic' }); s.controller.startMove(s.event(100, 52, { altKey: true }), s.project.regions[0]);
+    s.controller.move(s.event(148, 104));
+    expect(s.preview()?.copying).toBe(true); expect([...s.preview()!.regions!.values()].every(region => region.copying)).toBe(true);
+    expect(s.copy).not.toHaveBeenCalled(); expect(s.project).toEqual(s.original);
+    s.controller.end(s.event(148, 104));
+    expect(s.copy).toHaveBeenCalledExactlyOnceWith([{ id: 'a', start: 720, trackId: 't1' }, { id: 'b', start: 1440, trackId: 't2' }]);
+    expect(s.commit).not.toHaveBeenCalled(); expect(s.project).toEqual(s.original);
+  });
+
+  it('keeps FL Alt-drag as a move and cancels a Logic copy without a commit', () => {
+    const fl = fixture(); fl.update({ preset: 'fl' }); fl.controller.startMove(fl.event(100, 52, { altKey: true }), fl.project.regions[0]); fl.controller.end(fl.event(148, 104));
+    expect(fl.commit).toHaveBeenCalledOnce(); expect(fl.copy).not.toHaveBeenCalled();
+    const logic = fixture(); logic.update({ preset: 'logic' }); logic.controller.startMove(logic.event(100, 52, { altKey: true }), logic.project.regions[0]); logic.controller.move(logic.event(148, 104)); logic.view.fire('keydown', { key: 'Escape' }); logic.controller.end(logic.event(148, 104));
+    expect(logic.copy).not.toHaveBeenCalled(); expect(logic.commit).not.toHaveBeenCalled(); expect(logic.preview()).toBeNull(); expect(logic.captures.size).toBe(0);
+  });
+
   it('replaces selection by rectangle intersection and preserves the project on release', () => {
     const s = fixture({ selected: ['e'] });
     s.controller.startMarquee(s.event(20, 31)); s.controller.move(s.event(170, 125));

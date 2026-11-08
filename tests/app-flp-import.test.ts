@@ -1,8 +1,10 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { describe, expect, it, vi } from 'vitest';
-import { createProject } from '../src/core/project';
+import { createProject, validateProject } from '../src/core/project';
 import type { FlpImportPlan } from '../src/core/flp-import';
+import { importMidi } from '../src/core/midi';
 
 // Actual App callbacks at async parser/host/dialog boundaries. No DOM/physical
 // input claim: core conversion and mounted browser flow have separate checks.
@@ -22,13 +24,13 @@ function fixture() {
   const desktop = { inspectFlpSamples: vi.fn(async () => ({})), clearRecovery: vi.fn(async (_id: string) => {}) };
   const confirm = vi.fn(() => true), setMessage = vi.fn((value: string) => { state.message = value; });
   const adopt = vi.fn((next: typeof project) => { flpOpenTicket.current++; projectRef.current = next; state.review = undefined; state.modal = null; });
-  const scope = { projectRef, savedSnapshot, numberEditOwner, flpOpenTicket, flpCommitTicket, flpImport: state.review,
-    keysHeld: { current: new Map() }, window: { desktop, confirm }, prepareFlpImport, withFlpSampleChecks, importFlp, adopt,
+  const scope = { ...noteOnlyAppHarnessBoundaries(), projectRef, savedSnapshot, numberEditOwner, flpOpenTicket, flpCommitTicket, flpImport: state.review,
+    recordDiagnostic: vi.fn(), validateProject, importMidi, confirmProjectReplacement: vi.fn(async () => projectRef.current === savedSnapshot.current || confirm()), clearPreviousRecovery: async (id: string) => desktop.clearRecovery(id), keysHeld: { current: new Map() }, window: { desktop, confirm }, prepareFlpImport, withFlpSampleChecks, importFlp, adopt,
     setFlpImport: (value: any) => { state.review = value; }, setModal: (value: string | null) => { state.modal = value; }, setMessage,
     setDirty: (value: boolean) => { state.dirty = value; }, finishNumberDraft: vi.fn(() => true) };
   const actions = () => Function(...Object.keys(scope), `${code}\nreturn {openBytes,beginFlpImport,cancelFlpImport,finishFlpImport};`)(...Object.values({ ...scope, flpImport: state.review }));
   return { project, imported, projectRef, savedSnapshot, numberEditOwner, state, plan, prepareFlpImport, withFlpSampleChecks, importFlp, desktop, confirm, adopt, scope,
-    open: (path?: string) => actions().openBytes('test.flp', Uint8Array.of(1), path), cancel: () => actions().cancelFlpImport(), finish: () => actions().finishFlpImport([], true),
+    open: (path?: string) => actions().openBytes('test.flp', Uint8Array.of(1), path), openBytes: (name: string, bytes: Uint8Array) => actions().openBytes(name, bytes), cancel: () => actions().cancelFlpImport(), finish: () => actions().finishFlpImport([], true),
     stale: () => { projectRef.current = structuredClone(projectRef.current); numberEditOwner.current.generation++; } };
 }
 
@@ -41,6 +43,15 @@ describe('FLP review and adoption transaction', () => {
     expect(test.confirm).not.toHaveBeenCalled(); expect(test.desktop.clearRecovery).not.toHaveBeenCalled(); expect(test.adopt).not.toHaveBeenCalled();
     test.cancel(); await test.finish();
     expect(test.projectRef.current).toBe(test.project); expect(test.adopt).not.toHaveBeenCalled(); expect(test.state.modal).toBeNull();
+  });
+
+  it('does not request sampler-file inspection for plugin MIDI channels or make their missing files a blocker', async () => {
+    const test = fixture();
+    test.plan.channels.push({ id: 2, kind: 2, sample: 'missing-plugin.wav' } as FlpImportPlan['channels'][number]);
+    await test.open('D:/music/plugin-midi.flp');
+    expect(test.desktop.inspectFlpSamples).toHaveBeenCalledWith('D:/music/plugin-midi.flp', [{ id: 1, path: 'pling.ogg' }]);
+    expect(test.state.review.plan).toBe(test.plan); expect(test.state.modal).toBe('flp-import');
+    expect(test.state.review.plan.blockers).toEqual([]);
   });
 
   it('retains the original document on parse/conversion errors and denied discard', async () => {
@@ -85,7 +96,7 @@ describe('FLP review and adoption transaction', () => {
     await test.open('D:/music/test.flp'); expect(test.state.review.plan.warnings).toContain('本机采样文件未能核对，请手动确认音色与采样基准。');
     test.savedSnapshot.current = undefined;
     const clear = deferred<void>(); test.desktop.clearRecovery.mockReturnValueOnce(clear.promise);
-    const finishing = test.finish();
+    const finishing = test.finish(); await Promise.resolve();
     expect(test.projectRef.current).toBe(test.imported);
     expect(test.adopt.mock.invocationCallOrder[0]).toBeLessThan(test.desktop.clearRecovery.mock.invocationCallOrder[0]);
     test.stale(); clear.resolve(); await finishing;
@@ -99,4 +110,14 @@ describe('FLP review and adoption transaction', () => {
       await test.finish(); expect(test.adopt).not.toHaveBeenCalled(); expect(test.desktop.clearRecovery).not.toHaveBeenCalled();
     }
   });
+});
+
+
+it('invalid MIDI parsing keeps the old document and recovery without even asking to discard', async () => {
+  const test = fixture(); test.savedSnapshot.current = undefined;
+  await test.openBytes('damaged.mid', new TextEncoder().encode('invalid MIDI'));
+  expect(test.state.message).toContain('不是有效的标准 MIDI');
+  expect(test.projectRef.current).toBe(test.project);
+  expect(test.confirm).not.toHaveBeenCalled(); expect(test.adopt).not.toHaveBeenCalled();
+  expect(test.desktop.clearRecovery).not.toHaveBeenCalled();
 });

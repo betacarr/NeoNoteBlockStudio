@@ -1,0 +1,7 @@
+# Install official torch CPU packages into the isolated runtime before this file.
+numpy==1.26.4
+demucs==4.0.1
+librosa==0.11.0
+soundfile==0.13.1
+beartype==0.14.1
+rotary-embedding-torch==0.3.5

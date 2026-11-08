@@ -1,13 +1,14 @@
 import { Midi, type MidiJSON, type TrackJSON } from '@tonejs/midi';
 import { flattenNotes } from './project';
 import { encodeMidiText } from './midi-text';
-import { exportArchivedMidi } from './midi-export';
+import { exportArchivedMidi, exportDrumMidi } from './midi-export';
 import type { Diagnostic, Project } from './types';
 export { importMidi } from './midi-import';
 export { decodeMidiText } from './midi-text';
 export { originalMidi } from './midi-export';
 
 export function exportMidi(project: Project): { bytes: Uint8Array; diagnostics: Diagnostic[] } {
+  if (project.tracks.some(track => track.drumPresetId)) return exportDrumMidi(project, exportMidi);
   const legacy = project.provenance?.kind === 'midi' && project.provenance.metadata.midi as MidiJSON | undefined;
   if (!legacy || project.midi) return exportArchivedMidi(project);
   // Compatibility for pre-archive NBSX files. Their source JSON never contained

@@ -3,7 +3,8 @@ import { transformSync } from 'esbuild';
 import { vi } from 'vitest';
 import { createProject, newNote } from '../../src/core/project';
 import { createMeterMap } from '../../src/core/meter';
-import type { Region, Track } from '../../src/core/types';
+import type { Region, ShortcutPreset, Track } from '../../src/core/types';
+import type { RegionMove } from '../../src/core/region-batch';
 import { ArrangementNoteCache } from '../../src/ui/arrangement-note-cache';
 import { captureEditorPointer } from '../../src/ui/pointer-capture';
 import { startHorizontalEdgeScroll, startVerticalEdgeScroll } from '../../src/ui/edge-scroll';
@@ -92,6 +93,7 @@ export function createRegionGestureHarness(options: { locked?: boolean; region?:
   const onTrackDropPreview = vi.fn((_owner: object, _trackId?: string, _blocked?: boolean) => {});
   const indexes = new ArrangementNoteCache(); indexes.update(project.patterns);
   let props = { pattern, region, track: sourceTrack, tracks: options.tracks ?? project.tracks, trackTop: options.trackTop ?? 26, scale: .1, meter: createMeterMap(project), step: 120, selected: true,
+    preset: undefined as ShortcutPreset | undefined, onCopy: undefined as ((changes: RegionMove[]) => void) | undefined,
     scroll: { current: scroller }, left: 0, viewportWidth: scroller.clientWidth, visibleLane: true, indexes,
     gestureOwner: liveOwner, getGestureOwner: () => liveOwner, onPreviewExtent, onTrackDropPreview, onSelect, onFocus, onTrimRegion, onRegionChange };
   const render = (effects = true): InertElement => {

@@ -6,7 +6,6 @@ import { filterTracks, trackInstrumentOptions } from '../src/core/track-filter';
 import type { Project } from '../src/core/types';
 import type { MixerProps } from '../src/ui/Mixer';
 import { captureEditorPointer } from '../src/ui/pointer-capture';
-import { createNumberInputHarness } from './helpers/commit-number-harness';
 
 // Actual Mixer, parameter, meter and filter components with persistent hooks and
 // real capture helper. DOM, listeners and meter readings are inert boundaries;
@@ -45,17 +44,17 @@ function fixture(project = projectFixture(), overrides: Partial<MixerProps> = {}
     getBoundingClientRect: () => ({ top: layout.top }),
     scrollIntoView: vi.fn(() => { throw new Error('Must reveal only through local scrollTop'); }),
   } : undefined;
-  let active: Instance, tree: Node, dirty = false, writesAfterUnmount = 0, liveOwner: object = {}, liveNumber = 'document:0', stripIndex = 0;
+  let active: Instance, tree: Node, dirty = false, writesAfterUnmount = 0, liveOwner: object = {}, stripIndex = 0;
   const mixerEvents: { type: string; value?: unknown }[] = [];
   const onSelect = vi.fn((track: Project['tracks'][number]) => { props = { ...props, selectedTrack: track.id }; });
   const onTrackChange = vi.fn((id: string, patch: Partial<Project['tracks'][number]>) => { mixerEvents.push({ type: 'track-commit', value: patch }); props = { ...props, project: { ...props.project, tracks: props.project.tracks.map(track => track.id === id ? { ...track, ...patch } : track) } }; });
   const onMasterChange = vi.fn((gain: number) => { mixerEvents.push({ type: 'master-commit', value: gain }); props = { ...props, project: { ...props.project, audio: { ...props.project.audio, masterGain: gain } } }; });
   const onTrackPreview = vi.fn((_id: string, patch: Partial<Project['tracks'][number]> | undefined) => { mixerEvents.push({ type: 'track-preview', value: patch }); });
   const onMasterPreview = vi.fn((gain: number | undefined) => { mixerEvents.push({ type: 'master-preview', value: gain }); });
-  const onInstrumentFilter = vi.fn((instrumentFilter: string) => { props = { ...props, instrumentFilter }; }), onNumberPending = vi.fn();
+  const onInstrumentFilter = vi.fn((instrumentFilter: string) => { props = { ...props, instrumentFilter }; });
   let props: MixerProps = { project, selectedTrack: project.tracks[0].id, instrumentFilter: '', onInstrumentFilter, onSelect, onTrackChange, onMasterChange, onTrackPreview, onMasterPreview,
     meters: Object.fromEntries([...project.tracks.map((track, index) => [track.id, (index + 1) / 10]), ['__master', .6]]), masterMeter: .6, playing: true, meterScope: 'tracks',
-    gestureOwner: liveOwner, getGestureOwner: () => liveOwner, numberContextKey: liveNumber, getNumberContextKey: () => liveNumber, onNumberPending, ...overrides };
+    gestureOwner: liveOwner, getGestureOwner: () => liveOwner, ...overrides };
   if (overrides.gestureOwner) liveOwner = overrides.gestureOwner;
   const slot = () => { const index = active.cursor++; return { instance: active, index, previous: active.hooks[index] }; };
   const useRef = (initial: unknown) => { const s = slot(); return s.instance.hooks[s.index] ??= { current: initial }; };
@@ -64,14 +63,13 @@ function fixture(project = projectFixture(), overrides: Partial<MixerProps> = {}
   const useMemo = (create: () => unknown, deps: unknown[]) => { const s = slot(); if (!s.previous || !same(s.previous.deps, deps)) s.instance.hooks[s.index] = { deps, value: create() }; return s.instance.hooks[s.index].value; };
   const useEffect = (effect: () => void | (() => void), deps?: unknown[]) => { const s = slot(); if (s.previous && same(s.previous.deps, deps)) return; const next: any = { deps }; s.instance.hooks[s.index] = next; effects.push(() => { s.previous?.cleanup?.(); next.cleanup = effect(); }); };
   const renderMixerElement = (type: any, attributes: any, ...children: any[]): Node => ({ type, props: { ...attributes, children } });
-  const NumberInput = () => undefined, InstrumentBlock = () => undefined;
-  const scope = { useRef, useState, useMemo, useEffect, useLayoutEffect: useEffect, renderMixerElement, filterTracks, trackInstrumentOptions, captureEditorPointer, CommitNumberInput: NumberInput, InstrumentBlock };
+  const InstrumentBlock = () => undefined;
+  const scope = { useRef, useState, useMemo, useEffect, useLayoutEffect: useEffect, renderMixerElement, filterTracks, trackInstrumentOptions, captureEditorPointer, InstrumentBlock };
   const components = Function(...Object.keys(scope), `${filterCode}\n${code}\nreturn {Mixer,MixerParameter,MixerMeter,TrackInstrumentFilter};`)(...Object.values(scope));
   const actual = new Set(Object.values(components)); let seenHosts = new Set<string>();
   const resolve = (node: any, path: string): any => {
     if (!node || typeof node !== 'object' || !('type' in node)) return node;
     if (typeof node.type === 'function') {
-      if (node.type === NumberInput) return node;
       if (node.type === InstrumentBlock) { iconProps.push(node.props); return node; }
       if (!actual.has(node.type)) return null;
       let instance = instances.get(path); if (!instance) { instance = { hooks: [], cursor: 0, seen: true, mounted: true }; instances.set(path, instance); }
@@ -103,14 +101,13 @@ function fixture(project = projectFixture(), overrides: Partial<MixerProps> = {}
   const find = (label: string) => elements(render()).find(node => node.props['aria-label'] === label)!;
   const event = (node: Node, patch: Record<string, unknown> = {}) => ({ currentTarget: node.dom, pointerId: 7, button: 0, key: '', preventDefault: vi.fn(), stopPropagation: vi.fn(), ...patch });
   render();
-  return { props: () => props, render, find, event, iconProps, view, document, onSelect, onTrackChange, onMasterChange, onTrackPreview, onMasterPreview, mixerEvents, onInstrumentFilter, onNumberPending, workspace, workspaceWrites,
+  return { props: () => props, render, find, event, iconProps, view, document, onSelect, onTrackChange, onMasterChange, onTrackPreview, onMasterPreview, mixerEvents, onInstrumentFilter, workspace, workspaceWrites,
     update: (patch: Partial<MixerProps>) => { props = { ...props, ...patch }; render(); },
     elements: (node = render()) => elements(node), text: () => text(render()), strips: () => elements(render()).filter(node => node.props['data-track-id']),
-    number: (label: string) => find(`${label}百分比`).props,
     down: (label: string) => { const node = find(label); node.props.onPointerDown(event(node)); render(); },
     change: (label: string, value: number) => { const node = find(label); node.dom.value = String(value); node.props.onChange({ currentTarget: node.dom }); render(); },
     up: (label: string, pointerId = 7) => { const node = find(label); node.props.onPointerUp(event(node, { pointerId })); render(); },
-    setLiveOwner: (owner: object) => { liveOwner = owner; }, setLiveNumber: (key: string) => { liveNumber = key; },
+    setLiveOwner: (owner: object) => { liveOwner = owner; },
     listeners: () => view.count() + [...hosts.values()].reduce((sum, target) => sum + target.count(), 0),
     unmount: () => { for (const instance of instances.values()) { instance.mounted = false; for (const hook of instance.hooks) hook?.cleanup?.(); } }, writesAfterUnmount: () => writesAfterUnmount };
 }
@@ -152,8 +149,8 @@ describe('Mixer actual components and parameter callbacks (unit scope)', () => {
   it('retains gain above unity, precise percentages, original numbering and custom instrument identities', () => {
     const test = fixture();
     expect(test.find('Piano 音量').props).toMatchObject({ min: 0, max: 400, value: 275 });
-    expect(test.number('Piano 音量')).toMatchObject({ value: 275, max: 400 }); expect(test.number('Piano 声像')).toMatchObject({ value: 12.5, min: -100, max: 100 });
-    expect(test.number('总输出音量')).toMatchObject({ value: 70, min: 0, max: 200 }); expect(test.text()).toContain('8.8 dB');
+    expect(test.find('Piano 声像').props).toMatchObject({ value: 12.5, min: -100, max: 100, 'aria-valuetext': 'R 12.5%' });
+    expect(test.find('总输出音量').props).toMatchObject({ value: 70, min: 0, max: 200 }); expect(test.text()).toContain('8.8 dB');
     expect(test.iconProps.some(props => props.instrumentId === 'custom-one' && props.label === 'Custom sample')).toBe(true);
     expect(test.find('选择轨道 4 Custom')).toBeDefined(); expect(test.text()).toContain('实时试听：音量、声像与 M/S 即时生效');
   });
@@ -252,8 +249,8 @@ describe('Mixer actual components and parameter callbacks (unit scope)', () => {
 
   it('locks volume/pan/reset while retaining M/S and accessible pressed state', () => {
     const project = projectFixture(); project.tracks[0].locked = true; const test = fixture(project);
-    expect(test.number('Piano 音量').disabled).toBe(true); expect(test.find('Piano 声像').props.disabled).toBe(true); expect(test.find('Piano 音量恢复100%').props.disabled).toBe(true);
-    test.down('Piano 音量'); test.change('Piano 音量', 300); test.number('Piano 音量').onCommit(300); test.find('Piano 音量恢复100%').props.onClick(); expect(test.onTrackChange).not.toHaveBeenCalled();
+    expect(test.find('Piano 音量').props.disabled).toBe(true); expect(test.find('Piano 声像').props.disabled).toBe(true); expect(test.find('Piano 音量恢复100%').props.disabled).toBe(true);
+    test.down('Piano 音量'); test.change('Piano 音量', 300); test.find('Piano 音量恢复100%').props.onClick(); expect(test.onTrackChange).not.toHaveBeenCalled();
     test.find('Piano 静音').props.onClick(); test.render(); expect(test.find('Piano 静音').props['aria-pressed']).toBe(true); test.find('Piano 独奏').props.onClick();
     expect(test.onTrackChange.mock.calls).toEqual([['track-0', { muted: true }], ['track-0', { solo: true }]]);
   });
@@ -265,27 +262,6 @@ describe('Mixer actual components and parameter callbacks (unit scope)', () => {
     const parameter = test.elements().find(node => node.props.className?.includes('mixer-parameter') && test.elements(node).some(child => child.props['aria-label'] === 'Piano 音量'))!;
     parameter.props.children[0].props.children[0].props.onDoubleClick(); test.render(); expect(test.onTrackChange).toHaveBeenLastCalledWith('track-0', { volume: 1 }); expect(test.onTrackChange).toHaveBeenCalledTimes(3);
     expect(test.onTrackPreview).not.toHaveBeenCalled();
-  });
-
-  it('keeps a real numeric draft across recording-only owner changes and preserves all appended notes', () => {
-    const test = fixture(), input = createNumberInputHarness(test.number('Piano 音量')), key = input.props().contextKey;
-    input.change('350.125'); expect(test.onTrackPreview).not.toHaveBeenCalled(); expect(test.onTrackChange).not.toHaveBeenCalled(); const project = { ...test.props().project, patterns: test.props().project.patterns.map(pattern => ({ ...pattern, notes: [...pattern.notes, newNote(480, 72, 600)] })) };
-    const notes = structuredClone(project.patterns[0].notes), owner = {}; test.setLiveOwner(owner); test.update({ project, gestureOwner: owner }); input.update(test.number('Piano 音量'));
-    expect(input.props().contextKey).toBe(key); expect(input.render().props.value).toBe('350.125'); expect(input.flush()).toBe(true); test.render();
-    expect(test.onTrackChange).toHaveBeenCalledExactlyOnceWith('track-0', { volume: 3.50125 }); expect(test.props().project.patterns[0].notes).toEqual(notes);
-    expect(test.onNumberPending.mock.calls).toEqual([[key, true], [key, false]]); input.unmount();
-    expect(test.onTrackPreview).not.toHaveBeenCalled();
-  });
-
-  it('rejects stale numeric generations before rerender and invalidates the actual draft when ownership changes', () => {
-    const test = fixture(), input = createNumberInputHarness(test.number('Piano 音量')), stale = test.number('Piano 音量').onCommit;
-    input.change('350'); test.setLiveNumber('document:1'); expect(stale(350)).toBe(false); expect(test.onTrackChange).not.toHaveBeenCalled();
-    test.update({ numberContextKey: 'document:1' }); input.update(test.number('Piano 音量')); expect(input.render().props.value).toBe('275'); expect(test.onNumberPending.mock.calls.at(-1)?.[1]).toBe(false); input.unmount();
-  });
-
-  it('uses real numeric parsing for the gain ceiling and master fraction instead of clipping legal values', () => {
-    const test = fixture(), input = createNumberInputHarness(test.number('Piano 音量')); input.change('400.1'); input.key('Enter'); expect(test.onTrackChange).not.toHaveBeenCalled(); expect(input.render().props['aria-invalid']).toBe(true); input.key('Escape'); input.unmount();
-    const master = createNumberInputHarness(test.number('总输出音量')); master.change('175.5'); expect(master.flush()).toBe(true); expect(test.onMasterChange).toHaveBeenCalledExactlyOnceWith(1.755); master.unmount();
   });
 
   it('scrolls only the local horizontal channel viewport when selection changes, preserving vertical position', () => {

@@ -118,6 +118,53 @@ function addReference(project: Project, startTick = 0, gain = 1) {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('real-time Web mix updates through the actual engine', () => {
+  it('replaces future builtin voices from embedded PCM and Undo restores library PCM without changing already sounding tails', async () => {
+    const test = fixture({ twoTracks: false }), { engine, project, context, stop } = test;
+    project.patterns[0].notes.push({ ...newNote(50, 66, 5), id: 'replacement-onset' }, { ...newNote(100, 66, 5), id: 'restored-onset' });
+    await engine.play(project, 0, true); test.advance(.2); const initial = context.sources[0];
+    const next = produce(project, draft => {
+      draft.instruments.find(ins => ins.id === 'harp')!.assetId = 'replacement';
+      draft.assets.push({ id: 'replacement', name: 'replacement.wav', mime: 'audio/wav', data: 'AQID' });
+    });
+    // React may deliver the general realtime update before the sample-load
+    // effect. Completion must still replan future sources for the same model.
+    expect(engine.updateProject(next)).toBe(true);
+    context.decoded.push(new Pcm('embedded-replacement', .125));
+    await engine.loadProjectSamples(next);
+    expect(initial.stopTimes).toEqual([]); test.advance(.5); test.advance(.56);
+    expect(context.sources.at(-1)?.buffer?.tag).toBe('embedded-replacement'); expect(engine.buffers.get('harp')?.duration).toBe(3);
+    const undo = engine.loadProjectSamples(project); expect(engine.updateProject(project)).toBe(true); await undo;
+    test.advance(1); test.advance(1.06);
+    expect(context.sources.at(-1)?.buffer?.tag).toBe('a'); expect(initial.stopTimes).toEqual([]); expect(engine.playing).toBe(true); stop();
+  });
+  it('repeats only source triggers inside local locators, keeps the project tick clock, and preserves edited events', async () => {
+    const test = fixture({ twoTracks: false, period: 500 }), { engine, project, context, stop } = test;
+    project.patterns[0].notes = [0, 100, 200, 300, 400].map((tick, index) => ({ ...newNote(tick, 66, 5), id: `cycle-${index}`, instrumentId: tick === 200 ? 'bell' : 'harp' }));
+    await engine.play(project, 0, true, { start: 100, end: 300 });
+    expect(engine.position()?.tick).toBe(100); expect(context.sources).toHaveLength(1);
+    test.advance(.9); test.advance(1.95); test.advance(2.06);
+    timesClose(context.sources.map(source => source.when), [.05, 1.05, 2.05]);
+    expect(engine.position()?.tick).toBeCloseTo(101); expect(engine.position()?.linearTick).toBeCloseTo(301);
+    const next = produce(project, draft => { draft.patterns[0].notes[2].instrumentId = 'flute'; draft.tempos.push({ tick: 200, bpm: 120 }); });
+    expect(engine.updateProject(next)).toBe(true); test.advance(2.95);
+    expect(context.sources.at(-1)?.buffer?.tag).toBe('new-future');
+    timesClose(context.sources.filter(source => !source.stopTimes.length).map(source => source.when), [.05, 1.05, 2.05, 3.05]);
+    test.advance(3.5); test.advance(3.56);
+    timesClose(context.sources.filter(source => !source.stopTimes.length).map(source => source.when), [.05, 1.05, 2.05, 3.05, 3.55]);
+    expect(engine.position()?.tick).toBeCloseTo(101); expect(engine.position()?.linearTick).toBeCloseTo(501);
+    stop();
+  });
+  it('realtime seek stops the old graph once and rapid seeks only start the newest plan', async () => {
+    const test = fixture({ twoTracks: false, period: 400 }), { engine, project, context, stop } = test;
+    project.patterns[0].notes = [0, 100, 200].map(tick => ({ ...newNote(tick, 66, 5), id: `seek-${tick}` }));
+    await engine.play(project, 0, true, { start: 100, end: 300 }); test.advance(.2);
+    const old = context.sources[0], first = engine.seek(200), latest = engine.seek(100);
+    expect(await first).toBe(false); expect(await latest).toBe(true); expect(old.stopTimes).toHaveLength(1);
+    expect(engine.position()?.tick).toBe(100); expect(context.sources).toHaveLength(2);
+    expect(context.sources[1].startTimes).toHaveLength(1); expect(engine.playing).toBe(true);
+    stop(); const sources = context.sources.length;
+    expect(await engine.seek(200)).toBe(false); expect(engine.playing).toBe(false); expect(context.sources).toHaveLength(sources);
+  });
   it('waits without a missing-sample error when the exact embedded decode started before the model update', async () => {
     const test = fixture({ twoTracks: false }), { engine, project, context, stop } = test;
     await engine.play(project, 0, true); test.advance(.2); const tail = context.sources[0], position = engine.position(), stopped = vi.spyOn(engine, 'stop'), next = withEmbeddedFuture(project), before = structuredClone(next);
@@ -160,7 +207,7 @@ describe('real-time Web mix updates through the actual engine', () => {
     expect(() => engine.updateProject(next)).toThrow('实时试听缺少采样'); positionUnchanged(engine.position(), position); expect(context.sources).toEqual([tail]);
     const pcm = new Pcm('successful-retry', .25); context.decoded.push(pcm); const retry = engine.loadProjectSamples(next);
     expect(engine.updateProject(next)).toBe(false); await retry;
-    test.advance(.5); test.advance(.56); expect(engine.buffers.get('pending-sample')).toBe(pcm);
+    test.advance(.5); test.advance(.56); expect(engine.bufferFor('pending-sample')).toBe(pcm);
     timesClose(context.sources.map(source => source.when), [.05, .55]); expect(engine.meterLevels().master).toBe(.1875);
     expect(stopped).not.toHaveBeenCalled(); expect(tail.stopTimes).toEqual([]); stop();
   });
@@ -173,9 +220,9 @@ describe('real-time Web mix updates through the actual engine', () => {
     const first = engine.loadProjectSamples(old); await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(1));
     const second = engine.loadProjectSamples(latest); expect(engine.updateProject(latest)).toBe(false); await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(2));
     resolveOld(new Pcm('stale-old', .5)); await first;
-    expect(engine.buffers.has('pending-sample')).toBe(false); expect(engine.updateProject(latest)).toBe(false); positionUnchanged(engine.position(), position); expect(context.sources).toEqual([tail]);
+    expect(engine.bufferFor('pending-sample')).toBeUndefined(); expect(engine.updateProject(latest)).toBe(false); positionUnchanged(engine.position(), position); expect(context.sources).toEqual([tail]);
     const fresh = new Pcm('latest-loaded', .25); resolveLatest(fresh); await second;
-    expect(engine.buffers.get('pending-sample')).toBe(fresh); test.advance(.5); test.advance(.56);
+    expect(engine.bufferFor('pending-sample')).toBe(fresh); test.advance(.5); test.advance(.56);
     expect(context.sources.map(source => source.buffer?.tag)).toEqual(['a', 'latest-loaded']); timesClose(context.sources.map(source => source.when), [.05, .55]);
     expect(tail.stopTimes).toEqual([]); expect(engine.playing).toBe(true); stop();
   });
@@ -205,7 +252,7 @@ describe('real-time Web mix updates through the actual engine', () => {
     const loading = engine.loadProjectSamples(next); await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(1));
     test.advance(.25); const beforeAdopt = engine.position(); expect(context.sources).toEqual([tail]); expect(engine.meterLevels().master).toBe(.125);
     resolve(defaultPcm); await loading; positionUnchanged(engine.position(), beforeAdopt);
-    expect(engine.buffers.get('fresh-default')).toBe(defaultPcm); expect(engine.buffers.get('fresh-explicit')).toBe(explicitPcm);
+    expect(engine.bufferFor('fresh-default')).toBe(defaultPcm); expect(engine.bufferFor('fresh-explicit')).toBe(explicitPcm);
     expect(context.decodeAudioData.mock.calls.map(([bytes]) => Array.from(new Uint8Array(bytes)))).toEqual([[1, 2, 3], [4, 5, 6]]);
     expect(tail.stopTimes).toEqual([]); expect(stopped).not.toHaveBeenCalled(); expect(engine.playing).toBe(true);
     test.advance(.36); test.advance(.46);

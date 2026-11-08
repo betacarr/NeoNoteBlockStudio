@@ -2,7 +2,7 @@ import { writeMidi, type MidiEvent } from 'midi-file';
 import { base64ToBytes } from './container';
 import { cloneMidiEvent, isMidiChannelEvent } from './midi-events';
 import { encodeMidiText } from './midi-text';
-import { flattenNotes } from './project';
+import { flattenNotes, renderNoteEvents } from './project';
 import type { Diagnostic, Project } from './types';
 
 type Event = { tick: number; order: number; occurrence?: number; routeSource?: number; event: MidiEvent };
@@ -57,6 +57,7 @@ export function originalMidi(project: Project): { bytes: Uint8Array; name: strin
 }
 
 export function exportArchivedMidi(project: Project): { bytes: Uint8Array; diagnostics: Diagnostic[] } {
+  if (project.tracks.some(track => track.drumPresetId)) return exportDrumMidi(project);
   const global: Event[] = [], buckets = new Map<string, Bucket>();
   const sourceBucket = (source: number) => {
     const key = `source:${source}`; let bucket = buckets.get(key);
@@ -144,4 +145,39 @@ export function exportArchivedMidi(project: Project): { bytes: Uint8Array; diagn
   if (croppedExpression) diagnostics.push({ severity: 'warning', code: 'midi-expression-cropped', message: '片段范围外的 MIDI 消息不会导出；裁剪可能改变控制器的初始状态，请检查目标 DAW 中的播放效果。' });
   if (notes.some(note => note.velocity <= 0)) diagnostics.push({ severity: 'info', code: 'midi-zero-velocity', message: '力度为零的静音音符只保留在 NBSX 中；MIDI 的零力度发音消息会被解释为结束音符。' });
   return { bytes: Uint8Array.from(writeMidi({ header: { format: 1, numTracks: tracks.length, ticksPerBeat: project.ppq }, tracks }, { running: false })), diagnostics };
+}
+
+/** Bake mapped tracks only. Unmapped tracks keep their source MIDI messages. */
+export function exportDrumMidi(project: Project, exporter = exportArchivedMidi): { bytes: Uint8Array; diagnostics: Diagnostic[] } {
+  const mappedIds = new Set(project.tracks.filter(track => track.drumPresetId).map(track => track.id));
+  const plan = renderNoteEvents(project, true);
+  const copy = structuredClone(project);
+  copy.tracks = copy.tracks.map((track,index) => ({ ...track, midiChannel: track.midiChannel ?? index % 16 })).filter(track => !mappedIds.has(track.id));
+  copy.regions = copy.regions.filter(region => !mappedIds.has(region.trackId));
+  const usedChannels = new Set(copy.tracks.map((track,index) => track.midiChannel ?? index % 16));
+  let serial = 0;
+  for (const track of project.tracks.filter(track => mappedIds.has(track.id))) {
+    const notes = plan.notes.filter(note => note.trackId === track.id);
+    for (const instrumentId of new Set(notes.map(note => note.effectiveInstrument))) {
+      const channel = Array.from({length:16},(_,index) => index).find(index => index !== 9 && !usedChannels.has(index));
+      if (channel === undefined) throw new Error('鼓组实际 MIDI 导出所需音色超过可用独立通道，请拆分工程后导出。NBSX 可完整保存所有映射。');
+      usedChannels.add(channel);
+      const id = `drum-midi-${++serial}-${track.id}`, patternId = `${id}-pattern`;
+      const instrument = project.instruments.find(instrument => instrument.id === instrumentId)!;
+      copy.tracks.push({ ...track, id, name: `${track.name} · ${instrument.name}`, instrumentId, midiChannel: channel, sourceMidiTrack: undefined, drumPresetId: undefined, delay: undefined });
+      const hits = notes.filter(note => note.effectiveInstrument === instrumentId).map(note => {
+        const { drumSource: _drum, delaySource: _delay, midiSource: _midi, ...hit } = note;
+        return { ...hit, tick: note.absoluteTick, instrumentId: undefined };
+      });
+      const length = hits.reduce((end,note) => Math.max(end, note.tick + note.duration),1);
+      copy.patterns.push({ id: patternId, name: `${track.name} · 实际音符`, length, notes: hits });
+      copy.regions.push({ id: `${id}-region`, patternId, trackId: id, start: 0, offset: 0, length, loop: false });
+    }
+  }
+  const result = exporter(copy);
+  const fractional = plan.notes.some(note => mappedIds.has(note.trackId) && (!Number.isInteger(note.absoluteTick) || !Number.isInteger(note.duration)));
+  result.diagnostics.push(...plan.diagnostics, { severity: 'info', code: 'midi-drum-rendered', message: '鼓组 MIDI 导出实际映射音符及 Delay，并按乐器分配独立 GM 音色通道；源触发与预设保留在 NBSX 中。“另存原始 MIDI”仍保留原始输入。' });
+  if (fractional) result.diagnostics.push({ severity: 'warning', code: 'midi-drum-quantization', message: '鼓组精细拍偏移或时值已四舍五入至当前 PPQ 的整数 MIDI tick；NBSX、WAV 保留精细时间。' });
+  if (plan.notes.some(note => mappedIds.has(note.trackId) && note.velocity > 0 && note.velocity * 127 < .5)) result.diagnostics.push({ severity: 'warning', code: 'midi-drum-velocity-quantization', message: '部分鼓组子音符力度低于 MIDI 的最小正力度，已按 1/127 输出；NBSX、WAV 保留原始力度。' });
+  return result;
 }

@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { produce } from 'immer';
@@ -74,7 +75,7 @@ function fixture(setup: (project: Project) => void = () => {}) {
   function render(): API {
     const project = projectRef.current, resolved = resolveEditorSelection(project, { trackId: state.selectedTrack, regionId: state.selectedRegion, noteIds: [...state.selectedNotes], focus: state.focus });
     const { pattern, region, track } = resolved, context = evaluateContext(project, numberEditOwner, region, pattern, state.selectedNotes, 4); liveNumberContext.current = context.numberContext;
-    const scope = { project, projectRef, numberEditOwner, savedSnapshot, ...resolved, ...context, liveNumberContext, selectedNotes: state.selectedNotes, selectedRegionsRef, focus: state.focus,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), project, projectRef, numberEditOwner, savedSnapshot, ...resolved, ...context, liveNumberContext, selectedNotes: state.selectedNotes, selectedRegionsRef, focus: state.focus,
       preferences: { snap: 16 }, meterMap: createMeterMap(project), sourceOrigin: region && pattern ? patternOrigin(region, pattern) : 0,
       produce, applyNoteEdit, changeSelectedNotes, changeNoteVelocities, notesUnchanged, growEditedPattern, moveSelectedNotes, canEditSelectedNotes, noteTimingError, inspectorBeatTicks,
       history, future, selectionSnapshot: (value = projectRef.current) => normalizeEditorSelection(value, selection()), setProject, setDirty, setRevision, setMessage,

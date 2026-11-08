@@ -45,6 +45,15 @@ function fixture(options: { modal?: string; shortcuts?: Record<string, string>; 
 }
 
 describe('App global Space transport listeners (source-derived unit integration)', () => {
+  it('lets the audio workspace handle Space without starting main-project audio', () => {
+    const test = fixture({ modal: 'audio-assist' });
+    for (const name of ['keydown', 'keyup'] as const) {
+      const event = test.fire(name, { target: test.target('text') });
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(event.stopPropagation).not.toHaveBeenCalled();
+    }
+    expect(test.togglePlay).not.toHaveBeenCalled(); test.cleanup();
+  });
   it.each(['button', 'checkbox', 'range', 'select', 'number', 'text', 'textarea', 'contenteditable', 'link', 'menuitem', 'slider', 'scrollbar', 'modal'])('captures Space before the focused %s can consume it, including keyup', kind => {
     const test = fixture({ modal: kind === 'modal' ? 'settings' : undefined }), target = test.target(kind);
     for (const shiftKey of [false, true]) {

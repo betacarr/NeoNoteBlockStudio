@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { describe, expect, it, vi } from 'vitest';
-import { flpChannelChoiceError, importFlp, type FlpImportChannel, type FlpImportPlan } from '../src/core/flp-import';
+import { flpChannelChoiceError, flpChannelSupportsNotes, importFlp, type FlpImportChannel, type FlpImportPlan } from '../src/core/flp-import';
 import { INSTRUMENTS } from '../src/core/instruments';
 import type { FlpImportDialogProps } from '../src/ui/FlpImportDialog';
 import { createNumberInputHarness } from './helpers/commit-number-harness';
@@ -41,7 +41,7 @@ function fixture(value = plan()) {
   let onFlush = () => true;
   const flushActiveNumberInput = vi.fn(() => onFlush()), onCancel = vi.fn(), onImport = vi.fn();
   let props: FlpImportDialogProps = { plan: value, onCancel, onImport };
-  const scope = { useRef, useState, useLayoutEffect, INSTRUMENTS, flpChannelChoiceError, CommitNumberInput: NumberInput, flushActiveNumberInput, renderFlpElement, FlpFragment: Symbol('flp-fragment') };
+  const scope = { useRef, useState, useLayoutEffect, INSTRUMENTS, flpChannelChoiceError, flpChannelSupportsNotes, CommitNumberInput: NumberInput, flushActiveNumberInput, renderFlpElement, FlpFragment: Symbol('flp-fragment') };
   const Component = Function(...Object.keys(scope), `${code}\nreturn FlpImportDialog;`)(...Object.values(scope));
   const render = () => { let attempts = 0; do { hook = 0; dirty = false; tree = Component(props); while (effects.length) effects.shift()!(); if (++attempts > 20) throw new Error('FLP dialog hooks did not settle'); } while (dirty); return tree; };
   const elements = (node: Node): Node[] => [node, ...(node.props.children ?? []).flat(Infinity).filter((child: any) => child && typeof child === 'object').flatMap(elements)];
@@ -78,6 +78,33 @@ describe('FLP import review actual component callbacks (unit scope)', () => {
     expect(test.onImport.mock.calls[0][0]).toEqual([{ id: 0, instrumentId: 'bass', baselineMidi: 66, confirmed: true, selected: true }]);
   });
 
+  it('exposes plugin MIDI notes for manual mapping, requiring confirmation again after each mapping edit', () => {
+    const source = plan([row({ kind: 2, name: 'Unmatched synth', instrumentId: '', verified: false })]);
+    const test = fixture(source);
+    expect(test.find('导入声道 0').props).toMatchObject({ disabled: false, checked: true });
+    expect(test.find('声道 0 音色').props.value).toBe('');
+    expect(test.text()).toContain('仅转换此通道的 MIDI 音符');
+    test.import(); expect(test.onImport).not.toHaveBeenCalled();
+    test.select(0, 'flute'); test.import(); expect(test.onImport).not.toHaveBeenCalled();
+    test.check('确认声道 0 映射');
+    test.number().onCommit(60); expect(test.find('确认声道 0 映射').props.checked).toBe(false);
+    test.import(); expect(test.onImport).not.toHaveBeenCalled();
+    test.check('确认声道 0 映射'); test.import();
+    const [choices, acknowledgeWarnings] = test.onImport.mock.calls[0];
+    expect(choices[0]).toMatchObject({ instrumentId: 'flute', baselineMidi: 60, confirmed: true, selected: true });
+    expect(importFlp(source, choices, { acknowledgeWarnings }).project.tracks[0].instrumentId).toBe('flute');
+    test.select(0, ''); expect(test.importButton().props.disabled).toBe(true);
+  });
+
+  it('keeps note-free plugins unavailable while allowing explicitly selected muted MIDI channels', () => {
+    const test = fixture(plan([row({ kind: 2, noteCount: 0, activeNoteCount: 0, selected: true }),
+      row({ id: 1, kind: 1, name: 'Muted Layer MIDI', enabled: false, instrumentId: '', verified: false, selected: false })]));
+    expect(test.find('导入声道 0').props).toMatchObject({ disabled: true, checked: false });
+    expect(test.find('导入声道 1').props.disabled).toBe(false);
+    test.check('导入声道 1'); test.select(1, 'bass'); test.check('确认声道 1 映射'); test.import();
+    expect(test.onImport.mock.calls[0][0][1]).toMatchObject({ selected: true, instrumentId: 'bass', confirmed: true });
+  });
+
   it('requires renewed confirmation after manual instrument or baseline changes, even when reverting to the original', () => {
     const test = fixture(); test.select(0, 'bell'); expect(test.importButton().props.disabled).toBe(true); test.check('确认声道 0 映射');
     test.select(0, 'harp'); expect(test.find('确认声道 0 映射').props.checked).toBe(false); test.import(); expect(test.onImport).not.toHaveBeenCalled();
@@ -89,7 +116,8 @@ describe('FLP import review actual component callbacks (unit scope)', () => {
     const source = plan([row({ id: 0, selected: false }), row({ id: 1, enabled: false, activeNoteCount: 0, selected: false }),
       row({ id: 2, kind: 2, selected: true }), row({ id: 3, kind: 4, selected: true }), row({ id: 4, kind: 5, selected: true })]);
     const test = fixture(source);
-    for (const id of [2, 3, 4]) { expect(test.find(`导入声道 ${id}`).props).toMatchObject({ disabled: true, checked: false }); test.check(`导入声道 ${id}`); }
+    for (const id of [3, 4]) { expect(test.find(`导入声道 ${id}`).props).toMatchObject({ disabled: true, checked: false }); test.check(`导入声道 ${id}`); }
+    test.check('导入声道 2', false);
     expect(test.importButton().props.disabled).toBe(true); test.check('导入声道 1'); expect(test.number(1).disabled).toBe(false);
     expect(test.text()).toContain('选入后保持静音'); test.import(); const [choices, acknowledgeWarnings] = test.onImport.mock.calls[0];
     const converted = importFlp(source, choices, { acknowledgeWarnings }).project;
@@ -116,7 +144,7 @@ describe('FLP import review actual component callbacks (unit scope)', () => {
   it('requires at least one selected row and keeps deselected fields disabled', () => {
     const test = fixture(); test.check('导入声道 0', false);
     expect(test.number().disabled).toBe(true); expect(test.find('声道 0 音色').props.disabled).toBe(true); expect(test.importButton().props.disabled).toBe(true);
-    test.import(); expect(test.onImport).not.toHaveBeenCalled(); expect(test.text()).toContain('请选择至少一个采样声道');
+    test.import(); expect(test.onImport).not.toHaveBeenCalled(); expect(test.text()).toContain('请选择至少一个音符声道');
   });
 
   it('bounds the baseline without rounding fractional calibration or accepting nonfinite direct callbacks', () => {

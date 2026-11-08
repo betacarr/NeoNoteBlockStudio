@@ -1,5 +1,14 @@
 # 发布验证
 
+## 0.1.60 RC1
+
+- RC1 源码在 Mac 上通过 140 个测试文件中的 2343 项检查，1 项因缺少私人语料跳过；类型检查、生产构建与源码发布扫描通过。
+- 以下 Mac 安装结果来自冻结 RC1 前的本地构建，用于验证新功能；正式分发包仍应按候选提交重新构建。两个架构的 DMG／ZIP 均核对了 SHA-256、文件关联、程序架构、第三方许可和代码签名。
+- Apple Silicon 安装包通过 Finder 打开、工程保存与重开、默认音色、MIDI／NBS、原生玻璃和跨平台玻璃检查。隔离安装音频组件后，测试了本地 WAV 拖入、智能速度、独立和弦分析和单轨分离；在没有 Homebrew PATH 的启动环境中也能通过系统已有的 FFmpeg 解码 M4A。处理后代码签名仍然有效。
+- Intel 包在 Apple Silicon 上经 Rosetta 验证 Finder 打开、默认音色、工程生命周期、MIDI／NBS 和原生玻璃。更新解码器查找后，也从 Intel DMG 安装并验证 M4A 分析、智能速度和分析后的代码签名；音频组件使用的是本机 Apple Silicon Python 环境。
+- 音频分析使用短测试素材。完整曲目的耗时、长时间试听和导出，以及物理 Intel Mac 和 Windows x64 新包尚需独立验收。当前 macOS 包只有临时签名，未做 Developer ID 签名与公证。
+- Windows x64 的构建命令、安装版与便携版验收步骤见 [Windows 候选包验收](windows-release.md)。
+
 ## 0.1.59 合并版本
 
 Windows 分发包在独立干净目录基于 `a70e2b6` 重建，包含“不保存退出”修复；Mac 应用基于 `f995c19`，验收脚本为 `4fa675c`。已逐项核对两者的应用构建输入相同，后续仅修改验收脚本和发布文档。两平台来源及分发文件哈希分别记录在 `windows-verification.json` 和 `macos-verification.json`；完整附件校验值见 `SHA256SUMS.txt`。

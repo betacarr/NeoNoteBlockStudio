@@ -98,4 +98,30 @@ describe('audio output transport lifecycle', () => {
     expect(engine.stop()?.tick).toBeCloseTo(240); // phase .125 sec in the next cycle
     expect(music.stop).toHaveBeenCalled(); expect(reference.stop).toHaveBeenCalled(); expect(engine.position()).toBeUndefined();
   });
+  it('seeks a playing rendered cycle without leaving the previous voice audible, and a paused seek stays paused', async () => {
+    const { engine, context } = setup(), project = createProject();
+    context.decoded.push(new BufferStub(8), new BufferStub(8));
+    expect(await engine.playRendered(project, new Uint8Array([1]), 0, undefined, undefined, { start: 1920, end: 5760 })).toBe(true);
+    const first = context.sources[0];
+    expect(first.start).toHaveBeenCalledWith(.03, 1);
+    expect(first.loopStart).toBe(1); expect(first.loopEnd).toBe(3);
+    context.currentTime = .2;
+    expect(await engine.seek(3840)).toBe(true);
+    expect(first.stop).toHaveBeenCalledTimes(1);
+    expect(context.sources[1].start).toHaveBeenCalledWith(.23, 2);
+    expect(engine.position()?.tick).toBe(3840);
+    context.currentTime = 1.33; vi.advanceTimersByTime(25);
+    expect(engine.position()?.tick).toBeCloseTo(2112);
+    engine.stop(); const count = context.sources.length;
+    expect(await engine.seek(2880)).toBe(false); expect(engine.playing).toBe(false); expect(context.sources).toHaveLength(count);
+  });
+  it('a later stop cancels an in-flight rendered seek', async () => {
+    const { engine, context } = setup(), project = createProject();
+    context.decoded.push(new BufferStub(8)); await engine.playRendered(project, new Uint8Array([1]), 0);
+    let resolve!: (buffer: BufferStub) => void;
+    context.decoded.push(new Promise<BufferStub>(done => { resolve = done; }));
+    const seek = engine.seek(960); await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(2));
+    engine.stop(); resolve(new BufferStub(8)); expect(await seek).toBe(false);
+    expect(engine.playing).toBe(false); expect(context.sources).toHaveLength(1);
+  });
 });

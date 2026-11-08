@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 export interface MenuEntry { label: string; command: string; shortcut?: string; disabled?: boolean; checked?: boolean; separatorBefore?: boolean }
 export interface StudioMenu { label: string; items?: MenuEntry[]; command?: string }
-export function MenuBar({ menus, onCommand }: { menus: StudioMenu[]; onCommand: (command: string) => void }) {
+export function MenuBar({ menus, onCommand, label = '主菜单' }: { menus: StudioMenu[]; onCommand: (command: string) => void; label?: string }) {
   const [open, setOpen] = useState<number | null>(null), root = useRef<HTMLElement>(null);
   useEffect(() => {
     if (open === null) return;
@@ -11,7 +11,7 @@ export function MenuBar({ menus, onCommand }: { menus: StudioMenu[]; onCommand: 
     const focus = requestAnimationFrame(() => root.current?.querySelector<HTMLElement>('.menu-items [role^="menuitem"]:not([disabled])')?.focus());
     return () => { document.removeEventListener('pointerdown', outside); cancelAnimationFrame(focus); };
   }, [open]);
-  return <nav className="studio-menu" aria-label="主菜单" role="menubar" ref={root} onBlur={event => {
+  return <nav className="studio-menu" aria-label={label} role="menubar" ref={root} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(null);
   }} onKeyDown={event => {
     // Focused menu controls own keys even when only a closed trigger is focused.

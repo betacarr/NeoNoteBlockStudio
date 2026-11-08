@@ -55,7 +55,7 @@ describe('track default-instrument display filtering', () => {
     const before = structuredClone(project), tracks = project.tracks, instruments = project.instruments;
     tracks.forEach(Object.freeze); instruments.forEach(Object.freeze); Object.freeze(tracks); Object.freeze(instruments);
     expect(filterTracks(tracks, 'bell')).toEqual([]);
-    expect(trackInstrumentOptions(tracks, instruments)).toEqual([{ id: 'harp', name: '钢琴', count: 1 }]);
+    expect(trackInstrumentOptions(tracks, instruments)).toEqual([{ id: 'harp', name: '竖琴', count: 1 }]);
     expect(project).toEqual(before); expect(project.tracks).toBe(tracks);
   });
 });

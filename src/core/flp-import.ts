@@ -48,6 +48,11 @@ const suggestInstrument = (name: string): string => {
 const finite = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
 const unique = (messages: string[]) => [...new Set(messages)];
 
+/** Audio/automation clips have no editable note instrument. Other channels
+ * qualify only when the file actually contains their discrete MIDI notes. */
+export const flpChannelSupportsNotes = (channel: Pick<FlpImportChannel, 'kind' | 'noteCount'>): boolean =>
+  channel.kind === 0 || channel.kind !== 4 && channel.kind !== 5 && channel.noteCount > 0;
+
 interface NoteGroup { notes: FlpNote[]; positions: number[]; prefixEnd: number[]; end: number }
 function noteGroups(source: FlpProject): Map<number, Map<number, NoteGroup>> {
   const patterns = new Map<number, Map<number, NoteGroup>>();
@@ -75,11 +80,14 @@ function lowerBound(values: number[], target: number): number {
 const onsetCount = (group: NoteGroup, start: number, end: number) => lowerBound(group.positions, end) - lowerBound(group.positions, start);
 
 function channelIssues(channel: FlpChannel, notes: FlpNote[]): string[] {
-  const issues = channel.issues.slice();
-  if (channel.kind !== 0) issues.push('第一版仅支持采样器音符；插件、Layer、音频与自动化通道不能模拟为音符盒。');
-  if (!finite(channel.pan, 0, 12800) || ![channel.root, channel.pitch, channel.fine, channel.sampler.stretchPitchCents ?? 0].every(Number.isFinite)) issues.push('通道音高或声像参数无效。');
+  // These decoded settings describe sampler audio, not the discrete notes of
+  // a plug-in/Layer. Keep malformed layouts and note-routing issues fatal.
+  const samplerAudioIssues = new Set(['采样时间拉伸尚不支持', '采样起止位置改变；须重新测定原始采样基准', '采样器 Formant 不是默认值，尚不支持']);
+  const issues = channel.kind === 0 ? channel.issues.slice() : channel.issues.filter(issue => !samplerAudioIssues.has(issue));
+  if (!flpChannelSupportsNotes({ kind: channel.kind, noteCount: notes.length })) issues.push('此通道没有可转换的 MIDI 音符，或属于音频／自动化片段。');
+  if (!finite(channel.pan, 0, 12800) || ![channel.root, channel.pitch, channel.fine, ...(channel.kind === 0 ? [channel.sampler.stretchPitchCents ?? 0] : [])].every(Number.isFinite)) issues.push('通道音高或声像参数无效。');
   const sampler = channel.sampler;
-  if (sampler.arpDirection || sampler.addToKey || sampler.stretchTime || sampler.stretchMultiplier || sampler.sampleStart || sampler.sampleStartOffset || sampler.sampleLength !== undefined && sampler.sampleLength !== 1 || sampler.formantUnhandled) issues.push('采样器改变起音、采样范围或音色的参数尚不支持。');
+  if (channel.kind === 0 && (sampler.arpDirection || sampler.addToKey || sampler.stretchTime || sampler.stretchMultiplier || sampler.sampleStart || sampler.sampleStartOffset || sampler.sampleLength !== undefined && sampler.sampleLength !== 1 || sampler.formantUnhandled)) issues.push('采样器改变起音、采样范围或音色的参数尚不支持。');
   for (const note of notes) {
     if (!finite(note.position, 0, MAX_TICK) || !finite(note.length, 0, MAX_TICK) || !Number.isFinite(note.key) || !Number.isFinite(note.fine)
       || !finite(note.velocity, 0, 128) || !finite(note.pan, 0, 128)) issues.push('源音符含超出支持范围的时间、力度、声像或音高参数。');
@@ -98,7 +106,7 @@ export async function prepareFlpImport(bytes: Uint8Array, filename: string, samp
   const automation = new Set(Array.isArray(source.metadata.automation_issues) ? source.metadata.automation_issues.filter((value): value is string => typeof value === 'string') : []);
   const blockers = source.issues.filter(issue => !automation.has(issue));
   const warnings = [...source.warnings,
-    '仅导入采样器音符与片段时间；忽略自动化、控制器、音频片段、音效链和包络，不认证 FL 完整播放等价。',
+    '仅导入离散 MIDI 音符与片段时间；忽略自动化、控制器、音频片段、插件声音、音效链和包络，不认证 FL 完整播放等价。',
     `采用工程初始 ${source.bpm} BPM；自动化中的速度与音高变化不会应用。`,
     'FL 通道音量为非线性参数，未模拟；导入轨道音量固定为 1，音符力度按 velocity/128 换算，声像为参数换算。',
     ...[...automation].map(issue => `忽略自动化：${issue}`)];
@@ -119,7 +127,7 @@ export async function prepareFlpImport(bytes: Uint8Array, filename: string, samp
   const channels = Object.values(source.channels).sort((left, right) => left.id - right.id).map((channel): FlpImportChannel => ({
     id: channel.id, name: channel.name || `通道 ${channel.id}`, sample: channel.sample, kind: channel.kind, enabled: channel.enabled,
     noteCount: notesByChannel.get(channel.id)?.length ?? 0, activeNoteCount: 0,
-    instrumentId: suggestInstrument(channel.name), baselineMidi: 66, verified: false, confirmed: false, selected: false,
+    instrumentId: channel.kind === 0 ? suggestInstrument(channel.name) : '', baselineMidi: 66, verified: false, confirmed: false, selected: false,
     issues: channelIssues(channel, notesByChannel.get(channel.id) ?? []),
   }));
   const rows = new Map(channels.map(channel => [channel.id, channel]));
@@ -143,16 +151,16 @@ export async function prepareFlpImport(bytes: Uint8Array, filename: string, samp
     }
   }
   for (const [kind, count] of ignoredClips) warnings.push(`只导入音符：忽略 ${count} 个${kind}片段，原始内容保留在嵌入的 FLP 中。`);
-  for (const row of channels) row.selected = row.enabled && row.kind === 0 && row.activeNoteCount > 0;
+  for (const row of channels) row.selected = row.enabled && flpChannelSupportsNotes(row) && row.activeNoteCount > 0;
   return withFlpSampleChecks({ source, filename, bytes: owned, sourceSha256, channels, warnings: unique(warnings), blockers: unique(blockers) }, sampleChecks);
 }
 
 /** Host checks only read authorized files; this function never resolves a sample path. */
 export function withFlpSampleChecks(plan: FlpImportPlan, checks: FlpSampleChecks): FlpImportPlan {
   const channels = plan.channels.map(row => {
-    const check = checks[row.id], hash = check?.sha256.toLowerCase(), known = hash && catalogue.get(hash);
+    const check = row.kind === 0 ? checks[row.id] : undefined, hash = check?.sha256.toLowerCase(), known = hash && catalogue.get(hash);
     const { sampleSha256: _hash, checkedSamplePath: _path, ...base } = row;
-    return { ...base, instrumentId: known ?? suggestInstrument(plan.source.channels[row.id].name), baselineMidi: 66,
+    return { ...base, instrumentId: row.kind === 0 ? known ?? suggestInstrument(plan.source.channels[row.id].name) : '', baselineMidi: 66,
       verified: !!known, confirmed: false,
       ...(hash ? { sampleSha256: hash } : {}), ...(check?.path ? { checkedSamplePath: check.path } : {}),
     };
@@ -164,10 +172,10 @@ export function flpChannelChoiceError(plan: FlpImportPlan, choice: FlpChannelCho
   if (!choice.selected) return;
   const row = plan.channels.find(channel => channel.id === choice.id);
   if (!row) return `选择了不存在的 FL 通道 ${choice.id}。`;
-  if (row.kind !== 0 || row.issues.length) return `${row.name}：${row.issues.join('；') || '不支持此通道类型。'}`;
+  if (!flpChannelSupportsNotes(row) || row.issues.length) return `${row.name}：${row.issues.join('；') || '此通道没有可转换的 MIDI 音符。'}`;
   if (!INSTRUMENTS.some(instrument => instrument.id === choice.instrumentId)) return `${row.name}：请选择有效的音符盒乐器，不能使用默认回退。`;
   if (!finite(choice.baselineMidi, 0, 127)) return `${row.name}：采样基准 MIDI 必须为 0～127 的有限数。`;
-  if (!(row.verified && row.instrumentId === choice.instrumentId && row.baselineMidi === choice.baselineMidi) && choice.confirmed !== true) return `${row.name}：请确认采样相对所选乐器的音高基准；名称不能作为校准证据。`;
+  if (!(row.kind === 0 && row.verified && row.instrumentId === choice.instrumentId && row.baselineMidi === choice.baselineMidi) && choice.confirmed !== true) return `${row.name}：请确认相对所选乐器的音高基准；名称不能作为校准证据。`;
 }
 
 export function importFlp(plan: FlpImportPlan, choices: FlpChannelChoice[], options: { acknowledgeWarnings: boolean }): { project: Project; diagnostics: Diagnostic[] } {
@@ -179,7 +187,7 @@ export function importFlp(plan: FlpImportPlan, choices: FlpChannelChoice[], opti
     const error = flpChannelChoiceError(plan, choice); if (error) throw new Error(error);
     if (choice.selected) selected.set(choice.id, choice);
   }
-  if (!selected.size) throw new Error('请至少选择一个可导入的采样器通道。');
+  if (!selected.size) throw new Error('请至少选择一个可导入的音符通道。');
   const source = plan.source, groups = noteGroups(source);
   const copies: { clip: FlpProject['clips'][number]; channel: FlpChannel; group: NoteGroup; choice: FlpChannelChoice; key: string; muted: boolean }[] = [];
   const trackPlans = new Map<string, { row: number; channel: FlpChannel; muted: boolean; choice: FlpChannelChoice }>();
@@ -201,7 +209,7 @@ export function importFlp(plan: FlpImportPlan, choices: FlpChannelChoice[], opti
   if (!occurrences) throw new Error('所选通道在播放列表范围内没有有效起音。');
   // Validate every source note before allocating converted notes or project copies.
   for (const { channel, group, choice } of copies) for (const note of group.notes) {
-    const pitch = choice.baselineMidi + note.key - channel.root + (channel.pitch + channel.fine + (channel.sampler.stretchPitchCents ?? 0) + (note.fine - 120) * 10) / 100;
+    const pitch = choice.baselineMidi + note.key - channel.root + (channel.pitch + channel.fine + (channel.kind === 0 ? channel.sampler.stretchPitchCents ?? 0 : 0) + (note.fine - 120) * 10) / 100;
     if (!finite(pitch, 0, 127)) throw new Error(`${channel.name}：源 tick ${note.position} 的音高 ${pitch} 超出 MIDI 0～127，未裁剪。`);
   }
   const project = createProject(plan.filename.replace(/^.*[\\/]/, '').replace(/\.flp$/i, ''));
@@ -214,7 +222,7 @@ export function importFlp(plan: FlpImportPlan, choices: FlpChannelChoice[], opti
   }
   for (const { clip, channel, group, choice, key } of copies) {
     const notes = group.notes.map(sourceNote => {
-      const pitch = choice.baselineMidi + sourceNote.key - channel.root + (channel.pitch + channel.fine + (channel.sampler.stretchPitchCents ?? 0) + (sourceNote.fine - 120) * 10) / 100;
+      const pitch = choice.baselineMidi + sourceNote.key - channel.root + (channel.pitch + channel.fine + (channel.kind === 0 ? channel.sampler.stretchPitchCents ?? 0 : 0) + (sourceNote.fine - 120) * 10) / 100;
       const midi = Math.round(pitch);
       return { ...newNote(sourceNote.position, midi, sourceNote.length), velocity: sourceNote.velocity / 128,
         pan: channel.pan === 6400 ? sourceNote.pan / 64 - 1 : (sourceNote.pan / 64 + channel.pan / 6400) / 2 - 1,

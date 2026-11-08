@@ -11,7 +11,7 @@ export function moveRegion(project: Project, regionId: string, targetTrackId: st
   const source = project.tracks.find(item => item.id === region?.trackId);
   const target = project.tracks.find(item => item.id === targetTrackId);
   let pattern = project.patterns.find(item => item.id === region?.patternId);
-  if (!region || !source || !target || !pattern || source.locked || target.locked) return;
+  if (!region || !source || !target || !pattern || source.locked || target.locked || target.kind==='audio') return;
   if (region.trackId === targetTrackId && region.start === start) return region;
 
   if (region.trackId !== targetTrackId && pattern.notes.some(note => note.midiSource?.offSourceTrack !== undefined)) {

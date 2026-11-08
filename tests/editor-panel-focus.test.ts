@@ -111,3 +111,29 @@ describe('editor panel focus callbacks (no browser input)', () => {
     expect(state.onActivePanel).not.toHaveBeenCalled(); expect(state.active()).toBe('arrangement');
   });
 });
+
+
+describe('workstation view switching', () => {
+  it('keeps both editor trees mounted and restores the divider after repeated switching', () => {
+    const state = panelFixture();
+    const select = (name: string) => {
+      const bar = state.render().props.children.find((child: InertElement) => child.props['aria-label'] === '编辑工作区布局');
+      const buttons = bar.props.children[1].props.children[0];
+      buttons.find((button: InertElement) => button.props.children[0] === name).props.onClick();
+    };
+    for (let i = 0; i < 3; i++) {
+      select('编曲');
+      expect(state.node('arrangement').props.hidden).toBe(false);
+      expect(state.node('piano').props.hidden).toBe(true);
+      expect(state.active()).toBe('arrangement');
+      select('钢琴卷帘');
+      expect(state.node('arrangement').props.hidden).toBe(true);
+      expect(state.node('piano').props.hidden).toBe(false);
+      expect(state.active()).toBe('piano');
+      select('分屏');
+      expect(state.node('arrangement').props.hidden).toBe(false);
+      expect(state.node('piano').props.hidden).toBe(false);
+      expect(state.render().props.children.find((child: InertElement) => child.props.role === 'separator').props.hidden).toBe(false);
+    }
+  });
+});

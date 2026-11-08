@@ -13,6 +13,8 @@ export interface PianoPreviewActive {
   velocityMode?: VelocityMode;
   /** The caller applies its preset's dragPlacedNote semantics once. */
   addedPreview?: Note;
+  /** Alt-drag creates stable new identities while the original notes remain. */
+  copyIds?: ReadonlyMap<string, string>;
 }
 
 export interface PianoPreviewStats extends PianoNoteQueryStats {
@@ -68,10 +70,11 @@ export function previewPianoNotes(
     if (stats) stats.selectedCandidates = selectedCandidates.length;
     const moved: Note[] = [];
     for (const note of selectedCandidates) if (active.ids.has(note.id)) {
-      moved.push(active.kind === 'move' ? { ...note, tick: note.tick + active.deltaTick, midi: note.midi + active.deltaPitch }
+      moved.push(active.kind === 'move' ? { ...note, ...(active.copyIds ? { id: active.copyIds.get(note.id) ?? note.id, midiSource: undefined } : {}), tick: note.tick + active.deltaTick, midi: note.midi + active.deltaPitch }
         : { ...note, duration: Math.max(1, note.duration + active.deltaTick) });
     }
     if (stats) stats.transformedNotes = moved.length;
+    if (active.kind === 'move' && active.copyIds) return [...visible, ...moved];
     const unchanged = visible.filter(note => !active.ids.has(note.id)), output: Note[] = [];
     let left = 0, right = 0;
     while (left < unchanged.length && right < moved.length) {

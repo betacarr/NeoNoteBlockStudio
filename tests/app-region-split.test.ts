@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { applyNoteEdit } from '../src/core/note-edit';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
@@ -91,7 +92,7 @@ function fixture(project = projectFixture()) {
     const numberGeneration = numberEditOwner.current.generation;
     const numberContext = Function('editorDocumentKey', 'project', 'numberGeneration', 'region', 'pattern', 'selectedNotes', `return ${numberContextCode}`)(state.editorDocumentKey, project, numberGeneration, region, pattern, state.selectedNotes) as string;
     liveNumberContext.current = numberContext;
-    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, ...state, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, numberContext, liveNumberContext, numberDrafts,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, ...state, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, numberContext, liveNumberContext, numberDrafts,
       track, region, pattern, selected, selectedRegionsRef, instrumentFilterRef, liveClipboardTarget, clipboardTarget, positionRef, preferences,
       history, future, produce, normalizeEditorSelection, resolveEditorSelection, createMeterMap, patternOrigin, meterMap: createMeterMap(project),
       uid, newNote, newTrack, moveRegion, trimRegion, changeSelectedNotes, notesUnchanged, applyNoteEdit, growEditedPattern, MAX_PROJECT_TICK, inspectorBeatTicks, noteTimingError, regionLengthError, filterTracks,
@@ -187,7 +188,7 @@ describe('Actual App split no-op, ownership and live numeric draft boundaries', 
 
   it('blocks an invalid number draft before core inspection and retains all history/selection', () => {
     const t = fixture(); t.markRedo(); const redo = t.future.current, selection = t.render().selectionSnapshot(); t.numberDrafts.current.add('length'); t.hooks.flush = () => false;
-    t.render().splitSelectedRegions(); expect(t.inspect).not.toHaveBeenCalled(); expect(t.split).not.toHaveBeenCalled(); expect(t.projectRef.current).toBe(t.project); expect(t.future.current).toBe(redo); expect(t.render().selectionSnapshot()).toEqual(selection); expect(t.state.message).toContain('数字');
+    t.render().splitSelectedRegions(); expect(t.inspect).not.toHaveBeenCalled(); expect(t.split).not.toHaveBeenCalled(); expect(t.projectRef.current).toBe(t.project); expect(t.future.current).toBe(redo); expect(t.render().selectionSnapshot()).toEqual(selection); expect(t.state.message).toContain('输入');
   });
 
   it('inspects and splits fresh geometry after a valid numeric length commit without a React render', () => {
@@ -258,7 +259,7 @@ describe('Actual App split command dispatch at inert text/native boundaries', ()
     vi.stubGlobal('Element', FakeElement);
     try {
       const dispatch = vi.fn(), commands = { current: { 'split-region': dispatch } }, bindings = inspectShortcuts('fl', {}, 'win').effective;
-      const scope = { isShortcutInput, modal: null, setModal: vi.fn(), cancelFlpImport: vi.fn(), keyboardEnabled: false, recording: false, shortcutPlatform: 'win', shortcutForEvent, commandForShortcut, bindings, commands, midiDown: { current: vi.fn() } };
+      const scope = { ...noteOnlyAppHarnessBoundaries(), isShortcutInput, modal: null, setModal: vi.fn(), cancelFlpImport: vi.fn(), keyboardEnabled: false, recording: false, shortcutPlatform: 'win', shortcutForEvent, commandForShortcut, bindings, commands, midiDown: { current: vi.fn() } };
       const keydown = Function(...Object.keys(scope), `${keyboard}\nreturn onKeyDown;`)(...Object.values(scope)) as (event: unknown) => void;
       const event = (input: boolean) => ({ key: 't', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, isComposing: false, defaultPrevented: false, repeat: false, target: new FakeElement(input), getModifierState: () => false, preventDefault: vi.fn() });
       const text = event(true); keydown(text); expect(dispatch).not.toHaveBeenCalled(); expect(text.preventDefault).not.toHaveBeenCalled();

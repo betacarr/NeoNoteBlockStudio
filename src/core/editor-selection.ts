@@ -4,6 +4,8 @@ export interface EditorSelection {
   trackId?: string;
   regionId?: string;
   regionIds?: string[];
+  audioClipId?: string;
+  audioClipIds?: string[];
   noteIds: string[];
   focus: 'piano' | 'arrangement';
 }
@@ -37,6 +39,11 @@ export function resolveEditorSelection(project: Project, selection: Readonly<Edi
  * its primary: keep a member primary, otherwise use its first valid member.
  */
 export function normalizeEditorSelection(project: Project, selection: Readonly<EditorSelection>): EditorSelection {
+  if (selection.audioClipIds?.length) {
+    const ids = [...new Set(selection.audioClipIds)].filter(id => project.audioClips?.some(clip => clip.id === id && project.tracks.some(track => track.id === clip.trackId)));
+    const primary = project.audioClips?.find(clip => clip.id === (ids.includes(selection.audioClipId ?? '') ? selection.audioClipId : ids[0]));
+    return { trackId: primary?.trackId ?? selection.trackId, regionIds: [], noteIds: [], audioClipIds: ids, audioClipId: primary?.id, focus: 'arrangement' };
+  }
   if (Object.prototype.hasOwnProperty.call(selection, 'regionIds')) {
     const tracks = new Set(project.tracks.map(track => track.id)), regions = new Map(project.regions.map(region => [region.id, region]));
     const group = [...new Set(selection.regionIds ?? [])].filter(id => { const region = regions.get(id); return region !== undefined && tracks.has(region.trackId); });

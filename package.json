@@ -1,6 +1,6 @@
 {
   "name": "neo-noteblock-studio",
-  "version": "0.1.59",
+  "version": "0.1.60",
   "private": true,
   "description": "A MIDI-first desktop note block workstation with NBSX projects and NBS interoperability.",
   "type": "module",
@@ -15,7 +15,7 @@
     "test:desktop": "node scripts/smoke-desktop.mjs",
     "test:lifecycle": "node scripts/smoke-file-lifecycle.mjs",
     "start": "electron .",
-    "package:win": "npm run build && electron-builder --win --x64 && node scripts/check-release.mjs",
+    "package:win": "npm run build && electron-builder --win --x64 --publish never && node scripts/check-release.mjs",
     "package:mac": "npm run build && node scripts/package-mac.mjs",
     "research:audio": "node scripts/research-audio.mjs",
     "audit:publication": "node scripts/check-publication.mjs",
@@ -63,8 +63,14 @@
       "dist/**/*",
       "dist-electron/**/*",
       "!**/*.map",
+      "!**/__pycache__/**",
+      "!**/*.pyc",
       "third_party/flp2nbs/LICENSE",
       "third_party/flp2nbs/NOTICE.txt",
+      "third_party/noteblockstudio-glass/LICENSE",
+      "third_party/noteblockstudio-glass/NOTICE.txt",
+      "third_party/liquid-glass/LICENSE",
+      "third_party/liquid-glass/NOTICE.txt",
       "package.json",
       "LICENSE",
       "THIRD_PARTY_NOTICES.md",
@@ -82,7 +88,23 @@
     ],
     "asarUnpack": [
       "node_modules/koffi/**/*",
-      "dist-electron/java/**/*"
+      "dist-electron/java/**/*",
+      "dist-electron/*.py",
+      "dist-electron/mega_roformer/**/*",
+      "dist-electron/smart-tempo-model.json"
+    ],
+    "extraResources": [
+      {
+        "from": "scripts",
+        "to": "audio-runtime-tools",
+        "filter": [
+          "setup-audio-assist-macos.sh",
+          "setup-audio-assist.ps1",
+          "audio-assist-requirements.txt",
+          "setup-smart-tempo.py",
+          "smart-tempo-model.json"
+        ]
+      }
     ],
     "electronDist": "node_modules/electron/dist",
     "win": {

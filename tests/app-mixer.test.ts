@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { produce } from 'immer';
@@ -25,7 +26,7 @@ function fixture() {
   const finishNumberDraft = vi.fn(() => true);
   const selectedRegionsRef = { current: new Set([project.regions[0].id]) }, instrumentFilterRef = { current: '' };
   const actions = (captured = projectRef.current, generation = numberEditOwner.current.generation) => {
-    const scope = { project:captured, projectRef, numberEditOwner, numberGeneration:generation, produce, history, future,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), project:captured, projectRef, numberEditOwner, numberGeneration:generation, produce, history, future,
       region:captured.regions.find(region => region.id === state.selectedRegion), playing:true,
       selectionSnapshot:(project:Project) => normalizeEditorSelection(project,{trackId:state.selectedTrack,regionId:state.selectedRegion,noteIds:[...state.selectedNotes],focus:state.focus as 'piano'}),
       setProject:vi.fn(),setDirty:(value:boolean) => { state.dirty = value; },setRevision:(update:(value:number)=>number) => { state.revision = update(state.revision); },

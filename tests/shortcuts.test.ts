@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commandForShortcut, createShortcutConfig, displayShortcut, fixedShortcuts, inspectShortcuts, isTransportSpace, normalizeShortcut, parseShortcutConfig, SHORTCUT_PRESETS, shortcutForEvent } from '../src/core/shortcuts';
+import { STEM_SPLITTER_PRESET_IDS } from '../src/core/stem-splitter-presets';
 
 const event = (key: string, patch: Partial<KeyboardEvent> = {}) => ({ key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...patch });
 const nudges = [
@@ -9,6 +10,19 @@ const nudges = [
   ['ArrowRight', true, 'nudge-beat-right', '音符右移四分拍'],
 ] as const;
 describe('effective shortcut mappings', () => {
+  it('allows binding each Stem Splitter preset and leaves all eight unassigned by default', () => {
+    for (const platform of ['darwin', 'win32']) {
+      const defaultBindings = inspectShortcuts('logic', {}, platform).effective;
+      for (const id of STEM_SPLITTER_PRESET_IDS) {
+        const command = `stem-preset-${id}` as const;
+        expect(defaultBindings[command]).toBe('');
+        const config = createShortcutConfig({ preset: 'logic', shortcuts: { [command]: 'Ctrl+Alt+1' } }, platform);
+        expect(parseShortcutConfig(JSON.stringify(config), platform).config).toEqual(config);
+        const binding = shortcutForEvent(event('1', { altKey: true, metaKey: platform === 'darwin', ctrlKey: platform === 'win32' }), platform);
+        expect(commandForShortcut(binding, inspectShortcuts(config.preset, config.shortcuts, platform).effective, platform)).toBe(command);
+      }
+    }
+  });
   it('leaves track organization unbound and keeps Delete focused on the current editor', () => {
     for (const preset of Object.keys(SHORTCUT_PRESETS) as (keyof typeof SHORTCUT_PRESETS)[]) for (const platform of ['win32', 'darwin']) {
       const checked = inspectShortcuts(preset, {}, platform);

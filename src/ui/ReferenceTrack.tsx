@@ -7,11 +7,22 @@ import type { WaveformPeaks } from '../core/reference';
 import { ReferenceWaveform } from './ReferenceWaveform';
 import { captureEditorPointer } from './pointer-capture';
 import { startHorizontalEdgeScroll } from './edge-scroll';
+import { CommitNumberInput, flushActiveNumberInput } from './CommitNumberInput';
+import { CommitRangeInput } from './CommitRangeInput';
 import './ReferenceTrack.css';
 
 type Change = (patch: { startTick?: number; gain?: number }) => void;
-export function ReferenceHeader({ name, reference, ppq, onChange, onRemove }: { name: string; reference: NonNullable<Project['reference']>; ppq: number; onChange: Change; onRemove: () => void }) {
-  return <div className="reference-header"><div><Waveform size={14} /><strong title={name}>{name}</strong><button aria-label="移除参考音频" onClick={onRemove}><X size={12} /></button></div><div><label>起点<input aria-label="参考音频起始四分拍" type="number" min="0" step=".25" value={reference.startTick / ppq} onChange={e => { if (Number.isFinite(e.currentTarget.valueAsNumber)) onChange({ startTick: Math.max(0, e.currentTarget.valueAsNumber * ppq) }); }} /></label><label>音量<input aria-label="参考音频音量" type="range" min="0" max="1" step=".01" value={reference.gain} onChange={e => onChange({ gain: e.currentTarget.valueAsNumber })} /></label></div></div>;
+interface HeaderProps { name: string; reference: NonNullable<Project['reference']>; ppq: number; onChange: Change; onRemove: () => void;
+  contextKey?: string; gestureOwner?: object; getGestureOwner?: () => object; onNumberPending?: (field: string, pending: boolean) => void }
+export function ReferenceHeader(props: HeaderProps) {
+  const { name, reference, ppq, onChange, onRemove } = props;
+  const latest = useRef(props); latest.current = props;
+  const target = useRef({ reference, ppq, generation: 0 });
+  if (target.current.reference !== reference || target.current.ppq !== ppq) target.current = { reference, ppq, generation: target.current.generation + 1 };
+  const context = `${props.contextKey ?? reference.assetId}/${target.current.generation}`;
+  const owner = props.gestureOwner ?? reference;
+  const getOwner = () => latest.current.getGestureOwner?.() ?? latest.current.gestureOwner ?? latest.current.reference;
+  return <div className="reference-header"><div><Waveform size={14} /><strong title={name}>{name}</strong><button aria-label="移除参考音频" onClick={onRemove}><X size={12} /></button></div><div><label>起点<CommitNumberInput aria-label="参考音频起始四分拍" min={0} max={1e12 / ppq} step={.25} value={reference.startTick / ppq} contextKey={context} onPendingChange={pending => props.onNumberPending?.('reference-start', pending)} onCommit={start => onChange({ startTick: start * ppq })} /></label><label>音量<CommitRangeInput aria-label="参考音频音量" min={0} max={1} step={.01} value={reference.gain} contextKey={context} owner={owner} getOwner={getOwner} onPrepare={flushActiveNumberInput} onPreview={() => {}} onCommit={gain => onChange({ gain })} formatValue={gain => `${Math.round(gain * 100)}%`} /></label></div></div>;
 }
 interface Props { project: Project; name: string; peaks?: WaveformPeaks; meter: MeterMap; step: number; scale: number; scroll: RefObject<HTMLDivElement | null>; left: number; width: number; onChange: Change; onSeek: (tick: number) => void; gestureOwner?: object; getGestureOwner?: () => object; onPreviewExtent?: (owner: object, endTick?: number) => void }
 export function ReferenceLane(props: Props) {

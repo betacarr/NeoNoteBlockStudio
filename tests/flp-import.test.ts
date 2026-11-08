@@ -48,9 +48,9 @@ describe('FLP import review and sampler calibration', () => {
     const bytes = fixture({ channels: [{ name: 'Mystery' }, { name: 'flute', enabled: false }, { name: 'Plugin', kind: 2 }], patterns: { 1: [{}, { position: 400 }, { channel: 1 }, { channel: 2 }] } });
     const original = bytes.slice(), plan = await prepareFlpImport(bytes, 'source.flp');
     expect(plan.sourceSha256).toBe(createHash('sha256').update(original).digest('hex'));
-    expect(plan.channels.map(row => [row.id, row.noteCount, row.activeNoteCount, row.selected, row.instrumentId, row.verified])).toEqual([[0, 2, 1, true, '', false], [1, 1, 0, false, 'flute', false], [2, 1, 1, false, '', false]]);
+    expect(plan.channels.map(row => [row.id, row.noteCount, row.activeNoteCount, row.selected, row.instrumentId, row.verified])).toEqual([[0, 2, 1, true, '', false], [1, 1, 0, false, 'flute', false], [2, 1, 1, true, '', false]]);
     bytes[0] = 0; expect(plan.bytes).toEqual(original); expect(plan.bytes).not.toBe(bytes);
-    const choices = choicesFor(plan); expect(() => importFlp(plan, choices, { acknowledgeWarnings: true })).toThrow('有效');
+    const choices = choicesFor(plan); choices[2].selected = false; expect(() => importFlp(plan, choices, { acknowledgeWarnings: true })).toThrow('有效');
     choices[0].instrumentId = 'bell'; expect(importFlp(plan, choices, { acknowledgeWarnings: true }).project.tracks[0].instrumentId).toBe('bell');
   });
 
@@ -147,14 +147,64 @@ describe('FLP source notes, playlist copies and explicit limitations', () => {
     expect(flags.blockers.some(blocker => blocker.includes('flags'))).toBe(true);
   });
 
-  it('requires plugins and unsupported sampler channels to be skipped rather than confirmed into normal notes', async () => {
-    for (const channel of [{ name: 'flute', kind: 2 }, { name: 'flute', extra: [numberEvent(89, 1)] }]) {
+  it('still requires unsupported sampler parameters to be skipped rather than confirmed away', async () => {
+    for (const channel of [{ name: 'flute', extra: [numberEvent(89, 1)] }]) {
       const plan = await prepareFlpImport(fixture({ channels: [{ name: 'pling' }, channel], patterns: { 1: [{}, { channel: 1 }] } }), 'unsupported.flp');
       expect(() => importFlp(plan, allChoices(plan), { acknowledgeWarnings: true })).toThrow();
       const selected = choicesFor(plan); selected[1].selected = false;
       const result = importFlp(plan, selected, { acknowledgeWarnings: true }); expect(result.project.tracks).toHaveLength(1);
       expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'flp-skipped-channels' }));
     }
+  });
+
+  it.each([1, 2, 3])('imports actual MIDI notes from channel kind %i only after explicit user mapping', async kind => {
+    const plan = await prepareFlpImport(fixture({ channels: [{ name: 'harp' }, { name: 'flute', kind, root: 60, pitch: 25, fine: 5 }],
+      patterns: { 1: [{}, { channel: 1, position: 24, key: 64, length: 37, velocity: 96, pan: 80, fine: 121 }] },
+      clips: [{ pattern: 1, position: 192 }] }), 'midi-channel.flp', { 1: { sha256: PLING_HASH } });
+    expect(plan.channels[1]).toMatchObject({ kind, selected: true, instrumentId: '', verified: false, noteCount: 1, issues: [] });
+    expect(plan.channels[1]).not.toHaveProperty('sampleSha256');
+    const choices = choicesFor(plan);
+    expect(() => importFlp(plan, choices, { acknowledgeWarnings: true })).toThrow('有效');
+    choices[1] = { ...choices[1], instrumentId: 'bell', baselineMidi: 62, confirmed: false };
+    expect(() => importFlp(plan, choices, { acknowledgeWarnings: true })).toThrow('确认');
+    choices[1].confirmed = true;
+    const { project } = importFlp(plan, choices, { acknowledgeWarnings: true });
+    const imported = flattenNotes(project).find(note => note.effectiveInstrument === 'bell')!;
+    expect(imported).toMatchObject({ absoluteTick: 216, midi: 66, duration: 37, velocity: .75, effectivePan: .25 });
+    expect(imported.detune).toBeCloseTo(40);
+    const reopened = openNbsx(saveNbsx(project));
+    expect(flattenNotes(reopened).map(note => [note.absoluteTick, note.duration, note.midi, note.velocity, note.effectivePan, note.effectiveInstrument])).toEqual(
+      flattenNotes(project).map(note => [note.absoluteTick, note.duration, note.midi, note.velocity, note.effectivePan, note.effectiveInstrument]));
+  });
+
+  it('does not invent MIDI eligibility for empty plugins or audio and automation channels with note records', async () => {
+    const plan = await prepareFlpImport(fixture({ channels: [{ name: 'pling' }, { name: 'harp', kind: 2 }, { kind: 4 }, { kind: 5 }],
+      patterns: { 1: [{}, { channel: 2 }, { channel: 3 }] } }), 'not-midi.flp');
+    for (const id of [1, 2, 3]) {
+      expect(plan.channels[id].selected).toBe(false);
+      expect(flpChannelChoiceError(plan, { ...choicesFor(plan)[id], instrumentId: 'harp', selected: true })).toBeDefined();
+    }
+    expect(importFlp(plan, choicesFor(plan), { acknowledgeWarnings: true }).project.tracks).toHaveLength(1);
+  });
+
+  it('does not apply sampler-only audio tuning or range settings to plugin MIDI, while retaining sampler guards', async () => {
+    const sampler = new Uint8Array(168), view = new DataView(sampler.buffer);
+    view.setUint32(96, 96, true); view.setInt32(100, 1200, true); view.setFloat64(128, .25, true);
+    view.setFloat64(136, .5, true); view.setFloat64(160, .75, true);
+    for (const kind of [0, 2]) {
+      const plan = await prepareFlpImport(fixture({ channels: [{ name: 'harp', kind, root: 60, extra: [event(215, sampler)] }],
+        patterns: { 1: [{ key: 64, fine: 121 }] } }), 'sampler-settings.flp');
+      const choices = allChoices(plan); choices[0].baselineMidi = 60;
+      expect(plan.source.channels[0].issues.length).toBeGreaterThan(0);
+      if (kind === 0) expect(() => importFlp(plan, choices, { acknowledgeWarnings: true })).toThrow('采样');
+      else {
+        expect(plan.channels[0].issues).toEqual([]);
+        const note = importFlp(plan, choices, { acknowledgeWarnings: true }).project.patterns[0].notes[0];
+        expect(note.midi).toBe(64); expect(note.detune).toBeCloseTo(10);
+      }
+    }
+    const malformed = await prepareFlpImport(fixture({ channels: [{ kind: 2, extra: [event(215, new Uint8Array(100))] }] }), 'malformed-plugin.flp');
+    expect(() => importFlp(malformed, allChoices(malformed), { acknowledgeWarnings: true })).toThrow('布局');
   });
 
   it('blocks slide and unknown note flags even outside the current crop, but allows that channel to be skipped', async () => {

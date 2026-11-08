@@ -63,6 +63,13 @@ export function trimRegion(project: Project, regionId: string, edge: 'start' | '
     for (const event of pattern.midiEvents ?? []) event.tick += plan.prepend;
     pattern.length += plan.prepend;
   }
+  // A wrapped loop offset or a prepended source moves the coordinate origin.
+  // Rebase saved chords by the same amount so their audible positions stay put.
+  const rebase = plan.region.offset - (region.offset + (plan.region.start - region.start));
+  if (rebase && region.chords) region.chords = region.chords.flatMap(chord => {
+    const start = Math.max(0, chord.start + rebase), end = chord.end + rebase;
+    return end > start ? [{ ...chord, start, end }] : [];
+  });
   Object.assign(region, { start: plan.region.start, offset: plan.region.offset, length: plan.region.length });
   return region;
 }

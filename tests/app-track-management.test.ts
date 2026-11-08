@@ -1,3 +1,5 @@
+import { audioTrackChildren } from '../src/core/audio-clips';
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { applyNoteEdit } from '../src/core/note-edit';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
@@ -86,7 +88,7 @@ function fixture(project = projectFixture()) {
     liveClipboardTarget.current = clipboardTarget; selectedRegionsRef.current = state.selectedRegions; instrumentFilterRef.current = state.instrumentFilter;
     const numberGeneration = numberEditOwner.current.generation;
     const numberContext = Function('editorDocumentKey', 'project', 'numberGeneration', 'region', 'pattern', 'selectedNotes', `return ${numberContextCode}`)(state.editorDocumentKey, project, numberGeneration, region, pattern, state.selectedNotes) as string; liveNumberContext.current = numberContext;
-    const scope = { recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, ...state, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, numberContext, liveNumberContext, numberDrafts, track, region, pattern, selected,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), audioTrackChildren, recordDiagnostic: () => {}, audioDiagnosticSnapshot: () => ({}), signalLogged: { current: false }, ...state, project, projectRef, savedSnapshot, numberEditOwner, numberGeneration, numberContext, liveNumberContext, numberDrafts, track, region, pattern, selected,
       selectedRegionsRef, instrumentFilterRef, liveClipboardTarget, clipboardTarget, history, future, produce, normalizeEditorSelection, resolveEditorSelection, createMeterMap, patternOrigin,
       filterTracks, uid, newNote, newTrack, changeSelectedNotes, notesUnchanged, applyNoteEdit, growEditedPattern, trimRegion, moveRegion, MAX_PROJECT_TICK, inspectorBeatTicks, noteTimingError, regionLengthError,
       inspectTrackMove: inspectMove, moveTrackInView: move, inspectTrackDelete: inspectDelete, deleteTrack: remove, allocateTrackMidiChannel: allocate,
@@ -181,7 +183,7 @@ describe('Actual App track commands: drafts, live ownership, channel allocation 
   it.each(['up', 'down', 'remove', 'add'] as const)('blocks %s before inspection/allocation when a number draft is invalid', action => {
     const t = fixture(); t.redoMarker(); const redo = t.future.current, selected = t.render().selectionSnapshot(); t.numberDrafts.current.add('velocity'); t.hooks.flush = () => false;
     const api = t.render(); if (action === 'up') api.moveCurrentTrack(-1); else if (action === 'down') api.moveCurrentTrack(1); else if (action === 'remove') api.deleteCurrentTrack(); else api.addTrack();
-    expect(t.projectRef.current).toBe(t.project); expect(t.future.current).toBe(redo); expect(t.render().selectionSnapshot()).toEqual(selected); expect(t.inspectMove).not.toHaveBeenCalled(); expect(t.inspectDelete).not.toHaveBeenCalled(); expect(t.allocate).not.toHaveBeenCalled(); expect(t.state.message).toContain('数字');
+    expect(t.projectRef.current).toBe(t.project); expect(t.future.current).toBe(redo); expect(t.render().selectionSnapshot()).toEqual(selected); expect(t.inspectMove).not.toHaveBeenCalled(); expect(t.inspectDelete).not.toHaveBeenCalled(); expect(t.allocate).not.toHaveBeenCalled(); expect(t.state.message).toContain('输入');
   });
 
   it('uses a legitimate numeric commit before deletion, so one Undo restores the freshly edited note', () => {
@@ -223,9 +225,24 @@ describe('Actual App track commands: drafts, live ownership, channel allocation 
 
   it('renders compact inspector controls and the same menu commands, names the delete target/count, and leaves Delete as selected-content deletion', () => {
     const t = fixture(), api = t.render(); expect(api.control('remove').props.title).toContain('Track 2'); expect(api.control('remove').props.title).toContain('1 个片段'); expect(api.control('remove').props.title).toContain('撤销');
-    expect(api.menu().items.map(item => item.command)).toEqual(['add-track', 'track-up', 'track-down', 'delete-track']); api.control('up').props.onClick(); expect(t.history.current).toHaveLength(1);
+    expect(api.menu().items.map(item => item.command)).toEqual(['add-track', 'add-drum-track', 'track-up', 'track-down', 'delete-track']); api.control('up').props.onClick(); expect(t.history.current).toHaveLength(1);
     const bindings = section('  commands.current =', '\n  const bindings ='); expect(bindings).toContain("'track-up': () => moveCurrentTrack(-1)"); expect(bindings).toContain("'track-down': () => moveCurrentTrack(1)"); expect(bindings).toContain("'delete-track': deleteCurrentTrack"); expect(bindings).toContain('delete: deleteSelection');
     expect(section('    const onSpaceDown =', '\n    const onKeyDown =')).toContain('commands.current.play?.()');
     expect(t.inspectMove).toHaveBeenCalledOnce(); expect(t.inspectDelete).not.toHaveBeenCalled(); expect(t.stop).not.toHaveBeenCalled();
   });
+});
+it('deletes an audio group with the actual App history and restores all child mix/references on undo and redo', () => {
+  const project = projectFixture();
+  project.regions = project.regions.filter(r => r.trackId === 'track-0' || r.trackId === 'track-1');
+  for (const track of project.tracks.slice(2)) track.kind = 'audio';
+  project.tracks[2].audioGroup = { sourceClipId: 'historical-source', collapsed: true };
+  project.tracks[3].parentTrackId = project.tracks[4].parentTrackId = 'track-2';
+  project.tracks[3].muted = true; project.tracks[4].solo = true;
+  project.audioClips = ['track-3','track-4'].map((trackId,i) => ({id:`audio-${i}`,trackId,assetId:'portable',name:'stem',start:960,offsetSeconds:0,durationSeconds:2}));
+  const t = fixture(project); t.render().selectTrack(project.tracks[2]); const before = t.projectRef.current;
+  t.render().deleteCurrentTrack(); const after = t.projectRef.current;
+  expect(after.tracks.map(t=>t.id)).toEqual(['track-0','track-1']); expect(after.audioClips).toEqual([]); expect(after.assets).toEqual(before.assets);
+  expect(t.history.current).toHaveLength(1); t.render().undo(); expect(t.projectRef.current).toBe(before);
+  expect(t.projectRef.current.tracks[3]).toMatchObject({parentTrackId:'track-2',muted:true}); expect(t.projectRef.current.audioClips).toHaveLength(2);
+  t.render().redo(); expect(t.projectRef.current).toBe(after); roundtrip(after);
 });

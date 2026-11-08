@@ -26,26 +26,28 @@ try {
   assert.equal(await desktop.evaluate(({ app }) => app.isPackaged), !!packaged);
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForFunction(() => document.querySelectorAll('.sample-dot.loaded').length >= 16, { timeout: 45000 });
-  assert.equal(await page.title(), '玻璃庭院 — NeoNBS');
+  assert.equal(await page.title(), '欢乐颂 · 示例 — NeoNBS');
   report.initialTitle = await page.title();
   await desktop.evaluate(({ dialog }, filename) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename }); }, target);
   const saved = await page.evaluate(async ({ bytes }) => await window.desktop.saveFile('desktop-roundtrip.nbsx', new Uint8Array(bytes)), { bytes: [...fixture] });
   assert.equal(saved, target);
   const roundTrip = openNbsx(new Uint8Array(await readFile(target)));
-  assert.equal(roundTrip.name, '玻璃庭院'); assert.equal(roundTrip.tracks.length, 4);
+  assert.equal(roundTrip.name, '欢乐颂 · 示例'); assert.equal(roundTrip.tracks.length, 3);
   await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'play'));
   await page.getByRole('button', { name: '暂停', exact: true }).waitFor({ timeout: 30000 });
   await page.waitForFunction(() => !document.querySelector('.position strong').textContent.includes('1.1.00'));
   await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'play'));
   await page.getByRole('button', { name: '播放', exact: true }).first().waitFor();
   await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'duplicate'));
-  await page.waitForFunction(() => document.querySelectorAll('[data-testid=region]').length === 5);
-  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'undo'));
   await page.waitForFunction(() => document.querySelectorAll('[data-testid=region]').length === 4);
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'undo'));
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid=region]').length === 3);
   await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu', 'save'));
   await page.waitForFunction(() => document.querySelector('.status-message').textContent.includes('已保存'));
   const portable = openNbsx(new Uint8Array(await readFile(target)));
-  assert.equal(portable.assets.filter(a => a.data).length, 4);
+  // Bundled preview sounds remain app resources; only an explicitly loaded
+  // Minecraft library contributes portable sample assets to a saved project.
+  assert.equal(portable.assets.filter(a => a.data).length, 0);
   const result = await page.evaluate(async () => {
     const roots = await window.desktop.discoverMinecraft();
     const best = roots.find(r => r.versions.includes('1.16.5') && r.indexes.includes('1.16.json'));

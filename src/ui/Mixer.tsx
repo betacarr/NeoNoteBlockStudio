@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Project, Track } from '../core/types';
 import { filterTracks } from '../core/track-filter';
-import { CommitNumberInput } from './CommitNumberInput';
 import { InstrumentBlock } from './InstrumentBlock';
 import { TrackInstrumentFilter } from './TrackInstrumentFilter';
 import { captureEditorPointer } from './pointer-capture';
@@ -15,8 +14,6 @@ export interface MixerProps {
   onMasterPreview?: (gain: number | undefined) => void;
   meters: Record<string, number>; masterMeter?: number; playing: boolean; meterScope: 'tracks' | 'master';
   gestureOwner?: object; getGestureOwner?: () => object;
-  numberContextKey?: string; getNumberContextKey?: () => string;
-  onNumberPending?: (field: string, pending: boolean) => void;
 }
 const ownerIds = new WeakMap<object, number>(); let nextOwnerId = 0;
 function ownerKey(owner: object) { let id = ownerIds.get(owner); if (id === undefined) { id = ++nextOwnerId; ownerIds.set(owner, id); } return id; }
@@ -25,14 +22,13 @@ const panLabel = (percent: number) => percent === 0 ? '居中' : `${percent < 0 
 interface ParameterProps {
   label: string; title: string; value: number; min: number; max: number; reset: number; disabled?: boolean;
   vertical?: boolean; contextKey: string; owner: object; getOwner?: () => object;
-  numberContextKey: string; getNumberContextKey?: () => string;
-  onCommit: (value: number) => void; onNumberCommit: (value: number) => void; onPending?: MixerProps['onNumberPending'];
+  onCommit: (value: number) => void;
   onPreview?: (value: number | undefined) => void;
 }
 type ParameterTarget = { owner: object; context: string; value: number; min: number; max: number };
 type ParameterDrag = ParameterTarget & { pointer: number; preview: number; stop: () => void; onPreview?: ParameterProps['onPreview'] };
 
-/** Pointer changes preview audio; release commits once. Numeric drafts stay local. */
+/** Pointer changes preview audio; release commits once. */
 function MixerParameter(props: ParameterProps) {
   const current = useRef(props); current.current = props;
   const active = useRef<ParameterDrag | null>(null), alive = useRef(true), cancelled = useRef(false);
@@ -54,14 +50,6 @@ function MixerParameter(props: ParameterProps) {
     if (!valid(snapshot) || !Number.isFinite(value) || value < snapshot.min || value > snapshot.max) return false;
     if (!Object.is(value, current.current.value)) current.current.onCommit(value);
   };
-  const commitNumber = (value: number): void | boolean => {
-    const p = current.current;
-    if (!alive.current || p.disabled || p.numberContextKey !== props.numberContextKey
-      || p.getNumberContextKey && p.getNumberContextKey() !== props.numberContextKey
-      || !Object.is(p.value, props.value) || p.min !== props.min || p.max !== props.max
-      || !Number.isFinite(value) || value < p.min || value > p.max) return false;
-    if (!Object.is(value, p.value)) p.onNumberCommit(value);
-  };
   const reset = () => { finish(); commit(props.reset); };
   useLayoutEffect(() => { if (active.current && !valid(active.current)) finish(); });
   useEffect(() => { alive.current = true; return () => { alive.current = false; finish(true, false); }; }, []);
@@ -69,7 +57,7 @@ function MixerParameter(props: ParameterProps) {
   return <div className={`mixer-parameter ${props.vertical ? 'vertical' : 'horizontal'}`}>
     <div className="mixer-control-heading"><span title={`双击恢复${props.vertical ? '100%' : '居中'}`} onDoubleClick={reset}>{props.title}</span>
       <button type="button" className="mixer-reset" disabled={props.disabled} aria-label={`${props.label}恢复${props.vertical ? '100%' : '居中'}`} onClick={reset}>{props.vertical ? '0 dB' : '居中'}</button></div>
-    <div className="mixer-range-wrap"><input type="range" aria-label={props.label} min={props.min} max={props.max} step="any" value={shown} disabled={props.disabled}
+    <div className="mixer-range-wrap"><input type="range" aria-label={props.label} aria-valuetext={props.vertical ? gainLabel(shown) : panLabel(shown)} min={props.min} max={props.max} step="any" value={shown} disabled={props.disabled}
       onFocus={() => { cancelled.current = false; }} onBlur={() => finish()}
       onPointerDown={event => {
         if (event.button !== 0 || active.current || !valid(target())) return;
@@ -104,8 +92,6 @@ function MixerParameter(props: ParameterProps) {
       {props.vertical && <span className="mixer-unity-mark" style={{ bottom: `${100 / props.max * 100}%` }}>0 dB</span>}
     </div>
     <output className="mixer-level-value" title={props.vertical ? '音量增益' : '声像'}>{props.vertical ? gainLabel(shown) : panLabel(shown)}</output>
-    <label className="mixer-number"><CommitNumberInput aria-label={`${props.label}百分比`} value={props.value} min={props.min} max={props.max} step={.1}
-      disabled={props.disabled} contextKey={props.numberContextKey} onCommit={commitNumber} onPendingChange={pending => props.onPending?.(props.numberContextKey, pending)} /><span>%</span></label>
   </div>;
 }
 
@@ -124,9 +110,6 @@ function MixerMeter({ label, value, available, playing, quiet = false }: { label
 export function Mixer(props: MixerProps) {
   const { project, selectedTrack, instrumentFilter, meters, playing, meterScope } = props;
   const owner = props.gestureOwner ?? project, prefix = `mixer:${ownerKey(owner)}`;
-  const numberPrefix = props.numberContextKey === undefined ? prefix : `mixer-number:${props.numberContextKey}`;
-  const liveNumberPrefix = props.getNumberContextKey ? () => `mixer-number:${props.getNumberContextKey!()}`
-    : props.numberContextKey === undefined && props.getGestureOwner ? () => `mixer:${ownerKey(props.getGestureOwner!())}` : undefined;
   const visible = useMemo(() => filterTracks(project.tracks, instrumentFilter), [project.tracks, instrumentFilter]);
   const root = useRef<HTMLElement>(null), scroll = useRef<HTMLDivElement>(null), strips = useRef(new Map<string, HTMLDivElement>());
   const previewOwners = useRef(new Map<string, object>());
@@ -148,13 +131,9 @@ export function Mixer(props: MixerProps) {
     };
   };
   const select = (track: Track) => { const p = current.current; if (p.project.tracks.includes(track) && p.selectedTrack !== track.id) p.onSelect(track); };
-  const changeTrack = (track: Track, patch: Partial<Track>, numeric = false) => {
+  const changeTrack = (track: Track, patch: Partial<Track>) => {
     const p = current.current;
-    if (!p.project.tracks.includes(track)) return;
-    if (numeric) {
-      const currentPrefix = p.numberContextKey === undefined ? `mixer:${ownerKey(p.gestureOwner ?? p.project)}` : `mixer-number:${p.numberContextKey}`;
-      if (currentPrefix !== numberPrefix || liveNumberPrefix && liveNumberPrefix() !== numberPrefix) return;
-    } else if ((p.gestureOwner ?? p.project) !== owner || p.getGestureOwner && p.getGestureOwner() !== owner) return;
+    if (!p.project.tracks.includes(track) || (p.gestureOwner ?? p.project) !== owner || p.getGestureOwner && p.getGestureOwner() !== owner) return;
     p.onTrackChange(track.id, patch);
   };
   useLayoutEffect(() => {
@@ -182,16 +161,16 @@ export function Mixer(props: MixerProps) {
           className={`mixer-strip ${selectedTrack === track.id ? 'active' : ''}`} aria-current={selectedTrack === track.id ? 'true' : undefined}
           style={{ '--mixer-track-color': track.color } as CSSProperties} onPointerDownCapture={() => select(track)} onFocusCapture={() => select(track)}>
           <button type="button" className="mixer-track-heading" aria-label={`选择轨道 ${numbers.get(track.id)} ${track.name}`} onClick={() => select(track)}>
-            <span className="mixer-track-number">{numbers.get(track.id)}</span><InstrumentBlock instrumentId={track.instrumentId} size={22} label={instrument?.name ?? track.instrumentId} /><span className="mixer-track-name">{track.name}</span>
-          </button><span className="mixer-instrument-name" title={instrument?.name ?? track.instrumentId}>{instrument?.name ?? track.instrumentId}{track.locked ? ' · 已锁定' : ''}</span>
+            <span className="mixer-track-number">{numbers.get(track.id)}</span>{track.kind==='audio'?<span className="audio-track-icon">{track.audioGroup?'▾':'〰'}</span>:<InstrumentBlock instrumentId={track.instrumentId} size={22} label={instrument?.name ?? track.instrumentId} />}<span className="mixer-track-name">{track.name}</span>
+          </button><span className="mixer-instrument-name" title={instrument?.name ?? track.instrumentId}>{track.kind==='audio'?(track.audioGroup?'分轨汇总组':'音频轨道'):instrument?.name ?? track.instrumentId}{track.locked ? ' · 已锁定' : ''}</span>
           <MixerParameter label={`${track.name} 声像`} title="声像" value={track.pan * 100} min={-100} max={100} reset={0} disabled={track.locked}
-            owner={owner} getOwner={props.getGestureOwner} contextKey={`${prefix}:track:${track.id}:pan`} numberContextKey={`${numberPrefix}:track:${track.id}:pan`} getNumberContextKey={liveNumberPrefix && (() => `${liveNumberPrefix()}:track:${track.id}:pan`)}
+            owner={owner} getOwner={props.getGestureOwner} contextKey={`${prefix}:track:${track.id}:pan`}
             onPreview={previewFor(`track:${track.id}`, value => current.current.onTrackPreview?.(track.id, value === undefined ? undefined : { pan: value / 100 }))}
-            onCommit={value => changeTrack(track, { pan: value / 100 })} onNumberCommit={value => changeTrack(track, { pan: value / 100 }, true)} onPending={props.onNumberPending} />
+            onCommit={value => changeTrack(track, { pan: value / 100 })} />
           <div className="mixer-fader"><MixerParameter label={`${track.name} 音量`} title="音量" value={track.volume * 100} min={0} max={400} reset={100} disabled={track.locked} vertical
-            owner={owner} getOwner={props.getGestureOwner} contextKey={`${prefix}:track:${track.id}:volume`} numberContextKey={`${numberPrefix}:track:${track.id}:volume`} getNumberContextKey={liveNumberPrefix && (() => `${liveNumberPrefix()}:track:${track.id}:volume`)}
+            owner={owner} getOwner={props.getGestureOwner} contextKey={`${prefix}:track:${track.id}:volume`}
             onPreview={previewFor(`track:${track.id}`, value => current.current.onTrackPreview?.(track.id, value === undefined ? undefined : { volume: value / 100 }))}
-            onCommit={value => changeTrack(track, { volume: value / 100 })} onNumberCommit={value => changeTrack(track, { volume: value / 100 }, true)} onPending={props.onNumberPending} />
+            onCommit={value => changeTrack(track, { volume: value / 100 })} />
             <MixerMeter label={`${track.name} 电平`} value={meters[track.id]} available={meterScope === 'tracks'} playing={playing} quiet={quiet} /></div>
           <div className="mixer-channel-buttons"><button type="button" aria-label={`${track.name} 静音`} aria-pressed={track.muted} onClick={() => changeTrack(track, { muted: !track.muted })}>M</button>
             <button type="button" aria-label={`${track.name} 独奏`} aria-pressed={track.solo} onClick={() => changeTrack(track, { solo: !track.solo })}>S</button></div>
@@ -201,9 +180,9 @@ export function Mixer(props: MixerProps) {
     </div></div>
       <div className="mixer-master"><div className="mixer-master-heading">总输出 <small>Master</small></div>
         <div className="mixer-fader"><MixerParameter label="总输出音量" title="音量" value={project.audio.masterGain * 100} min={0} max={200} reset={100} vertical
-          owner={owner} getOwner={props.getGestureOwner} contextKey={`${prefix}:master:volume`} numberContextKey={`${numberPrefix}:master:volume`} getNumberContextKey={liveNumberPrefix && (() => `${liveNumberPrefix()}:master:volume`)}
+          owner={owner} getOwner={props.getGestureOwner} contextKey={`${prefix}:master:volume`}
           onPreview={previewFor('master', value => current.current.onMasterPreview?.(value === undefined ? undefined : value / 100))}
-          onCommit={value => props.onMasterChange(value / 100)} onNumberCommit={value => props.onMasterChange(value / 100)} onPending={props.onNumberPending} />
+          onCommit={value => props.onMasterChange(value / 100)} />
           <MixerMeter label="总输出电平" value={props.masterMeter ?? meters.__master ?? 0} available playing={playing} /></div></div>
     </div><footer className="mixer-scope-note">{meterScope === 'master' ? '原生对照试听使用离线快照，仅提供真实总输出电平，分轨电平不可用；混音修改在重新播放后生效。' : '实时试听：音量、声像与 M/S 即时生效；音符与 Delay 变更更新后续发声。显示实际分轨与总输出电平。'}</footer>
   </section>;

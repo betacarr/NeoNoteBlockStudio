@@ -57,6 +57,16 @@ function compare(notes: readonly Note[], gesture: PianoPreviewActive | null, v =
 const statistics = (): PianoPreviewStats => ({ visitedNodes: 0, testedNotes: 0, baseCandidates: 0, selectedCandidates: 0, transformedNotes: 0 });
 
 describe('indexed piano drag preview', () => {
+  it('copy preview retains originals and appends visible copied candidates with stable identities and no source MIDI ownership', () => {
+    const notes = [note('source', 600, 30), note('existing', 1900, 66)], before = structuredClone(notes), base = new PianoNoteIndex(notes);
+    const gesture = active('move', ['source'], { deltaTick: 1200, deltaPitch: 36, copyIds: new Map([['source', 'new-copy']]) });
+    const result = previewPianoNotes(base, new PianoNoteIndex(base.forIds(gesture.ids)), gesture, queryFor(view), 'body');
+    expect(result.map(note => note.id)).toEqual(['existing', 'new-copy']);
+    expect(result[1]).toEqual({ ...notes[0], id: 'new-copy', tick: 1800, midi: 66, midiSource: undefined });
+    const all = previewPianoNotes(base, new PianoNoteIndex(base.forIds(gesture.ids)), gesture, { start: 0, end: 3000 }, 'velocity');
+    expect(all.map(note => note.id)).toEqual(['source', 'existing', 'new-copy']);
+    expect(all[0]).toBe(notes[0]); expect(notes).toEqual(before);
+  });
   it('retains a long left-crossing body and minimum-six-pixel zero-duration note while stems use onset and all pitches', () => {
     const notes = Object.freeze([note('long', 0, 66, 2000), note('zero', 1590, 67, 0), note('ordinary', 1800, 68), note('off-pitch-stem', 1900, 5)]);
     const before = structuredClone(notes), result = compare(notes, null);

@@ -104,6 +104,9 @@ export function importNbs(bytes: Uint8Array, filename: string): { project: Proje
   const tempoEventSet = new Set(tempoEvents);
   const notesByLayer = Array.from({ length: layerCount }, () => [] as RawNote[]);
   for (const note of rawNotes) if (!tempoEventSet.has(note)) notesByLayer[note.layer].push(note);
+  const layerMapping: { layer: number; name: string; trackId: string; patternId: string; regionId: string; noteIds: string[] }[] = [];
+  let previous: { instrument: number | undefined; lastLayer: number; track: Project['tracks'][number]; pattern: Project['patterns'][number]; region: Project['regions'][number]; normalized: boolean } | undefined;
+  let mergedLayers = 0, stateBoundaries = 0;
   for (let i = 0; i < layerCount; i++) {
     const layer = layers[i] ?? { name: '', locked: false, solo: false, volume: 100, pan: 100 };
     const sourceNotes = notesByLayer[i];
@@ -117,11 +120,44 @@ export function importNbs(bytes: Uint8Array, filename: string): { project: Proje
         pan: (n.pan - 100) / 100, detune: n.detune, instrumentId: instrumentId(n.instrument) })) };
     // Preserve the legacy effective pan while using additive track pan in the new editor.
     if (layer.pan !== 100) for (const note of pattern.notes) note.pan = clamp(((layer.pan + (note.pan * 100 + 100)) / 2 - 100) / 100 - track.pan, -1, 1);
-    p.tracks.push(track); p.patterns.push(pattern); p.regions.push({ id: uid(), trackId: track.id, patternId: pattern.id, start: 0, length: songLength, offset: 0, loop: false });
+    // A layer may change instrument note by note. Only a complete, nonempty
+    // single-instrument layer can extend the immediately preceding group;
+    // empty and mixed layers deliberately break adjacency.
+    const singleInstrument = sourceNotes.length && sourceNotes.every(note => note.instrument === sourceNotes[0].instrument)
+      ? sourceNotes[0].instrument : undefined;
+    const adjacentInstrument = singleInstrument !== undefined && previous?.lastLayer === i - 1 && previous.instrument === singleInstrument;
+    const sameState = previous?.track.locked === track.locked && previous.track.muted === track.muted && previous.track.solo === track.solo;
+    let destination = track, region: Project['regions'][number];
+    if (adjacentInstrument && sameState && previous) {
+      destination = previous.track;
+      if (previous.normalized || destination.volume !== track.volume || destination.pan !== track.pan) {
+        // Track gain and pan cannot represent different original layer mixes.
+        // Bake their *existing editor playback values* into their notes before
+        // sharing a neutral track. Source names and note identities stay in
+        // provenance; one region exposes every merged note in the piano roll.
+        if (!previous.normalized) for (const note of previous.pattern.notes) {
+          note.velocity *= destination.volume; note.pan = clamp(note.pan + destination.pan, -1, 1);
+        }
+        for (const note of pattern.notes) {
+          note.velocity *= track.volume; note.pan = clamp(note.pan + track.pan, -1, 1);
+        }
+        destination.volume = 1; destination.pan = 0; previous.normalized = true;
+      }
+      for (const note of pattern.notes) previous.pattern.notes.push(note);
+      previous.lastLayer = i; region = previous.region; mergedLayers++;
+    } else {
+      if (adjacentInstrument && !sameState) stateBoundaries++;
+      region = { id: uid(), trackId: track.id, patternId: pattern.id, start: 0, length: songLength, offset: 0, loop: false };
+      p.tracks.push(track); p.patterns.push(pattern); p.regions.push(region);
+      previous = { instrument: singleInstrument, lastLayer: i, track, pattern, region, normalized: false };
+    }
+    layerMapping.push({ layer: i, name: layer.name || pattern.name, trackId: destination.id, patternId: region.patternId, regionId: region.id, noteIds: pattern.notes.map(note => note.id) });
   }
   if (!p.tracks.length) { const blank = createProject(p.name); p.tracks = blank.tracks; p.patterns = blank.patterns; p.regions = blank.regions; }
-  p.provenance = { kind: 'nbs', filename, metadata: { version, builtinCount, originalAuthor, autoSave, autoSaveMinutes, minutesSpent, leftClicks, rightClicks, added, removed, importedFilename, loop, layers, custom, declaredLength, functionalEvents: tempoEvents } };
+  p.provenance = { kind: 'nbs', filename, metadata: { version, builtinCount, originalAuthor, autoSave, autoSaveMinutes, minutesSpent, leftClicks, rightClicks, added, removed, importedFilename, loop, layers, custom, declaredLength, functionalEvents: tempoEvents, layerMapping } };
   const diagnostics: Diagnostic[] = [];
+  if (mergedLayers) diagnostics.push({ severity: 'info', code: 'nbs-layer-merge', message: `已将 ${mergedLayers} 个相邻同乐器层合并为共享乐器轨道与片段；保留原层名称、音符来源映射，层音量与声像差异已保留为音符参数。` });
+  if (stateBoundaries) diagnostics.push({ severity: 'info', code: 'nbs-layer-state-boundary', message: `${stateBoundaries} 处相邻同乐器层的锁定、静音或独奏状态不同，已保留独立轨道，避免改变播放与编辑状态。` });
   if (layers.some(layer => layer.locked)) diagnostics.push({ severity: 'info', code: 'nbs-layer-state', message: '原 NBS 的“锁定”层在 OpenNBS 中也静音，已同时映射为编辑锁定和静音；本编辑器单独设置编辑锁时不会自动静音。' });
   const customSounds = custom.filter(i => i.name !== 'Tempo Changer');
   if (customSounds.length) diagnostics.push({ severity: 'warning', code: 'nbs-custom-samples', message: `${customSounds.length} 个自定义乐器需要定位原始声音文件；NBS 文件本身不包含采样。` });
@@ -180,7 +216,7 @@ function musicalNotePositions(project: Project, grid: number) {
   return (note: FlatNote) => {
     const entry = regions.get(note.regionId);
     if (!entry) throw new Error('NBS 音符引用的来源片段不存在。');
-    const occurrence = note.delaySource?.occurrenceTick ?? note.absoluteTick;
+    const occurrence = note.drumSource?.occurrenceTick ?? note.delaySource?.occurrenceTick ?? note.absoluteTick;
     // flattenNotes' floating occurrence identifies the integer cycle only. All
     // placement arithmetic below uses the original independently saved values.
     const cycle = entry.region.loop ? Math.round((occurrence - entry.region.start + entry.region.offset - note.tick) / entry.period) : 0;
@@ -192,6 +228,10 @@ function musicalNotePositions(project: Project, grid: number) {
       tick = addMusical(tick, { numerator: period.numerator * BigInt(cycle), denominator: period.denominator });
       geometryError += (ulpBound(entry.period) * cycle + ulpBound(entry.period * cycle)) * 2;
     }
+    if (note.drumSource) {
+      const offset = musicalDecimal(note.drumSource.offsetBeats);
+      tick = addMusical(tick, { numerator: offset.numerator * BigInt(project.ppq), denominator: offset.denominator });
+    }
     if (note.delaySource) {
       const effect = tracks.get(note.trackId)?.delay;
       if (effect?.timeUnit === 'beats') {
@@ -201,8 +241,9 @@ function musicalNotePositions(project: Project, grid: number) {
         // Within one tempo segment, reconstruct the seconds delay from saved
         // interval/BPM rather than flooring the round-trip seconds->tick error.
         // Cross-segment echoes retain the engine's actual piecewise location.
+        const delayOrigin = note.delaySource.occurrenceTick;
         let low = 0, high = tempos.length;
-        while (low < high) { const middle = Math.floor((low + high) / 2); if (tempos[middle].tick <= occurrence) low = middle + 1; else high = middle; }
+        while (low < high) { const middle = Math.floor((low + high) / 2); if (tempos[middle].tick <= delayOrigin) low = middle + 1; else high = middle; }
         const index = Math.max(0, low - 1), next = tempos[index + 1];
         if (effect && (!next || note.absoluteTick < next.tick)) {
           const interval = musicalDecimal(effect.interval), bpm = musicalDecimal(tempos[index].bpm);
@@ -257,6 +298,8 @@ export function exportNbs(project: Project, version: 4 | 5 | 6 = 5, timingMode: 
   }
   if (plan.generated) diagnostics.push({ severity: 'info', code: 'nbs-delay-baked', message: `Delay 已展开为 ${plan.generated} 个实际回声音符；原始 MIDI 音符与效果参数保留在 NBSX 工程中。` });
   const silentEchoes = notes.filter(note => note.delaySource && Math.round(clamp(note.gain, 0, 1) * 100) === 0).length;
+  const silentMapped = notes.filter(note => note.drumSource && note.gain > 0 && Math.round(clamp(note.gain, 0, 1) * 100) === 0).length;
+  if (silentMapped) diagnostics.push({ severity: 'warning', code: 'nbs-drum-volume-quantization', message: `${silentMapped} 个鼓组实际子音符低于 NBS 百分比力度精度，将保存为零力度；NBSX 和 WAV 保留原始力度。` });
   if (silentEchoes) diagnostics.push({ severity: 'warning', code: 'nbs-delay-volume-quantization', message: `${silentEchoes} 个较轻的回声音符在 NBS 整数力度网格上为 0；可调高回声力度或缩短尾音。` });
   const timing = createTempoMap(project);
   const hasSolo = project.tracks.some(track => track.solo);

@@ -111,7 +111,8 @@ export function duplicateRegionGroup(project: Project, ids: ReadonlySet<string>)
   if (!hasCapacity(project, sources, regions.length)) return;
   const staged = regions.map((region, index) => {
     const pattern = clonePattern(sources[index], true);
-    return { pattern, region: { ...region, id: uid(), patternId: pattern.id, start: region.start + delta } };
+    return { pattern, region: { ...region, id: uid(), patternId: pattern.id, start: region.start + delta,
+      ...(region.chords ? { chords: region.chords.map(chord => ({ ...chord })) } : {}) } };
   });
   for (const item of staged) { project.patterns.push(item.pattern); project.regions.push(item.region); }
   return staged.map(item => item.region);

@@ -42,6 +42,8 @@ node scripts/verify-mac-release.mjs
 
 `verify-mac-release.mjs` 挂载只读 DMG，将程序复制到隔离安装目录并推出映像，核对内容与签名，再检查 ZIP 完整 CRC。随后用安装后的两种架构程序检查 Mac 窗口与 Command 操作、20 种默认音色、日志导出、工程生命周期、MIDI 与 NBS 工作流，最后重新审查分发内容。检查使用隔离资料目录。详细报告留在忽略的 `.local/` 内；`release/0.1.59/macos-verification.json` 仅含版本、源码提交、系统版本、固定检查名称和分发文件校验值，便于反馈构建结果。该命令要求两个架构都能在本机运行；Apple Silicon 上的 Intel 检查需要已安装 Rosetta。
 
+要检查开发中的候选包，设置 `NEONBS_RELEASE_DIR` 指向一个单独的目录，然后运行 `npm run package:mac` 和 `node scripts/verify-mac-release.mjs --candidate`。候选检查会写入独立报告，不会把未提交的源码标成已发布提交。若准备了[可选音频组件](audio-assist.md#后台与运行环境)，可同时设置 `NEONBS_AUDIO_RUNTIME_FIXTURE` 指向该环境，额外验证安装后的音频拖入、智能速度和运行后代码签名。
+
 发布检查确认 NBSX 关联、版本、最低系统要求、图标、许可证、Java 适配器、主程序／原生组件架构和代码签名，并扫描开发路径与非公开素材。DMG、ZIP 均保留文件权限与符号链接。当前配置明确采用 ad-hoc 签名；正式 Developer ID 公证发布需要另行配置证书和公证凭据。
 
 可用 `npm run test:mac -- --packaged <NeoNBS.app/Contents/MacOS/NeoNBS>` 对实际打包程序运行 macOS 工作流检查。`npm run test:lifecycle -- --packaged <程序路径>` 检查工程恢复与单实例转交；`node scripts/smoke-midi-desktop.mjs --packaged <程序路径>` 检查 MIDI 工程的保存、编辑、历史记录和进程重启。每次检查使用独立资料目录，不接触日常工程。

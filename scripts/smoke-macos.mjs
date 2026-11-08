@@ -35,7 +35,7 @@ let page, exited = false;
 desktop.on('close', () => { exited = true; });
 const record = value => { checks.push(value); console.log(value); };
 const observe = async () => {
-  page = await desktop.firstWindow(); page.on('pageerror', error => errors.push(error.message));
+  page = await desktop.firstWindow({ timeout: 60000 }); page.on('pageerror', error => errors.push(error.message));
   page.setDefaultTimeout(60000);
   await page.locator('.piano-viewport canvas').waitFor();
 };
@@ -75,6 +75,12 @@ try {
   assert.equal(await desktop.evaluate(({ app }) => app.getPath('userData')), profile);
   assert.equal(await desktop.evaluate(({ app }) => app.isPackaged), !!executablePath);
   record('startup project and isolated profile');
+  if (executablePath) {
+    const audio = await page.evaluate(() => window.desktop.audioAssistStatus('chords'));
+    assert.equal(audio.available, false);
+    assert.match(audio.message, /可选的本地音频组件/);
+    record('base app works without the optional audio component');
+  }
   assert.equal(await desktop.evaluate(({ app }) => process.getBuiltinModule('module').createRequire(app.getAppPath() + '/package.json')('koffi').load('/usr/lib/libSystem.B.dylib').func('int getpid()')()), desktop.process().pid);
   record('native Koffi loads and calls a system library');
   // Loop the short fixture so a cold Rosetta translation cannot finish the
@@ -151,7 +157,7 @@ try {
   record('Finder open-file recreates a missing window and drains pending files');
   if (executablePath) {
     await closeWindow();
-    execFileSync('open', ['-a', path.resolve(path.dirname(executablePath), '../..'), source]);
+    execFileSync('open', ['-a', path.resolve(path.dirname(executablePath), '../..'), source], { timeout: 15000 });
     await observe(); await page.waitForFunction(() => document.title.includes('macOS 工程验收'));
     record('LaunchServices open -a delivers an actual Finder file-open event');
   }

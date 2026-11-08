@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, utilityProcess, shell } from 'electron';
+import { clearNativeGlass, nativeGlassSupported, setNativeGlass, WINDOW_BACKGROUND } from './native-glass';
 import { readFile, writeFile, mkdir, readdir, stat, rename, copyFile, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,14 @@ import { libraryAllowed, nativeArtifacts, nativeFileMatches, releaseByClientHash
 import { loadNoteBlockSoundAssets, soundAssetLayout } from '../src/core/sound-assets';
 import { audioImplementation, clientEmbeddedLegacyCodec } from '../src/audio/implementations';
 import { inspectFlpSamples } from './flp-samples';
+import { registerAudioAssist } from './audio-assist';
+import { registerAudioModelDownloads } from './audio-model-download';
+import { AudioAssetStore } from './audio-asset-store';
+import { exportAudioRegions, regionWavName, validateRegionExport } from './audio-region-export';
+import type { AudioRegionExportRequest } from '../src/core/audio-region-export';
+import { validateAudioFileAsset } from '../src/core/audio-assist';
+import { ARRANGEMENT_AUDIO_EXTENSIONS, ARRANGEMENT_AUDIO_FORMATS } from '../src/core/audio-clips';
+import type { AudioFileAsset } from '../src/core/types';
 import { applicationProfile } from './app-profile';
 import { applicationMenu } from './menu';
 import { APP_NAME } from '../src/core/app-identity';
@@ -48,6 +57,17 @@ const permittedFiles = new Set<string>(), permittedRoots = new Set<string>(), pe
 const permittedDecoders = new Set<string>();
 const executeFile = promisify(execFile);
 let window: BrowserWindow | undefined;
+const audioAssets = new AudioAssetStore();
+let exportingAudioRegions = false;
+const audioInputs = new Map<string, { owner: number; path: string; name: string; size: number }>();
+async function registerAudioInput(owner: number, filename: string) {
+  const details = await stat(filename);
+  if (!details.isFile() || details.size < 44 || details.size > 16 * 1024 ** 3) throw new Error('请选择有效音频文件，单文件上限 16 GiB。');
+  if (!window || window.webContents.id !== owner) return null;
+  const handle = randomUUID(), name = path.basename(filename);
+  audioInputs.set(handle, { owner, path: filename, name, size: details.size });
+  return { handle, name, size: details.size };
+}
 let rendererReady = false, flushingOpenFiles = false;
 const pendingOpenFiles: string[] = [];
 const pendingMenuCommands: string[] = [];
@@ -109,6 +129,7 @@ async function flushOpenFiles() {
       try {
         const details = await stat(filename); if (!details.isFile() || details.size > 256 * 1024 * 1024) throw new Error('文件类型或大小不支持。');
         const bytes = new Uint8Array(await readFile(filename)); permittedFiles.add(filename);
+        if (/\.nbsx$/i.test(filename)) await audioAssets.registerProject(window.webContents.id, filename, bytes);
         window.webContents.send('file:open-request', { path: filename, name: path.basename(filename), bytes });
       } catch (error) { dialog.showErrorBox('无法打开工程', `${filename}\n${String(error)}`); }
     }
@@ -257,6 +278,8 @@ async function loadMinecraft(root: string, index: string, version: string): Prom
     profileId: `java-${client.release.id}`, samples, nativeLibrary, nativeDecoder };
 }
 function setupHandlers() {
+  handle('appearance:native-glass-supported', async () => nativeGlassSupported());
+  handle('appearance:native-glass', async request => setNativeGlass(window!, request));
   handle('diagnostics:record', async input => {
     const value = normalizeDiagnostic(input);
     const stored = !!value && RENDERER_DIAGNOSTIC_EVENTS.has(value.event) && !!diagnostics?.log(value);
@@ -280,7 +303,55 @@ function setupHandlers() {
     if (result.canceled) return null;
     const filename = result.filePaths[0], details = await stat(filename);
     if (details.size > 256 * 1024 * 1024) throw new Error('文件大于 256 MB。');
-    permittedFiles.add(filename); return { path: filename, name: path.basename(filename), bytes: new Uint8Array(await readFile(filename)) };
+    const bytes = new Uint8Array(await readFile(filename));
+    if (kind === 'project' && /\.nbsx$/i.test(filename)) await audioAssets.registerProject(window!.webContents.id, filename, bytes);
+    permittedFiles.add(filename); return { path: filename, name: path.basename(filename), bytes };
+  });
+  handle('file:open-dropped-project', async (filename: string) => {
+    if (typeof filename !== 'string' || !path.isAbsolute(filename) || !/\.(nbsx|mid|midi|nbs|flp)$/i.test(filename)) throw new Error('拖入的工程文件无效。');
+    const details = await stat(filename);
+    if (!details.isFile() || details.size > 256 * 1024 * 1024) throw new Error('请选择有效工程文件，单文件最多 256 MB。');
+    const bytes = new Uint8Array(await readFile(filename));
+    if (/\.nbsx$/i.test(filename)) await audioAssets.registerProject(window!.webContents.id, filename, bytes);
+    permittedFiles.add(filename); return { path: filename, name: path.basename(filename), bytes };
+  });
+  handle('audio-assist:choose-input', async (purpose?: 'arrangement') => {
+    const owner = window!.webContents.id;
+    const result = await dialog.showOpenDialog(window!, { title: purpose === 'arrangement' ? '导入音频到播放头' : '选择待分析的完整音频',
+      properties: ['openFile'], filters: [{ name: '音频', extensions: ARRANGEMENT_AUDIO_EXTENSIONS }] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return registerAudioInput(owner, result.filePaths[0]);
+  });
+  handle('audio-assist:open-dropped', async (filename: string) => {
+    if (typeof filename !== 'string' || !path.isAbsolute(filename) || !ARRANGEMENT_AUDIO_FORMATS.test(filename)) throw new Error('拖入的音频文件无效。');
+    return registerAudioInput(window!.webContents.id, filename);
+  });
+  handle('audio-asset:resolve', async (descriptor: AudioFileAsset) => audioAssets.resolve(window!.webContents.id, descriptor));
+  handle('audio-asset:export-regions', async (request: AudioRegionExportRequest) => {
+    validateRegionExport(request);
+    if (exportingAudioRegions) throw new Error('已有片段导出正在进行。');
+    const owner = window!.webContents.id;
+    exportingAudioRegions = true;
+    try {
+      const source = (file: AudioFileAsset) => audioAssets.inputPath(owner, file);
+      if (request.regions.length === 1) {
+        const result = await dialog.showSaveDialog(window!, { title: '导出音频片段为 WAV', defaultPath: regionWavName(request.regions[0].name),
+          filters: [{ name: 'WAV', extensions: ['wav'] }] });
+        if (result.canceled || !result.filePath || window?.webContents.id !== owner) return null;
+        if (!/\.wav$/i.test(result.filePath)) throw new Error('导出文件名需要以 .wav 结尾。');
+        return await exportAudioRegions(request, { file: result.filePath }, source);
+      }
+      const result = await dialog.showOpenDialog(window!, { title: '选择片段 WAV 的导出文件夹', properties: ['openDirectory', 'createDirectory'] });
+      if (result.canceled || !result.filePaths[0] || window?.webContents.id !== owner) return null;
+      return await exportAudioRegions(request, { directory: result.filePaths[0] }, source);
+    } finally { exportingAudioRegions = false; }
+  });
+  handle('audio-asset:relink', async (descriptor: AudioFileAsset) => {
+    validateAudioFileAsset(descriptor);
+    const owner = window!.webContents.id;
+    const result = await dialog.showOpenDialog(window!, { title: `定位音频素材 ${descriptor.sha256.slice(0,12)}`, properties: ['openFile'], filters: [{ name: '原始分轨 WAV', extensions: ['wav'] }] });
+    if (result.canceled || !result.filePaths[0] || !window || window.webContents.id !== owner) return false;
+    await audioAssets.relink(owner, descriptor, result.filePaths[0]); return true;
   });
   handle('flp:inspect-samples', async (sourcePath: string, samples: { id: number; path: string }[]) => {
     if (typeof sourcePath !== 'string' || !permittedFiles.has(sourcePath)) throw new Error('请先打开此 FLP 工程。');
@@ -301,7 +372,10 @@ function setupHandlers() {
       const backups = (await childNames(backupRoot, false)).sort().reverse();
       for (const old of backups.slice(30)) await unlink(path.join(backupRoot, old));
     }
-    await atomicWrite(target, bytes); return target;
+    if (/\.nbsx$/i.test(target)) await audioAssets.prepareProjectSave(window!.webContents.id, target, bytes);
+    await atomicWrite(target, bytes);
+    if (/\.nbsx$/i.test(target)) await audioAssets.registerProject(window!.webContents.id, target, bytes);
+    return target;
   });
   handle('minecraft:discover', discoverMinecraft);
   handle('minecraft:select-root', async () => {
@@ -314,12 +388,13 @@ function setupHandlers() {
     discovered ??= []; if (!discovered.some(r => locationKey(r.root) === locationKey(root))) discovered.push(entry); return entry;
   });
   handle('minecraft:load', async ({ root, index, version }) => loadMinecraft(String(root), String(index), String(version)));
-  handle('project:autosave', async (bytes: Uint8Array) => { checkBytes(bytes); await atomicWrite(path.join(app.getPath('userData'), 'recovery.nbsx'), bytes); });
+  handle('project:autosave', async (bytes: Uint8Array) => { checkBytes(bytes); const filename = path.join(app.getPath('userData'), 'recovery.nbsx'); await audioAssets.prepareProjectSave(window!.webContents.id, filename, bytes); await atomicWrite(filename, bytes); });
   handle('project:recover', async () => {
     const filename = path.join(app.getPath('userData'), 'recovery.nbsx');
     if (!await exists(filename)) return null;
     const bytes = new Uint8Array(await readFile(filename)); let projectId: string | undefined;
     try { projectId = projectIdFromContainer(bytes); } catch { /* damaged recovery remains available for explicit discard */ }
+    try { await audioAssets.registerProject(window!.webContents.id, filename, bytes); } catch { /* damaged recovery still supports explicit discard */ }
     return { name: '恢复的工程.nbsx', bytes, projectId };
   });
   handle('project:clear-recovery', async (projectId?: string) => {
@@ -398,8 +473,11 @@ async function openLogsFolder() {
 }
 function createWindow() {
   dirtyProject = false; rendererReady = false;
-  window = new BrowserWindow({ width: 1600, height: 1000, minWidth: 1050, minHeight: 720, backgroundColor: '#232426', title: APP_NAME, show: false,
+  window = new BrowserWindow({ width: 1600, height: 1000, minWidth: 1050, minHeight: 720, backgroundColor: WINDOW_BACKGROUND, title: APP_NAME, show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  const ownedWindow = window;
+  window.webContents.on('did-start-navigation', details => { if (details.isMainFrame && !details.isSameDocument) clearNativeGlass(ownedWindow); });
+  window.webContents.on('render-process-gone', () => clearNativeGlass(ownedWindow));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('did-finish-load', () => diagnostics?.log({ level: 'info', event: 'window.loaded' }));
   window.webContents.on('did-fail-load', (_event, errorCode, description, _url, isMainFrame) => {
@@ -409,7 +487,9 @@ function createWindow() {
   window.webContents.on('console-message', details => {
     if (details.level === 'warning' || details.level === 'error') diagnostics?.log({ level: details.level, event: 'renderer.console', fields: { error: details.message } });
   });
-  window.on('closed', () => { rendererReady = false; window = undefined; });
+  const audioOwner = window.webContents.id;
+  window.webContents.once('destroyed', () => { audioAssets.clearOwner(audioOwner); for (const [handle, input] of audioInputs) if (input.owner === audioOwner) audioInputs.delete(handle); });
+  window.on('closed', () => { clearNativeGlass(ownedWindow); rendererReady = false; window = undefined; });
   window.on('close', event => {
     if (!dirtyProject) return;
     event.preventDefault();
@@ -423,7 +503,8 @@ function createWindow() {
 }
 if (primaryInstance) app.whenReady().then(() => {
   diagnostics?.log({ level: 'info', event: 'app.ready' });
-  protocol.handle('nbsx', request => {
+  protocol.handle('nbsx', async request => {
+    const audioResponse = await audioAssets.response(request); if (audioResponse) return audioResponse;
     const url = new URL(request.url); const relative = decodeURIComponent(url.pathname).replace(/^\/+/, '');
     const target = path.resolve(appRoot, 'dist', relative || 'index.html');
     if (url.hostname !== 'app' || !target.startsWith(path.join(appRoot, 'dist') + path.sep)) return new Response('Forbidden', { status: 403 });
@@ -431,6 +512,19 @@ if (primaryInstance) app.whenReady().then(() => {
   });
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'midi' || permission === 'midiSysex'));
   setupHandlers();
+  const audioModels = registerAudioModelDownloads(ipcMain, path.join(app.getPath('userData'), 'audio-models'), event => !!window && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame, {
+    observe: event => { console.info('audio-model-download', JSON.stringify(event)); },
+  });
+  app.once('will-quit', () => audioModels.dispose());
+  const stopAudioAssist = registerAudioAssist(ipcMain, appRoot, app.getPath('userData'), event => !!window && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame, {
+    ...(app.isPackaged ? { runtimeBase: app.getPath('userData'), workerRoot: path.join(process.resourcesPath, 'app.asar.unpacked', 'dist-electron') } : {}),
+    modelStatus: () => audioModels.status(),
+    modelDirectory: path.join(app.getPath('userData'), 'audio-models'),
+    resolveInput: async (owner, handle) => { const input = audioInputs.get(handle); if (!input || input.owner !== owner) throw new Error('请先选择待分析音频。'); return input; },
+    resolveAsset: (owner, descriptor) => audioAssets.inputPath(owner, descriptor),
+    publishAsset: (owner, filename, meta) => audioAssets.register(owner, filename, meta),
+  });
+  app.once('will-quit', stopAudioAssist);
   Menu.setApplicationMenu(Menu.buildFromTemplate(applicationMenu(process.platform, sendMenuCommand, { exportDiagnostics: () => { void exportDiagnostics(); }, openLogsFolder: () => { void openLogsFolder(); } })));
   createWindow();
   app.on('activate', () => showWindow());

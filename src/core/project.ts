@@ -1,3 +1,5 @@
+import { audioClipEnd, validateAudioClips } from './audio-clips';
+import { validateChordTrack, validateMidiRegionChords } from './chord-track';
 import { INSTRUMENTS, TRACK_COLORS } from './instruments';
 import type { Diagnostic, FlatNote, Note, Pattern, Project, Region, Track } from './types';
 import { broadcastForProject, withinBroadcastRange } from '../audio/delivery';
@@ -6,6 +8,8 @@ import { cloneMidiEvent, validStoredMidiMessage } from './midi-events';
 import { createMeterMap } from './meter';
 import { expandDelayEvents, validateDelayEffect } from './delay';
 import { expansionError, loopNoteCycles } from './expansion';
+import { expandDrumMappings, validateDrumMappings } from './drum-mapping';
+import { validateAudioWorkspace } from './audio-assist';
 
 export const uid = (): string => crypto.randomUUID();
 export const clamp = (n: number, min: number, max: number): number => Math.max(min, Math.min(max, n));
@@ -16,7 +20,7 @@ export const newTrack = (name: string, index = 0, instrumentId = 'harp'): Track 
 });
 export function createProject(name = '未命名工程'): Project {
   const now = new Date().toISOString();
-  const track = newTrack('钢琴');
+  const track = newTrack(INSTRUMENTS.find(instrument => instrument.id === 'harp')!.name);
   const pattern: Pattern = { id: uid(), name: '片段 01', length: 3840, notes: [] };
   return {
     format: 'nbsx', version: 2, id: uid(), name, author: '', description: '', createdAt: now, modifiedAt: now,
@@ -27,21 +31,33 @@ export function createProject(name = '未命名工程'): Project {
   };
 }
 export function createDemo(): Project {
-  const p = createProject('玻璃庭院');
-  p.description = '内置编辑示例 · 可直接修改、保存或导出';
+  const p = createProject('欢乐颂 · 示例');
+  p.author = 'Ludwig van Beethoven';
+  p.description = '《第九交响曲》Op.125 第四乐章主题（1824）· 参考 Schott 1826 年总谱 · NeoNBS 简化音符盒编配；曲谱来源见 docs/bundled-demo.md';
   p.tempos[0].bpm = 108;
   p.tracks = []; p.patterns = []; p.regions = [];
+  // The opening two vocal phrases, entered from the 1826 score (pp. 113–114).
+  // Keep the whole melody in D4–A4; never fold individual notes into an octave.
+  const phrase = [66, 66, 67, 69, 69, 67, 66, 64, 62, 62, 64, 66];
+  const melody = [...phrase, 66, 64, 64, ...phrase, 64, 62, 62];
+  const rhythm = [...Array(12).fill(1), 1.5, 0.5, 2] as number[];
+  let beat = 0;
+  const melodyNotes = melody.map((midi, index) => {
+    const duration = rhythm[index % rhythm.length] * p.ppq, tick = beat * p.ppq;
+    beat += rhythm[index % rhythm.length];
+    return { ...newNote(tick, midi, duration), velocity: tick % 3840 === 0 ? 0.83 : 0.78 };
+  });
+  const bass = [62, 57, 62, 57, 62, 57, 57, 57, 62, 57, 62, 57, 62, 57, 57, 62];
   const voices = [
-    { name: '玻璃旋律', instrument: 'harp', notes: [66, 69, 73, 78, 76, 73, 69, 73, 66, 69, 74, 78, 76, 74, 69, 66], step: 480, duration: 360, velocity: 0.78 },
-    { name: '风铃层', instrument: 'chime', notes: [66, 69, 73, 69, 66, 69, 74, 69], step: 960, duration: 720, velocity: 0.42 },
-    { name: '低音脉冲', instrument: 'bass', notes: [54, 54, 57, 57, 59, 59, 57, 57], step: 960, duration: 720, velocity: 0.68 },
-    { name: '木质节奏', instrument: 'hat', notes: Array(16).fill(66) as number[], step: 480, duration: 120, velocity: 0.3 },
+    { name: '主题 · 竖琴', instrument: 'harp', notes: melodyNotes },
+    { name: '低音 · 根音与属音', instrument: 'bass', notes: bass.map((midi, index) => ({ ...newNote(index * 1920, midi, 1920), velocity: index % 2 === 0 ? 0.52 : 0.46 })) },
+    { name: '钟声 · 乐句点缀', instrument: 'bell', notes: [0, 12, 16, 28].map((beat, index) => ({ ...newNote(beat * p.ppq, [66, 64, 66, 62][index], 960), velocity: 0.3 })) },
   ];
   voices.forEach((voice, i) => {
-    const track = newTrack(voice.name, i, voice.instrument); track.pan = i === 1 ? 0.18 : i === 3 ? -0.25 : 0;
-    const pattern = { id: uid(), name: voice.name, length: 7680, notes: voice.notes.map((midi, n) => ({ ...newNote(n * voice.step, midi, voice.duration), velocity: voice.velocity + (n % 4 === 0 ? 0.05 : 0) })) };
+    const track = newTrack(voice.name, i, voice.instrument); track.pan = i === 2 ? 0.12 : 0;
+    const pattern = { id: uid(), name: voice.name, length: 30720, notes: voice.notes };
     p.tracks.push(track); p.patterns.push(pattern);
-    p.regions.push({ id: uid(), trackId: track.id, patternId: pattern.id, start: 0, length: 15360, offset: 0, loop: true });
+    p.regions.push({ id: uid(), trackId: track.id, patternId: pattern.id, start: 0, length: pattern.length, offset: 0, loop: false });
   });
   return p;
 }
@@ -77,10 +93,12 @@ export function flattenNotes(project: Project, includeMuted = false): FlatNote[]
   });
 }
 export function projectEnd(project: Project): number {
-  return project.regions.reduce((end, region) => Math.max(end, region.start + region.length), 0) || createMeterMap(project).at(0).barEnd;
+  return Math.max(project.regions.reduce((end, region) => Math.max(end, region.start + region.length), 0), ...(project.audioClips ?? []).map(clip => audioClipEnd(project, clip))) || createMeterMap(project).at(0).barEnd;
 }
 export function renderNoteEvents(project: Project, includeMuted = false) {
-  return expandDelayEvents(project, flattenNotes(project, includeMuted));
+  const mapping = expandDrumMappings(project, flattenNotes(project, includeMuted));
+  const plan = expandDelayEvents(project, mapping.notes);
+  return { ...plan, diagnostics: [...mapping.diagnostics, ...plan.diagnostics] };
 }
 export function duplicateRegion(project: Project, regionId: string): Region | undefined {
   const region = project.regions.find(r => r.id === regionId);
@@ -89,7 +107,8 @@ export function duplicateRegion(project: Project, regionId: string): Region | un
   const clone = { ...pattern, id: uid(), name: `${pattern.name} 副本`, notes: pattern.notes.map(n => ({ ...n, id: uid(), ...(n.midiSource ? { midiSource: { ...n.midiSource } } : {}) })),
     ...(pattern.midiEvents ? { midiEvents: pattern.midiEvents.map(event => ({ ...event, id: uid(), event: cloneMidiEvent(event.event) })) } : {}) };
   project.patterns.push(clone);
-  const copy = { ...region, id: uid(), patternId: clone.id, start: region.start + region.length };
+  const copy = { ...region, id: uid(), patternId: clone.id, start: region.start + region.length,
+    ...(region.chords ? { chords: region.chords.map(chord => ({ ...chord })) } : {}) };
   project.regions.push(copy); return copy;
 }
 export function validateProject(value: unknown): Project {
@@ -105,9 +124,10 @@ export function validateProject(value: unknown): Project {
   if (!p.tempos.length || !p.tempos.some(t => t.tick === 0)) throw new Error('工程缺少起始速度。');
   for (const tempo of p.tempos) if (!finite(tempo.tick, 0, 1e12) || !finite(tempo.bpm, 0.01, 10000)) throw new Error('工程速度事件无效。');
   for (const ts of p.timeSignatures) if (!finite(ts.tick, 0, 1e12) || !Number.isInteger(ts.numerator) || !finite(ts.numerator, 1, 255) || !finite(ts.denominator, 1, 32768) || Math.log2(ts.denominator) % 1 !== 0 || (ts.metronome !== undefined && (!Number.isInteger(ts.metronome) || !finite(ts.metronome, 0, 255))) || (ts.thirtyseconds !== undefined && (!Number.isInteger(ts.thirtyseconds) || !finite(ts.thirtyseconds, 0, 255)))) throw new Error('工程拍号无效。');
+  if (p.cycle !== undefined && (!p.cycle || !finite(p.cycle.start, 0, 1e12 - 1) || !finite(p.cycle.end, 1, 1e12) || p.cycle.end - p.cycle.start < 1 || typeof p.cycle.enabled !== 'boolean')) throw new Error('工程循环范围无效。');
   const instrumentIds = new Set<string>(), trackIds = new Set<string>(), patternIds = new Set<string>();
   for (const ins of p.instruments) { addId(ins.id); instrumentIds.add(ins.id); if (!finite(ins.rootMidi, 0, 127)) throw new Error('乐器基准音高无效。'); }
-  for (const track of p.tracks) { addId(track.id); trackIds.add(track.id); if (!instrumentIds.has(track.instrumentId) || !finite(track.volume, 0, 4) || !finite(track.pan, -1, 1) || (track.midiChannel !== undefined && (!Number.isInteger(track.midiChannel) || !finite(track.midiChannel, 0, 15))) || (track.sourceMidiTrack !== undefined && (!Number.isInteger(track.sourceMidiTrack) || !finite(track.sourceMidiTrack, 0, 65535)))) throw new Error('轨道参数无效。'); if (track.delay !== undefined && !validateDelayEffect(track.delay)) throw new Error('轨道 Delay 参数无效。'); }
+  for (const track of p.tracks) { addId(track.id); trackIds.add(track.id); if (track.kind!==undefined&&!['notes','audio'].includes(track.kind) || track.audioGroup!==undefined&&(track.kind!=='audio'||typeof track.audioGroup.sourceClipId!=='string'||typeof track.audioGroup.collapsed!=='boolean') || !instrumentIds.has(track.instrumentId) || !finite(track.volume, 0, 4) || !finite(track.pan, -1, 1) || (track.midiChannel !== undefined && (!Number.isInteger(track.midiChannel) || !finite(track.midiChannel, 0, 15))) || (track.sourceMidiTrack !== undefined && (!Number.isInteger(track.sourceMidiTrack) || !finite(track.sourceMidiTrack, 0, 65535)))) throw new Error('轨道参数无效。'); if (track.delay !== undefined && !validateDelayEffect(track.delay)) throw new Error('轨道 Delay 参数无效。'); }
   let totalMidiEvents = 0;
   const validateMidiEvents = (events: import('./types').StoredMidiEvent[]) => {
     if (!Array.isArray(events) || (totalMidiEvents += events.length) > 2000000) throw new Error('MIDI 消息数量过多。');
@@ -131,9 +151,15 @@ export function validateProject(value: unknown): Project {
   for (const region of p.regions) {
     addId(region.id);
     if (!trackIds.has(region.trackId) || !patternIds.has(region.patternId) || !finite(region.start, 0, 1e12) || !finite(region.length, 1, 1e12) || !finite(region.offset, 0, 1e12) || region.midiEndExclusive !== undefined && typeof region.midiEndExclusive !== 'boolean') throw new Error('片段引用或范围无效。');
+    validateMidiRegionChords(region);
   }
   if (!p.audio || !finite(p.audio.masterGain, 0, 2) || ![22050, 44100, 48000, 96000].includes(p.audio.sampleRate) || !['vanilla', 'studio'].includes(p.audio.mode)) throw new Error('声音设置无效。');
   if (typeof p.name !== 'string' || typeof p.id !== 'string') throw new Error('工程名称或标识无效。');
+  validateAudioClips(p,ids);
+  validateChordTrack(p.chordTrack);
+  for(const clip of p.audioClips??[])if(clip.analysis)validateAudioWorkspace(clip.analysis,p.assets);
+  validateDrumMappings(p);
+  if (p.audioWorkspace !== undefined) validateAudioWorkspace(p.audioWorkspace, p.assets);
   return p;
 }
 export function projectDiagnostics(project: Project): Diagnostic[] {
@@ -141,9 +167,11 @@ export function projectDiagnostics(project: Project): Diagnostic[] {
   try { dryNotes = flattenNotes(project); }
   catch (error) { return [{ severity: 'error', code: 'note-expansion-limit', message: error instanceof Error ? error.message : '音符展开超限，请缩短片段范围后重试。' }]; }
   let notes = dryNotes;
-  const warnings: Diagnostic[] = [];
+  const warnings: Diagnostic[] = project.audioClips?.length ? [{severity:'warning',code:'audio-clips-export',message:'音频片段可保存到 NBSX 和实时 WAV；NBS／MIDI 仅导出音符，不能保存音频。'}] : [];
   try {
-    const plan = expandDelayEvents(project, dryNotes);
+    const mapping = expandDrumMappings(project, dryNotes);
+    const plan = expandDelayEvents(project, mapping.notes);
+    warnings.push(...mapping.diagnostics);
     notes = plan.notes; warnings.push(...plan.diagnostics);
   } catch (error) {
     warnings.push({ severity: 'error', code: 'delay-event-limit', message: error instanceof Error ? error.message : 'Delay 事件无法完整展开，请调整效果参数。' });

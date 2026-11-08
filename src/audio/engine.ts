@@ -1,3 +1,6 @@
+import { assertPlaybackLoopPeriod } from '../core/transport';
+import { TimelineAudio } from './timeline-audio';
+import { PlaybackMetronome } from './metronome';
 import { base64ToBytes } from '../core/container';
 import { renderNoteEvents, clamp } from '../core/project';
 import { createTempoMap, tickToSeconds } from '../core/time';
@@ -8,7 +11,7 @@ import { legacySourceGain } from './legacy';
 import { broadcastForProject, withinBroadcastRange } from './delivery';
 import { hrtfContextForProject, outputLimiterForProject } from './context';
 import { playbackEndTick, referenceSegment } from '../core/reference';
-import { transportPosition, type TransportClock } from '../core/transport';
+import { cycleSeekTick, transportPosition, validateCycleRange, type CycleRange, type TransportClock } from '../core/transport';
 
 export const PROFILE_STATUS = { unverified: '待代码核对与游戏实测', 'code-reviewed': '核心参数已核对 · 待游戏实测', 'partially-measured': '部分游戏场景已对照 · 其余待验收', 'game-measured': '游戏实测通过' };
 export const linearAttenuation = (distance: number, maxDistance: number): number => maxDistance > 0 ? clamp(1 - Math.max(0, distance) / maxDistance, 0, 1) : 0;
@@ -75,9 +78,17 @@ interface LiveVoice {
   source: AudioBufferSourceNode; gain: GainNode; panner: PannerNode; note: FlatNote; when: number; panOffset: number;
 }
 interface LivePlayback {
-  project: Project; events: FlatNote[]; queue: NoteOccurrenceQueue; end: number; endTick: number; loop: boolean;
+  project: Project; events: FlatNote[]; queue: NoteOccurrenceQueue; start: number; end: number; period: number; endTick: number; loop: boolean; cycle?: CycleRange;
   reference?: AudioBuffer; scheduleReference: () => void; pump: () => void; epoch: number;
 }
+type PlaybackPlan = { kind: 'live'; project: Project; loop: boolean; cycle?: CycleRange }
+  | { kind: 'rendered'; project: Project; wav: Uint8Array; loopStart?: number; loopEnd?: number; cycle?: CycleRange };
+
+/** Cycle locators select source triggers; their derived echoes retain natural tails. */
+const eventsInCycle = (events: FlatNote[], cycle?: CycleRange) => cycle ? events.filter(note => {
+  const trigger = note.drumSource?.occurrenceTick ?? note.delaySource?.occurrenceTick ?? note.absoluteTick;
+  return trigger >= cycle.start && trigger < cycle.end;
+}) : events;
 
 export function wavFromChannels(channels: Float32Array[], sampleRate: number): Uint8Array {
   const frames = channels[0]?.length ?? 0, count = channels.length;
@@ -94,8 +105,16 @@ export function wavFromChannels(channels: Float32Array[], sampleRate: number): U
   return bytes;
 }
 export class AudioEngine {
+  private timelineAudio = new TimelineAudio();
+  async loadTimelineAudio(project: Project) { if(!project.audioClips?.length){this.timelineAudio.clear();return;} await this.timelineAudio.load(project, this.audioContext()); }
+  audioClipPeaks(assetId: string) { return this.timelineAudio.peaks(assetId); }
+  private pumpTimelineAudio = () => {};
   context?: AudioContext;
   buffers = new Map<string, AudioBuffer>();
+  // Library PCM never owns embedded project replacements. Undo/adopt can remove
+  // an override without destroying the original library or preview fallback.
+  private projectBuffers = new Map<string, { data: string; buffer: AudioBuffer }>();
+  private projectSampleTargets = new Map<string, string | undefined>();
   private previewBuffers = new Map<string, AudioBuffer>();
   library?: SampleLibrary;
   playing = false;
@@ -106,6 +125,8 @@ export class AudioEngine {
   private startSeconds = 0;
   private playbackEpoch = 0;
   private clock?: TransportClock;
+  private readonly metronome = new PlaybackMetronome();
+  private playbackPlan?: PlaybackPlan;
   analysers = new Map<string, AnalyserNode>();
   private masterAnalyser?: AnalyserNode;
   private live?: LivePlayback;
@@ -151,21 +172,32 @@ export class AudioEngine {
   }
   async loadProjectSamples(project: Project) {
     const ticket = ++this.sampleLoadTicket;
+    const assets = new Map(project.assets.map(asset => [asset.id, asset]));
+    const targets = new Map(project.instruments.filter(ins => ins.assetId !== undefined).map(ins => [ins.id, assets.get(ins.assetId!)?.data]));
+    const targetsChanged = targets.size !== this.projectSampleTargets.size || [...targets].some(([id, data]) => !this.projectSampleTargets.has(id) || this.projectSampleTargets.get(id) !== data);
+    this.projectSampleTargets = targets;
+    for (const [id, sample] of this.projectBuffers) if (!targets.has(id) || targets.get(id) !== sample.data) this.projectBuffers.delete(id);
     this.pendingProjectSamples = { ticket, project };
     try {
       const ctx = await this.ensure(), decoded: { id: string; data: string; buffer: AudioBuffer }[] = [];
+      if (ticket !== this.sampleLoadTicket) return;
+      const byData = new Map([...this.projectBuffers.values()].map(sample => [sample.data, sample.buffer]));
       for (const ins of project.instruments) {
-        const asset = project.assets.find(a => a.id === ins.assetId);
-        if (asset?.data) decoded.push({ id: ins.id, data: asset.data, buffer: await ctx.decodeAudioData(Uint8Array.from(base64ToBytes(asset.data)).buffer) });
+        const data = targets.get(ins.id); if (!data) continue;
+        const buffer = byData.get(data) ?? await ctx.decodeAudioData(Uint8Array.from(base64ToBytes(data)).buffer);
+        if (ticket !== this.sampleLoadTicket) return;
+        byData.set(data, buffer); decoded.push({ id: ins.id, data, buffer });
       }
       if (ticket !== this.sampleLoadTicket) return;
       const current = this.requestedLiveProject;
+      let installed = false;
       for (const sample of decoded) {
         const definition = current?.instruments.find(ins => ins.id === sample.id);
         if (current && (current.id !== project.id || current.assets.find(asset => asset.id === definition?.assetId)?.data !== sample.data)) continue;
-        this.buffers.set(sample.id, sample.buffer);
+        if (this.projectBuffers.get(sample.id)?.buffer !== sample.buffer) installed = true;
+        this.projectBuffers.set(sample.id, { data: sample.data, buffer: sample.buffer });
       }
-      if (current && this.live && current.id === project.id) this.updateProject(current);
+      if (current && this.live && current.id === project.id) this.updateProject(current, false, targetsChanged || installed);
     } finally {
       if (this.pendingProjectSamples?.ticket === ticket) this.pendingProjectSamples = undefined;
     }
@@ -192,14 +224,14 @@ export class AudioEngine {
       return buffer;
     } finally { if (this.referenceLoading === loading) this.referenceLoading = undefined; }
   }
-  private scheduleReference(project: Project, buffer: AudioBuffer | undefined, when: number, from: number, loop: boolean, period: number) {
+  private scheduleReference(project: Project, buffer: AudioBuffer | undefined, when: number, from: number, loop: boolean, end: number, start = 0) {
     if (!buffer || !project.reference || !this.context) return () => {};
     const context = this.context;
-    const offset = tickToSeconds(project.reference.startTick, project);
+    const offset = tickToSeconds(project.reference.startTick, project), period = end - start;
     const enqueue = (cycle: number, localFrom: number) => {
       const at = when + (cycle * period + localFrom - from);
       const late = Math.max(0, context.currentTime - at);
-      const segment = referenceSegment(offset, buffer.duration, localFrom + late, period);
+      const segment = referenceSegment(offset, buffer.duration, localFrom + late, end);
       if (!segment) return;
       const source = context.createBufferSource(), gain = context.createGain();
       const mix = this.live ? this.mixedProject(this.live.project) : project;
@@ -209,18 +241,31 @@ export class AudioEngine {
       this.sources.add(source); this.referenceVoices.set(source, gain);
       source.onended = () => { this.sources.delete(source); this.referenceVoices.delete(source); source.disconnect(); gain.disconnect(); };
     };
-    const cycle = loop ? Math.floor(from / period) : 0;
+    const cycle = loop ? Math.max(0, Math.floor((from - start) / period)) : 0;
     enqueue(cycle, from - cycle * period);
     let nextCycle = cycle + 1;
     return () => {
       if (!loop) return;
       const elapsed = context.currentTime - when + from;
-      while (nextCycle * period <= elapsed + .15) { enqueue(nextCycle, 0); nextCycle++; }
+      while (start + nextCycle * period <= elapsed + .15) { enqueue(nextCycle, start); nextCycle++; }
     };
   }
   position() { return this.clock && this.context ? transportPosition(this.clock, this.context.currentTime) : undefined; }
-  bufferFor(id: string, includePreview = true) { return this.buffers.get(id) ?? this.buffers.get(SAMPLE_NAMES[id] ?? id)
-    ?? (includePreview ? this.previewBuffers.get(id) : undefined); }
+  /** A seek replaces every old voice once and shares the same epoch cancellation as Play/Stop. */
+  async seek(tick: number): Promise<boolean> {
+    const plan = this.playbackPlan;
+    if (!Number.isFinite(tick) || tick < 0) throw new Error('播放位置无效。');
+    if (!plan) { this.onPosition?.(tick); return false; }
+    return plan.kind === 'live' ? this.play(plan.project, tick, plan.loop, plan.cycle)
+      : this.playRendered(plan.project, plan.wav, tick, plan.loopStart, plan.loopEnd, plan.cycle);
+  }
+  bufferFor(id: string, includePreview = true) {
+    if (this.projectSampleTargets.has(id)) {
+      const sample = this.projectBuffers.get(id);
+      return sample?.data === this.projectSampleTargets.get(id) ? sample?.buffer : undefined;
+    }
+    return this.buffers.get(id) ?? this.buffers.get(SAMPLE_NAMES[id] ?? id) ?? (includePreview ? this.previewBuffers.get(id) : undefined);
+  }
   private mixedProject(project: Project): Project {
     if (!this.trackPreviews.size && this.masterPreview === undefined) return project;
     return { ...project, tracks: project.tracks.map(track => this.trackPreviews.has(track.id) ? { ...track, ...this.trackPreviews.get(track.id) } : track),
@@ -243,6 +288,7 @@ export class AudioEngine {
     if (!this.live) return;
     const project = this.mixedProject(this.live.project), tracks = new Map(project.tracks.map(track => [track.id, track])), solo = project.tracks.some(track => track.solo);
     for (const voice of this.liveVoices.values()) this.configureLiveVoice(voice, project, tracks, solo);
+    this.timelineAudio.update(project);
     for (const gain of this.referenceVoices.values()) gain.gain.value = (project.reference?.gain ?? 0) * project.audio.masterGain;
   }
   /** Temporary slider audition is independent of document/history state. */
@@ -319,30 +365,39 @@ export class AudioEngine {
     const when = context.currentTime + .005;
     for (const note of plan.notes) this.schedule(context, project, note, when + timing.seconds(note.absoluteTick), this.sources);
   }
-  async play(project: Project, fromTick: number, loop = false) {
+  setMetronome(enabled: boolean) { this.metronome.setEnabled(enabled); }
+  async play(project: Project, fromTick: number, loop = false, cycle?: CycleRange) {
+    const range = loop && cycle ? validateCycleRange(cycle) : undefined;
     this.stop();
-    const epoch = this.playbackEpoch, ctx = await this.ensure();
+    this.playbackPlan = { kind: 'live', project, loop, cycle: range };
+    const epoch = this.playbackEpoch;
+    try {
+    const ctx = await this.ensure();
+    await this.loadTimelineAudio(project);
     const reference = await this.loadReference(project);
     if (epoch !== this.playbackEpoch) return false;
     const timing = createTempoMap(project);
-    const endTick = playbackEndTick(project, reference?.duration), end = timing.seconds(endTick);
-    if (!Number.isFinite(end) || end <= 0) throw new Error('工程播放周期无效。');
-    const plan = renderNoteEvents(project, true), events = plan.notes; this.renderDiagnostics = plan.diagnostics;
-    this.startSeconds = Math.max(0, loop ? timing.seconds(fromTick) % end : timing.seconds(fromTick)); this.startedAt = ctx.currentTime + 0.05;
+    const endTick = range?.end ?? playbackEndTick(project, reference?.duration), start = timing.seconds(range?.start ?? 0), end = timing.seconds(endTick), period = end - start;
+    if (!Number.isFinite(period) || period <= 0) throw new Error('工程播放周期无效。');
+    const plan = renderNoteEvents(project, true), events = eventsInCycle(plan.notes, range); this.renderDiagnostics = plan.diagnostics;
+    this.startSeconds = Math.max(0, range ? timing.seconds(cycleSeekTick(fromTick, range)) : loop ? timing.seconds(fromTick) % end : timing.seconds(fromTick)); this.startedAt = ctx.currentTime + 0.05;
     const solo = project.tracks.some(track => track.solo), audible = new Set(project.tracks.filter(track => !track.muted && (!solo || track.solo)).map(track => track.id));
     const missing = [...new Set(events.filter(n => audible.has(n.trackId) && n.gain > 0 && !this.bufferFor(n.effectiveInstrument)).map(n => project.instruments.find(i => i.id === n.effectiveInstrument)?.name ?? n.effectiveInstrument))];
     if (missing.length) throw new Error(`缺少采样：${missing.join('、')}。请加载对应版本的资源。`);
-    const queue = new NoteOccurrenceQueue(events.map(note => timing.seconds(note.absoluteTick)), end, loop, this.startSeconds);
+    if(loop)assertPlaybackLoopPeriod(period);
+    const queue = new NoteOccurrenceQueue(events.map(note => timing.seconds(note.absoluteTick)), period, loop, this.startSeconds);
     this.playing = true;
-    this.clock = { timing, startedAt: this.startedAt, from: this.startSeconds, endTick, loop };
-    const live: LivePlayback = { project, events, queue, end, endTick, loop, reference, scheduleReference: () => {}, pump: () => {}, epoch };
+    this.clock = { timing, startedAt: this.startedAt, from: this.startSeconds, endTick, loop, startTick: range?.start };
+    this.metronome.configure(project, this.clock);
+    const live: LivePlayback = { project, events, queue, start, end, period, endTick, loop, cycle: range, reference, scheduleReference: () => {}, pump: () => {}, epoch };
     this.live = live;
     this.requestedLiveProject = project;
-    live.scheduleReference = this.scheduleReference(project, reference, this.startedAt, this.startSeconds, loop, end);
+    live.scheduleReference = this.scheduleReference(project, reference, this.startedAt, this.startSeconds, loop, end, start);
+    try { if(project.audioClips?.length)this.pumpTimelineAudio = this.timelineAudio.schedule(project,ctx,id=>this.timelineOutput(ctx,id),this.startedAt,this.startSeconds,loop,end,start); } catch(error) { this.stop(); throw error; }
     const schedule = () => {
       if (!this.playing || epoch !== this.playbackEpoch || this.context !== ctx || this.live !== live) return;
       const seconds = this.context.currentTime - this.startedAt + this.startSeconds;
-      live.scheduleReference();
+      live.scheduleReference(); this.pumpTimelineAudio(); this.metronome.pump(ctx);
       let occurrence: NoteOccurrence | undefined;
       while ((occurrence = live.queue.takeThrough(seconds + .15))) {
         this.schedule(ctx, live.project, live.events[occurrence.index], Math.max(ctx.currentTime, this.startedAt + occurrence.at - this.startSeconds), this.sources, true);
@@ -355,21 +410,23 @@ export class AudioEngine {
     };
     live.pump = schedule;
     schedule(); if (this.playing && epoch === this.playbackEpoch) this.interval = setInterval(schedule, 25); return true;
+    } catch (error) { if (epoch === this.playbackEpoch) this.stop(); throw error; }
   }
   /** Replan only future onsets; already-started samples retain their natural tails. */
-  updateProject(project: Project, refreshReference = false): boolean {
+  updateProject(project: Project, refreshReference = false, refreshSamples = false): boolean {
     const live = this.live, context = this.context, clock = this.clock;
     if (!live || !context || !clock || !this.playing) return false;
     if (live.project.id !== project.id) return false;
+    if(!project.tracks.length&&!project.reference){this.stop();this.onEnded?.();return true;}
     this.requestedLiveProject = project;
-    if (live.project === project && !refreshReference) return true;
+    if (live.project === project && !refreshReference && !refreshSamples) return true;
     const previous = live.project;
-    const structural = previous.patterns !== project.patterns || previous.regions !== project.regions || previous.tempos !== project.tempos || previous.ppq !== project.ppq
-      || previous.tracks.length !== project.tracks.length || previous.tracks.some((track, index) => {
-        const next = project.tracks[index]; return track.id !== next.id || track.instrumentId !== next.instrumentId || track.delay !== next.delay;
+    const structural = refreshSamples || previous.patterns !== project.patterns || previous.regions !== project.regions || previous.tempos !== project.tempos || previous.ppq !== project.ppq || previous.instruments !== project.instruments
+      || previous.drumPresets !== project.drumPresets || previous.tracks.length !== project.tracks.length || previous.tracks.some((track, index) => {
+        const next = project.tracks[index]; return track.id !== next.id || track.instrumentId !== next.instrumentId || track.delay !== next.delay || track.drumPresetId !== next.drumPresetId;
       });
     const referenceMoved = previous.reference?.assetId !== project.reference?.assetId || previous.reference?.startTick !== project.reference?.startTick;
-    const plan = structural ? renderNoteEvents(project, true) : undefined, events = plan?.notes ?? live.events;
+    const plan = structural ? renderNoteEvents(project, true) : undefined, events = plan ? eventsInCycle(plan.notes, live.cycle) : live.events;
     const solo = project.tracks.some(track => track.solo), audible = new Set(project.tracks.filter(track => !track.muted && (!solo || track.solo)).map(track => track.id));
     const missing = events.find(note => audible.has(note.trackId) && note.velocity > 0 && !this.bufferFor(note.effectiveInstrument));
     if (missing) {
@@ -393,37 +450,47 @@ export class AudioEngine {
     const referenceAsset = project.assets.find(asset => asset.id === project.reference?.assetId);
     const reference = referenceAsset?.data === this.reference?.data ? this.reference?.buffer : undefined;
     const position = this.position()!, timing = createTempoMap(project);
-    const endTick = playbackEndTick(project, reference?.duration), end = timing.seconds(endTick);
-    if (!Number.isFinite(end) || end <= 0) throw new Error('工程播放周期无效。');
+    const endTick = live.cycle?.end ?? playbackEndTick(project, reference?.duration), start = timing.seconds(live.cycle?.start ?? 0), end = timing.seconds(endTick), period = end - start;
+    if(period<=0&&!events.length&&!project.audioClips?.length&&!reference){this.stop();this.onEnded?.();return true;}
+    if (!Number.isFinite(period) || period <= 0) throw new Error('工程播放周期无效。');
+    if(live.loop)assertPlaybackLoopPeriod(period);
     const referenceClockChanged = previous.ppq !== project.ppq || previous.tempos !== project.tempos || endTick !== live.endTick;
     let queue: NoteOccurrenceQueue | undefined, from = position.seconds;
     if (structural || endTick !== live.endTick) {
-      const cycle = live.loop ? Math.floor(position.linearTick / clock.endTick) : 0;
-      from = cycle * end + timing.seconds(position.tick);
-      queue = new NoteOccurrenceQueue(events.map(note => timing.seconds(note.absoluteTick)), end, live.loop, from + (context.currentTime < clock.startedAt ? 0 : 1e-7));
+      const cycle = live.loop ? Math.max(0, Math.floor((position.seconds - live.start) / live.period)) : 0;
+      from = cycle * period + timing.seconds(position.tick);
+      queue = new NoteOccurrenceQueue(events.map(note => timing.seconds(note.absoluteTick)), period, live.loop, from + (context.currentTime < clock.startedAt ? 0 : 1e-7));
     }
     // Everything above is validated before touching the currently audible graph.
     live.project = project; live.reference = reference;
+    if (this.playbackPlan?.kind === 'live') this.playbackPlan.project = project;
     for (const id of this.trackPreviews.keys()) if (!project.tracks.some(track => track.id === id)) this.trackPreviews.delete(id);
     if (queue) {
       for (const [source, voice] of this.liveVoices) if (voice.when > context.currentTime) { source.stop(); this.sources.delete(source); this.liveVoices.delete(source); }
       this.startedAt = Math.max(context.currentTime, clock.startedAt); this.startSeconds = from;
-      this.clock = { timing, startedAt: this.startedAt, from, endTick, loop: live.loop };
-      live.events = events; live.queue = queue; live.end = end; live.endTick = endTick;
+      this.clock = { timing, startedAt: this.startedAt, from, endTick, loop: live.loop, startTick: live.cycle?.start };
+      live.events = events; live.queue = queue; live.start = start; live.end = end; live.period = period; live.endTick = endTick;
       if (plan) this.renderDiagnostics = plan.diagnostics;
     }
     if (referenceClockChanged || referenceMoved || refreshReference) {
       for (const source of this.referenceVoices.keys()) { source.stop(); this.sources.delete(source); }
       this.referenceVoices.clear();
-      live.scheduleReference = this.scheduleReference(project, reference, Math.max(context.currentTime, this.clock!.startedAt), this.position()!.seconds, live.loop, end);
+      live.scheduleReference = this.scheduleReference(project, reference, Math.max(context.currentTime, this.clock!.startedAt), this.position()!.seconds, live.loop, end, start);
     }
+    this.timelineAudio.update(this.mixedProject(project));
+    if (referenceClockChanged || previous.audioClips !== project.audioClips) { this.timelineAudio.stop(); this.pumpTimelineAudio=project.audioClips?.length?this.timelineAudio.schedule(project,context,id=>this.timelineOutput(context,id),Math.max(context.currentTime,this.clock!.startedAt),this.position()!.seconds,live.loop,end,start):()=>{}; }
+    const clickTimingChanged = referenceClockChanged || previous.timeSignatures !== project.timeSignatures;
+    if (clickTimingChanged) this.metronome.configure(project, this.clock!);
     this.refreshLiveMix();
-    if (queue) live.pump();
+    if (queue || clickTimingChanged) live.pump();
     return true;
   }
   stop() {
     const position = this.position(); if (position) this.onPosition?.(position.tick);
+    this.timelineAudio.stop(); this.pumpTimelineAudio=()=>{};
+    this.metronome.stop();
     this.playbackEpoch++; this.clock = undefined;
+    this.playbackPlan = undefined;
     this.playing = false; this.live = undefined; this.requestedLiveProject = undefined; this.trackPreviews.clear(); this.masterPreview = undefined;
     if (this.interval) clearInterval(this.interval); this.interval = undefined;
     for (const source of this.sources) { try { source.stop(); } catch { /* already ended */ } } this.sources.clear();
@@ -447,6 +514,9 @@ export class AudioEngine {
     // separated result so a perfectly valid track named __master cannot collide.
     return this.masterAnalyser ? { ...tracks, __master: master } : tracks;
   }
+  private timelineOutput(context: AudioContext,id:string) {
+    let analyser=this.analysers.get(id);if(!analyser){analyser=context.createAnalyser();analyser.fftSize=512;const parent=this.live?.project.tracks.find(t=>t.id===id)?.parentTrackId;analyser.connect(parent?this.timelineOutput(context,parent):this.masterOutput(context));this.analysers.set(id,analyser);}return analyser;
+  }
   private masterOutput(context: AudioContext) {
     if (!this.masterAnalyser) { const analyser = context.createAnalyser(); analyser.fftSize = 512; analyser.connect(context.destination); this.masterAnalyser = analyser; }
     return this.masterAnalyser;
@@ -458,31 +528,42 @@ export class AudioEngine {
     const source = context.createBufferSource(); source.buffer = buffer; source.connect(this.masterOutput(context)); this.sources.add(source);
     source.onended = () => { this.sources.delete(source); source.disconnect(); }; source.start();
   }
-  async playRendered(project: Project, wav: Uint8Array, fromTick: number, loopStart?: number, loopEnd?: number) {
-    this.stop(); const epoch = this.playbackEpoch, context = await this.ensure();
+  async playRendered(project: Project, wav: Uint8Array, fromTick: number, loopStart?: number, loopEnd?: number, cycle?: CycleRange) {
+    const range = cycle ? validateCycleRange(cycle) : undefined;
+    this.stop();
+    this.playbackPlan = { kind: 'rendered', project, wav, loopStart, loopEnd, cycle: range };
+    const epoch = this.playbackEpoch;
+    try {
+    const context = await this.ensure();
     const reference = await this.loadReference(project);
     let buffer = await context.decodeAudioData(Uint8Array.from(wav).buffer);
     if (epoch !== this.playbackEpoch) return false;
-    const timing = createTempoMap(project), endTick = playbackEndTick(project, reference?.duration), period = timing.seconds(endTick);
-    if (buffer.duration < period) {
-      const padded = context.createBuffer(buffer.numberOfChannels, Math.ceil(period * buffer.sampleRate), buffer.sampleRate);
+    const timing = createTempoMap(project), endTick = range?.end ?? playbackEndTick(project, reference?.duration), startSeconds = timing.seconds(range?.start ?? 0), end = timing.seconds(endTick), period = end - startSeconds;
+    if(range || loopStart !== undefined && loopEnd !== undefined)assertPlaybackLoopPeriod(range ? period : loopEnd! - loopStart!);
+    if (buffer.duration < end) {
+      const padded = context.createBuffer(buffer.numberOfChannels, Math.ceil(end * buffer.sampleRate), buffer.sampleRate);
       for (let ch = 0; ch < buffer.numberOfChannels; ch++) padded.copyToChannel(buffer.getChannelData(ch), ch);
       buffer = padded;
     }
     const source = context.createBufferSource(); source.buffer = buffer; source.connect(this.masterOutput(context));
-    if (loopStart !== undefined && loopEnd !== undefined) { source.loop = true; source.loopStart = loopStart; source.loopEnd = loopEnd; }
-    const from = Math.max(0, source.loop ? timing.seconds(fromTick) % period : Math.min(buffer.duration - 1 / buffer.sampleRate, timing.seconds(fromTick)));
+    if (range) { source.loop = true; source.loopStart = startSeconds; source.loopEnd = end; }
+    else if (loopStart !== undefined && loopEnd !== undefined) { source.loop = true; source.loopStart = loopStart; source.loopEnd = loopEnd; }
+    const from = Math.max(0, range ? timing.seconds(cycleSeekTick(fromTick, range)) : source.loop ? timing.seconds(fromTick) % period : Math.min(buffer.duration - 1 / buffer.sampleRate, timing.seconds(fromTick)));
     const start = context.currentTime + .03;
     // Start in the cold first cycle. The later loop range retains the rendered
     // preceding cycles' sample tails without inventing a previous cycle at start.
     source.start(start, from); this.sources.add(source); this.playing = true;
-    this.clock = { timing, startedAt: start, from, endTick, loop: source.loop };
-    const scheduleReference = this.scheduleReference(project, reference, start, from, source.loop, period);
-    this.interval = setInterval(() => { scheduleReference(); this.onPosition?.(this.position()!.tick); }, 25);
+    this.clock = { timing, startedAt: start, from, endTick, loop: source.loop, startTick: range?.start };
+    const scheduleReference = this.scheduleReference(project, reference, start, from, source.loop, end, startSeconds);
+    this.metronome.configure(project, this.clock);
+    this.metronome.pump(context);
+    this.interval = setInterval(() => { scheduleReference(); this.metronome.pump(context); this.onPosition?.(this.position()!.tick); }, 25);
     source.onended = () => { if (this.sources.has(source)) { this.sources.delete(source); this.onEnded?.(); this.stop(); } source.disconnect(); };
     return true;
+    } catch (error) { if (epoch === this.playbackEpoch) this.stop(); throw error; }
   }
   async nativeRequest(project: Project): Promise<NativeRenderRequest> {
+    if(project.audioClips?.length)throw new Error('含音频片段的工程请使用实时 WAV 导出；原生游戏渲染不能包含普通音频片段。');
     if (!this.library?.nativeLibrary) throw new Error('当前资源未找到可用的 OpenAL 本地库。');
     if (project.audio.profileId !== this.library.profileId) throw new Error(`工程目标为 ${project.audio.profileId}，当前加载 ${this.library.profileId}，请加载匹配的资源后再原生渲染。`);
     if (!this.library.nativeDecoder && !this.library.javaDecoder) throw new Error('此版本原版解码器暂不可用。可以在设置中明确选择 Web Audio 近似试听。');
@@ -504,13 +585,15 @@ export class AudioEngine {
   }
   async renderWeb(project: Project): Promise<Uint8Array> {
     const plan = renderNoteEvents(project), notes = plan.notes; this.renderDiagnostics = plan.diagnostics;
-    const timing = createTempoMap(project), duration = renderDuration(project, notes, id => this.bufferFor(id)?.duration ?? 0, this.library, timing, 'musical');
+    await this.loadTimelineAudio(project);
+    const timing = createTempoMap(project), duration = Math.max(timing.seconds(playbackEndTick(project)), renderDuration(project, notes, id => this.bufferFor(id)?.duration ?? 0, this.library, timing, 'musical'));
     if (duration > 1800) throw new Error('单次音频导出最长 30 分钟，请拆分较长工程。');
     const context = new OfflineAudioContext(2, Math.ceil(duration * project.audio.sampleRate), project.audio.sampleRate);
     for (const note of notes) {
       if (!this.bufferFor(note.effectiveInstrument)) throw new Error(`缺少采样：${note.effectiveInstrument}`);
       this.schedule(context, project, note, timing.seconds(note.absoluteTick));
     }
+    this.timelineAudio.schedule(project,context,context.destination,0,0,false,duration);
     const rendered = await context.startRendering();
     return wavFromChannels([rendered.getChannelData(0), rendered.getChannelData(1)], rendered.sampleRate);
   }

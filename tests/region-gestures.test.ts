@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createMeterMap } from '../src/core/meter';
 import { newTrack } from '../src/core/project';
 import { createRegionGestureHarness as fixture, type RegionGestureHarness, type RegionGestureProps } from './helpers/region-gesture-harness';
@@ -28,6 +28,16 @@ const invalidations: { name: string; change: (state: RegionGestureHarness) => Pa
 ];
 
 describe('RegionClip cancellable gestures and stale targets (no physical input)', () => {
+  it('shows a Logic Alt-copy origin and commits a single copy without moving its source', () => {
+    const state = fixture(), copy = vi.fn(); state.update({ preset: 'logic', onCopy: copy });
+    state.render().props.onPointerDown(state.event(0, 7, null, { altKey: true })); state.render().props.onPointerMove(state.event(48, 7, null));
+    expect(state.render().props['data-copy-preview']).toBe(true);
+    expect(state.render().props.children.some((child: any) => child?.props?.['data-testid'] === 'region-copy-origin')).toBe(true);
+    state.render().props.onPointerUp(state.event(48, 7, null));
+    expect(copy).toHaveBeenCalledExactlyOnceWith([{ id: state.region.id, start: 2400, trackId: state.region.trackId }]);
+    expect(state.onRegionChange).not.toHaveBeenCalled(); expect(state.project).toEqual(state.original);
+  });
+
   it.each(modes)('commits $name once after release with rolling scroll delta and removes every active listener', ({ edge }) => {
     const state = fixture({ synchronousLostCapture: true });
     expect(state.render().props.tabIndex).toBe(-1); expect(state.listeners()).toBe(0); begin(state, edge);
@@ -200,7 +210,7 @@ describe('RegionClip cross-track gesture callbacks (no physical input)', () => {
     const node = state.render(), token = state.onTrackDropPreview.mock.calls[0][0];
     expect(state.thumbnail(node).props.region).toMatchObject({ trackId: target.id, start });
     expect(node.props.style.transform).toBe(`translateY(${(destination - source) * 52}px)`);
-    expect(node.props.style.backgroundColor).toBe(target.color); expect(node.props['data-drop-track-id']).toBe(target.id);
+    expect(node.props.style['--region-color']).toBe(target.color); expect(node.props['data-drop-track-id']).toBe(target.id);
     expect(node.props.children.find((child: any) => child?.props?.role === 'status')?.props.children).toEqual([`→ ${target.name}`]);
     expect(state.onRegionChange).not.toHaveBeenCalled(); expect(state.project).toEqual(state.original);
     node.props.onPointerUp(event(state, x, yFor(state, destination)));

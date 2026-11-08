@@ -1,7 +1,17 @@
 import type { Instrument } from './types';
 
+// The same instance-pitch bounds are used by the original-game audio path.
+export const NOTE_BLOCK_MIN_PITCH = .5, NOTE_BLOCK_MAX_PITCH = 2;
+export function noteBlockMidiRange(rootMidi = 66): { min: number; max: number } {
+  return { min: rootMidi + 12 * Math.log2(NOTE_BLOCK_MIN_PITCH), max: rootMidi + 12 * Math.log2(NOTE_BLOCK_MAX_PITCH) };
+}
+export function inNoteBlockRange(midi: number, rootMidi = 66): boolean {
+  const range = noteBlockMidiRange(rootMidi);
+  return Number.isFinite(midi) && midi >= range.min && midi <= range.max;
+}
+
 const definitions = [
-  ['harp', '钢琴', 'Harp', '泥土 / 空气', '#70bba0', 0],
+  ['harp', '竖琴', 'Harp', '泥土 / 空气', '#70bba0', 0],
   ['bass', '贝斯', 'Bass', '木板', '#b58be3', 32],
   ['basedrum', '底鼓', 'Bass Drum', '石头', '#dd9b6c', 117],
   ['snare', '军鼓', 'Snare', '沙子', '#d7b366', 115],

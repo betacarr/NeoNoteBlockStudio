@@ -22,8 +22,11 @@ const { createProject, newTrack, newNote, saveNbsx } = await import(pathToFileUR
 const project = createProject('默认音色离线检查'); project.tracks = []; project.patterns = []; project.regions = [];
 project.audio.mode = 'studio'; project.audio.masterGain = .5;
 for (const [index, instrument] of project.instruments.entries()) {
-  const track = newTrack(`Sample ${index + 1} ${instrument.id}`, index, instrument.id); track.volume = .1;
-  const pattern = { id: `sample-pattern-${index}`, name: instrument.id, length: project.ppq * 4, notes: Array.from({ length: 8 }, (_, n) => newNote(n * project.ppq / 2, 66)) };
+  const track = newTrack(`Sample ${index + 1} ${instrument.id}`, index, instrument.id); track.volume = .75;
+  // Use audible mixer levels and stagger the attacks through the meter's
+  // polling interval, instead of aliasing all short hits on a common grid.
+  const pattern = { id: `sample-pattern-${index}`, name: instrument.id, length: project.ppq * 8,
+    notes: Array.from({ length: 6 }, (_, n) => newNote(Math.round(project.ppq * (n * 1.25 + (index * 37 + n * 113) % 311 / 480)), 66)) };
   project.tracks.push(track); project.patterns.push(pattern); project.regions.push({ id: `sample-region-${index}`, trackId: track.id, patternId: pattern.id, start: 0, length: pattern.length, offset: 0, loop: false });
 }
 assert.deepEqual(project.tracks.map(track => track.instrumentId), project.instruments.map(instrument => instrument.id));
@@ -83,7 +86,7 @@ try {
     report.status = 'reproduced-missing-samples';
   } else {
     await page.waitForFunction(() => document.querySelector('.status-message')?.textContent.includes('实时试听'));
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 16000;
     while (Date.now() < deadline) {
       const observed = await page.evaluate(() => window.__previewMeterObservation);
       report.trackPeaks = observed.trackPeaks; report.masterPeak = observed.masterPeak;

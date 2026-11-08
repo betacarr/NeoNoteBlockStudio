@@ -1,6 +1,8 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import type { Project } from './types';
 import { validateProject } from './project';
+import { INSTRUMENTS } from './instruments';
+import { requireEmbeddedAudioWorkspace, validateAudioAssets } from './audio-assist';
 
 const MAX_CONTAINER = 256 * 1024 * 1024;
 const MAX_EXPANDED = 512 * 1024 * 1024;
@@ -14,12 +16,15 @@ export const base64ToBytes = (text: string): Uint8Array => Uint8Array.from(atob(
 
 export function saveNbsx(project: Project): Uint8Array {
   validateProject(project);
+  validateAudioAssets(project.assets);
+  requireEmbeddedAudioWorkspace(project);
   const manifest = structuredClone(project);
   if (manifest.midi && !manifest.assets.find(asset => asset.id === manifest.midi?.sourceAssetId)?.data) throw new Error('工程缺少嵌入的原始 MIDI 文件，无法完整保存。');
   if (manifest.provenance?.kind === 'flp' && !manifest.assets.find(asset => asset.id === manifest.provenance?.metadata.sourceAssetId)?.data) throw new Error('工程缺少嵌入的原始 FLP 文件，无法完整保存。');
   manifest.modifiedAt = new Date().toISOString();
   const files: Record<string, Uint8Array> = {};
   for (const asset of manifest.assets) {
+    if (asset.audioFile) delete asset.path;
     if (asset.data) { files[`assets/${asset.id}`] = base64ToBytes(asset.data); delete asset.data; }
   }
   files['project.json'] = strToU8(JSON.stringify(manifest));
@@ -43,7 +48,17 @@ export function openNbsx(bytes: Uint8Array): Project {
   const manifest = JSON.parse(strFromU8(files['project.json']));
   if (manifest?.format === 'nbsx' && manifest.version === 1) manifest.version = 2;
   const project = validateProject(manifest);
+  validateAudioAssets(project.assets);
+  // Older projects embedded the former default Chinese harp label. Preserve
+  // user names and sample overrides; only migrate the unchanged built-in entry.
+  const harp = INSTRUMENTS.find(instrument => instrument.id === 'harp')!;
+  for (const instrument of project.instruments) {
+    if (instrument.id === harp.id && instrument.name === '钢琴' && instrument.assetId === undefined
+      && (['englishName', 'nbsIndex', 'sound', 'rootMidi', 'gmProgram', 'block', 'color'] as const)
+        .every(key => instrument[key] === harp[key])) instrument.name = harp.name;
+  }
   for (const asset of project.assets) if (files[`assets/${asset.id}`]) asset.data = bytesToBase64(files[`assets/${asset.id}`]);
+  requireEmbeddedAudioWorkspace(project);
   if (project.midi && !project.assets.find(asset => asset.id === project.midi?.sourceAssetId)?.data) throw new Error('工程缺少嵌入的原始 MIDI 文件。');
   if (project.provenance?.kind === 'flp' && !project.assets.find(asset => asset.id === project.provenance?.metadata.sourceAssetId)?.data) throw new Error('工程缺少嵌入的原始 FLP 文件。');
   return project;

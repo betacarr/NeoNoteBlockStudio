@@ -156,15 +156,13 @@ async function inspect(label) {
   assert(!dom.title.startsWith('●'), `${label}: read-only checks must not dirty the project`); assert.equal(dom.filterValue, '', label); assert(dom.filterText.includes(`显示 ${project.tracks.length} / ${project.tracks.length} 轨`), label);
   const control = (inputs, label, type, value, min, max, disabled) => { const item = inputs.find(input => input.label === label && input.type === type); assert(item, `Missing ${type} ${label}`); assert.equal(item.value, value, label); assert.equal(item.min, min, label); assert.equal(item.max, max, label); assert.equal(item.disabled, disabled, label); assert.equal(item.invalid, null, label); };
   project.tracks.forEach((track, index) => {
-    const strip = dom.strips[index]; assert.equal(strip.id, track.id); assert.equal(strip.name, track.name); assert.equal(strip.number, index + 1); assert.equal(strip.active, track.id === selectedTrackId); assert.equal(strip.current, track.id === selectedTrackId ? 'true' : null); assert.equal(strip.meterCount, 1); assert.equal(strip.controls.length, 4);
-    for (const type of ['range', 'number']) {
-      control(strip.controls, `${track.name} 音量${type === 'number' ? '百分比' : ''}`, type, track.volume * 100, 0, 400, track.locked);
-      control(strip.controls, `${track.name} 声像${type === 'number' ? '百分比' : ''}`, type, track.pan * 100, -100, 100, track.locked);
-    }
+    const strip = dom.strips[index]; assert.equal(strip.id, track.id); assert.equal(strip.name, track.name); assert.equal(strip.number, index + 1); assert.equal(strip.active, track.id === selectedTrackId); assert.equal(strip.current, track.id === selectedTrackId ? 'true' : null); assert.equal(strip.meterCount, 1); assert.equal(strip.controls.length, 2);
+    control(strip.controls, `${track.name} 音量`, 'range', track.volume * 100, 0, 400, track.locked);
+    control(strip.controls, `${track.name} 声像`, 'range', track.pan * 100, -100, 100, track.locked);
     assert.deepEqual(strip.buttons, [{ label: `${track.name} 静音`, pressed: String(track.muted) }, { label: `${track.name} 独奏`, pressed: String(track.solo) }]);
   });
-  assert.equal(dom.strips.filter(strip => strip.active).length, 1); assert.equal(dom.masterControls.length, 2);
-  for (const type of ['range', 'number']) control(dom.masterControls, `总输出音量${type === 'number' ? '百分比' : ''}`, type, project.audio.masterGain * 100, 0, 200, false);
+  assert.equal(dom.strips.filter(strip => strip.active).length, 1); assert.equal(dom.masterControls.length, 1);
+  control(dom.masterControls, '总输出音量', 'range', project.audio.masterGain * 100, 0, 200, false);
   assert(dom.bounds?.width > 0 && dom.bounds?.height > 0 && dom.bounds.y < dom.viewport.height && dom.bounds.y + dom.bounds.height > 0, 'Actual mixer is laid out in the viewport');
   const allInputsVisible = [...dom.strips.flatMap(strip => strip.controls), ...dom.masterControls].every(input => input.verticallyInsideViewport);
   const buttonsVisible = dom.verticalVisibility.firstChannelButtons.length === 2 && dom.verticalVisibility.firstChannelButtons.every(button => button.fullyInsideMixerScroll);

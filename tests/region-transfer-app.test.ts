@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { produce } from 'immer';
@@ -66,7 +67,7 @@ function fixture(shared = false) {
   const files: Uint8Array[] = [];
   const desktop = { saveFile: vi.fn(async (_name: string, bytes: Uint8Array) => { files.push(bytes.slice()); return 'saved.nbsx'; }), clearRecovery: vi.fn(async () => {}) };
   const render = (): Functions => {
-    const scope = { project: projectRef.current, projectRef, savedSnapshot, numberEditOwner, numberGeneration: numberEditOwner.current.generation, MAX_PROJECT_TICK, history, future, produce, normalizeEditorSelection, moveRegion,
+    const scope = { ...noteOnlyAppHarnessBoundaries(), project: projectRef.current, projectRef, savedSnapshot, numberEditOwner, numberGeneration: numberEditOwner.current.generation, MAX_PROJECT_TICK, history, future, produce, normalizeEditorSelection, moveRegion,
       ...state, setProject, stop, setMessage,
       setSelectedTrack: (value: string) => { state.selectedTrack = value; }, setSelectedRegion: (value: string) => { state.selectedRegion = value; },
       selectedRegionsRef, setSelectedRegions: (value: Set<string>) => { state.selectedRegions = value; },
@@ -81,7 +82,7 @@ function fixture(shared = false) {
   const selection = () => normalizeEditorSelection(projectRef.current, { trackId: state.selectedTrack, regionId: state.selectedRegion, noteIds: [...state.selectedNotes], focus: state.focus });
   const selector = () => {
     const project = projectRef.current, region = project.regions.find(item => item.id === state.selectedRegion)!, track = project.tracks.find(item => item.id === region.trackId)!;
-    const scope = { project, region, track, selectedRegions: state.selectedRegions, regionGroupIssue: '', changeRegion: render().changeRegion, element };
+    const scope = { ...noteOnlyAppHarnessBoundaries(), project, region, track, selectedRegions: state.selectedRegions, regionGroupIssue: '', changeRegion: render().changeRegion, element };
     return Function(...Object.keys(scope), selectorCode)(...Object.values(scope)) as Element;
   };
   return { initial, before, sourceTrack, destination, originalRegion, projectRef, savedSnapshot, numberEditOwner, history, future, state, setProject, stop, setMessage, files, desktop, render, selection, selector };

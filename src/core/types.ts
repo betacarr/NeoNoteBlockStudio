@@ -1,5 +1,8 @@
 import type { MidiEvent } from 'midi-file';
 export type InstrumentId = string;
+export interface DrumHit { id: string; instrumentId: InstrumentId; midi: number; offsetBeats: number; durationBeats: number; velocity: number }
+export interface DrumMapping { id: string; trigger: number; name?: string; notes: DrumHit[] }
+export interface DrumPreset { id: string; name: string; mappings: DrumMapping[] }
 export interface StoredMidiEvent { id: string; tick: number; order: number; sourceTrack?: number; event: MidiEvent }
 export interface Note {
   id: string;
@@ -19,6 +22,8 @@ export interface Region {
   start: number; length: number; offset: number; loop: boolean;
   /** Split playback borders own expression messages on their right side only. */
   midiEndExclusive?: boolean;
+  /** Chord positions use the same unrolled source ticks as the region offset. */
+  chords?: import('./chord-track').ChordRange[];
 }
 export interface DelayEffect {
   enabled: boolean;
@@ -30,17 +35,33 @@ export interface DelayEffect {
   releaseOffset: number; tail: number;
 }
 export interface Track {
+  kind?: 'notes' | 'audio';
+  parentTrackId?: string;
+  audioGroup?: { sourceClipId: string; collapsed: boolean };
   id: string; name: string; color: string; instrumentId: InstrumentId;
   volume: number; pan: number; muted: boolean; solo: boolean; locked: boolean;
   midiChannel?: number; sourceMidiTrack?: number;
   delay?: DelayEffect;
+  drumPresetId?: string;
 }
 export interface Instrument {
   id: InstrumentId; name: string; englishName: string;
   nbsIndex?: number; sound?: string; assetId?: string; rootMidi: number;
   block: string; color: string; gmProgram: number;
 }
-export interface Asset { id: string; name: string; mime: string; data?: string; path?: string; sha1?: string }
+/** Relative to the project's managed sidecar; never an arbitrary filesystem path. */
+export interface AudioFileAsset { sha256: string; bytes: number; sampleRate: number; frames: number; channels: number; file: string }
+export interface AudioClip {
+  id: string; trackId: string; assetId: string; name: string; start: number;
+  offsetSeconds: number; durationSeconds: number; muted?: boolean;
+  analysis?: import('./audio-assist').AudioWorkspace;
+  tempoAnalysis?: import('./audio-tempo').AudioTempoAnalysis;
+  chords?: import('./audio-assist').AudioChord[];
+  /** Source offset of the first instant represented by chords, before resizing. */
+  chordOriginSeconds?: number;
+  separation?: { role: string; sourceClipId: string; model: string };
+}
+export interface Asset { id: string; name: string; mime: string; data?: string; path?: string; sha1?: string; audioFile?: AudioFileAsset }
 export interface Tempo { tick: number; bpm: number }
 export interface TimeSignature { tick: number; numerator: number; denominator: number; metronome?: number; thirtyseconds?: number }
 export interface Project {
@@ -48,7 +69,13 @@ export interface Project {
   createdAt: string; modifiedAt: string; ppq: number;
   tempos: Tempo[]; timeSignatures: TimeSignature[];
   tracks: Track[]; patterns: Pattern[]; regions: Region[];
+  /** Musical locators saved with the project; enabling playback is a transport action. */
+  cycle?: { start: number; end: number; enabled: boolean };
+  audioClips?: AudioClip[];
+  chordTrack?: import('./chord-track').ChordTrackGroup[];
   instruments: Instrument[]; assets: Asset[];
+  drumPresets?: DrumPreset[];
+  audioWorkspace?: import('./audio-assist').AudioWorkspace;
   audio: { profileId: string; sampleRate: number; masterGain: number; directional: boolean; mode: 'vanilla' | 'studio'; previewEngine?: 'native' | 'web' };
   reference?: { assetId: string; startTick: number; gain: number };
   provenance?: { kind: 'midi' | 'nbs' | 'flp'; filename: string; metadata: Record<string, unknown> };
@@ -57,10 +84,11 @@ export interface Project {
 export interface FlatNote extends Note {
   trackId: string; regionId: string; patternId: string; absoluteTick: number; gain: number; effectivePan: number; effectiveInstrument: InstrumentId;
   delaySource?: { noteId: string; occurrenceTick: number; tap: number; factor: number };
+  drumSource?: { noteId: string; occurrenceTick: number; offsetBeats: number; triggerTick: number };
 }
 export interface Diagnostic { severity: 'info' | 'warning' | 'error'; code: string; message: string; noteId?: string }
 export type ShortcutPreset = 'fl' | 'logic' | 'nbs';
-export interface Preferences { preset: ShortcutPreset; snap: number; noteLength: number; shortcuts: Record<string, string>; showMixer: boolean; showLibrary: boolean; showInspector: boolean; appearance: 'classic' | 'liquid-glass' }
+export interface Preferences { preset: ShortcutPreset; snap: number; noteLength: number; shortcuts: Record<string, string>; showMixer: boolean; metronome?: boolean; showLibrary: boolean; showInspector: boolean; appearance: 'classic' | 'liquid-glass' | 'native-glass'; glassQuality?: 'auto' | 'solid' }
 export interface AudioProfile {
   id: string; name: string; versions: string; backend: string;
   status: 'unverified' | 'code-reviewed' | 'partially-measured' | 'game-measured';
@@ -78,11 +106,26 @@ export interface SampleLibrary {
   samples: Record<string, { name: string; bytes: Uint8Array; sha1: string }>;
 }
 export interface DesktopAPI {
+  nativeGlassSupported?: () => Promise<boolean>;
+  setNativeGlass?: (bounds: { x: number; y: number; width: number; height: number } | null) => Promise<boolean>;
+  audioModelStatus?: () => Promise<import('./audio-assist').AudioModelStatus>;
+  downloadAudioModel?: (request: { id: string; confirmed: true }) => Promise<import('./audio-assist').AudioModelStatus>;
+  cancelAudioModel?: (id: string) => Promise<boolean>;
+  resolveAudioAsset?: (file: AudioFileAsset) => Promise<string>;
+  exportAudioRegions?: (request: import('./audio-region-export').AudioRegionExportRequest) => Promise<string[] | null>;
+  relinkAudioAsset?: (file: AudioFileAsset) => Promise<boolean>;
+  chooseAudioAssistInput?: (purpose?: 'arrangement') => Promise<import('./audio-assist').AudioAssistFileSelection | null>;
+  openDroppedAudio?: (file: File) => Promise<import('./audio-assist').AudioAssistFileSelection | null>;
+  startAudioAssist?: (request: import('./audio-assist').AudioAssistRequest) => Promise<import('./audio-assist').AudioAssistResult>;
+  cancelAudioAssist?: (id: string) => Promise<boolean>;
+  audioAssistStatus?: (mode?: 'split' | 'chords') => Promise<import('./audio-assist').AudioAssistStatus>;
+  onAudioAssistProgress?: (callback: (progress: import('./audio-assist').AudioAssistProgress) => void) => () => void;
   recordDiagnostic?: (input: import('./diagnostics').DiagnosticInput) => Promise<boolean>;
   exportDiagnostics?: () => Promise<import('./diagnostics').DiagnosticExportResult>;
   openLogsFolder?: () => Promise<boolean>;
   onDiagnosticRequest?: (callback: () => void) => () => void;
   openFile: (kind: 'project' | 'reference' | 'sample') => Promise<{ path: string; name: string; bytes: Uint8Array } | null>;
+  openDroppedProject?: (file: File) => Promise<{ path: string; name: string; bytes: Uint8Array } | null>;
   inspectFlpSamples: (sourcePath: string, samples: { id: number; path: string }[]) => Promise<Record<number, { sha256: string; path: string }>>;
   saveFile: (name: string, bytes: Uint8Array, path?: string) => Promise<string | null>;
   discoverMinecraft: () => Promise<{ root: string; versions: string[]; indexes: string[] }[]>;

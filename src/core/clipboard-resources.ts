@@ -56,9 +56,9 @@ export function assetBytes(asset: Asset): number {
 
 // Compare actual fields, ignoring only IDs. Optional absent/undefined fields agree.
 const instrumentFields = { name: true, englishName: true, nbsIndex: true, sound: true, assetId: true, rootMidi: true, block: true, color: true, gmProgram: true } satisfies Record<Exclude<keyof Instrument, 'id'>, true>;
-const assetFields = { name: true, mime: true, data: true, path: true, sha1: true } satisfies Record<Exclude<keyof Asset, 'id'>, true>;
+const assetFields = { name: true, mime: true, data: true, path: true, sha1: true, audioFile: true } satisfies Record<Exclude<keyof Asset, 'id'>, true>;
 export const sameInstrument = (a: Instrument, b: Instrument) => (Object.keys(instrumentFields) as (keyof typeof instrumentFields)[]).every(key => a[key] === b[key]);
-export const sameAsset = (a: Asset, b: Asset) => (Object.keys(assetFields) as (keyof typeof assetFields)[]).every(key => a[key] === b[key]);
+export const sameAsset = (a: Asset, b: Asset) => (Object.keys(assetFields) as (keyof typeof assetFields)[]).every(key => key === 'audioFile' ? JSON.stringify(a[key]) === JSON.stringify(b[key]) : a[key] === b[key]);
 
 /** Count the existing NBSX limits without decoding audio or a giant notes array. */
 export function sizeBudget() {

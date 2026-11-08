@@ -1,3 +1,5 @@
+import { ARRANGEMENT_AUDIO_FORMAT_LABEL, audioTrackChildren, audioTrackParents } from '../src/core/audio-clips';
+import { regionChords } from '../src/core/chord-track';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { describe, expect, it, vi } from 'vitest';
@@ -5,6 +7,7 @@ import { createProject, newNote, newTrack } from '../src/core/project';
 import { createMeterMap } from '../src/core/meter';
 import { playbackEndTick } from '../src/core/reference';
 import { filterTracks } from '../src/core/track-filter';
+import { inspectTrackDelete } from '../src/core/track-management';
 import { ArrangementNoteCache } from '../src/ui/arrangement-note-cache';
 import { regionPreviewGeometry } from '../src/ui/arrangement-preview';
 import { regionDragPreview } from '../src/ui/region-drag-preview';
@@ -24,7 +27,7 @@ const harnessSource = readFileSync(new URL('./arrangement-candidates.test.ts', i
 const start = harnessSource.indexOf('function arrangementProject('), end = harnessSource.indexOf('\ndescribe(', start);
 if (start < 0 || end < 0) throw new Error('Existing Arrangement harness boundaries missing');
 const sameDeps = (a?: unknown[], b?: unknown[]) => !!a && !!b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
-const dependencies = { componentCode, sameDeps, createProject, newNote, createMeterMap, playbackEndTick, filterTracks, ArrangementNoteCache, regionPreviewGeometry, regionDragPreview, arrangementTrackAt, ArrangementGroupGesture, captureEditorPointer, startHorizontalEdgeScroll, startVerticalEdgeScroll, vi };
+const dependencies = { componentCode, sameDeps, createProject, newNote, createMeterMap, playbackEndTick, filterTracks, inspectTrackDelete, ARRANGEMENT_AUDIO_FORMAT_LABEL, audioTrackChildren, audioTrackParents, regionChords, ArrangementNoteCache, regionPreviewGeometry, regionDragPreview, arrangementTrackAt, ArrangementGroupGesture, captureEditorPointer, startHorizontalEdgeScroll, startVerticalEdgeScroll, vi };
 const arrangementFixture = Function(...Object.keys(dependencies), `${transformSync(harnessSource.slice(start, end), { loader: 'ts', target: 'es2022' }).code}\nreturn arrangementFixture;`)(...Object.values(dependencies));
 
 function fixture(selected = ['c'], instrumentFilter = '') {

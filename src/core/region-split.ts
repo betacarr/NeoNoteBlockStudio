@@ -13,7 +13,9 @@ function leftOf(cut: Cut, patternId = cut.detachLeft ? BUDGET_ID : cut.pattern.i
   return { ...cut.region, patternId, length: cut.delta, midiEndExclusive: true };
 }
 function rightOf(cut: Cut, id = BUDGET_ID, patternId = BUDGET_ID): Region {
-  return { ...cut.region, id, patternId, start: cut.tick, length: cut.rightLength, offset: cut.rightOffset };
+  const { chords } = cut.region;
+  return { ...cut.region, id, patternId, start: cut.tick, length: cut.rightLength, offset: cut.rightOffset,
+    ...(chords ? { chords: chords.map(chord => ({ ...chord })) } : {}) };
 }
 
 /** Stream projected wire JSON without allocating copies of a large source. */

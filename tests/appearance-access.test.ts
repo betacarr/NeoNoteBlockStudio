@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { describe, expect, it } from 'vitest';
-import { availableAppearance } from '../src/core/appearance';
+import { availableAppearance, displayedAppearance } from '../src/core/appearance';
 import { isShortcutPreset } from '../src/core/shortcuts';
 import type { Preferences } from '../src/core/types';
 
@@ -18,9 +18,10 @@ const read = (stored: string | null, internal = false): Preferences => Function(
 );
 
 describe('public appearance access and stored preference compatibility', () => {
-  it('ignores a legacy enabled glass preference while preserving unrelated editor preferences', () => {
+  it('restores an opted-in glass preference while preserving unrelated editor preferences', () => {
     const saved = { appearance: 'liquid-glass', preset: 'logic', snap: 32, noteLength: 8, showMixer: true, showLibrary: false, showInspector: true, shortcuts: { save: 'Ctrl+S' } };
-    expect(read(JSON.stringify(saved))).toEqual({ ...saved, appearance: 'classic' });
+    expect(read(JSON.stringify(saved))).toEqual({ ...saved, metronome: false });
+    expect(read(JSON.stringify({ ...saved, metronome: true }))).toEqual({ ...saved, metronome: true });
   });
   it('falls back to classic for missing or malformed preferences', () => {
     expect(read(null).appearance).toBe('classic');
@@ -29,13 +30,20 @@ describe('public appearance access and stored preference compatibility', () => {
   it('rejects unknown appearance values without resetting other preferences', () => {
     expect(read(JSON.stringify({ appearance: 'unknown-theme', noteLength: 32 }))).toMatchObject({ appearance: 'classic', noteLength: 32 });
   });
-  it('cannot activate glass through a preference update in the public build', () => {
+  it('preserves a native choice and falls back to Web when the platform cannot render it', () => {
+    const saved = read(JSON.stringify({ appearance: 'native-glass' }));
+    expect(saved.appearance).toBe('native-glass');
+    expect(displayedAppearance(saved.appearance, true)).toBe('native-glass');
+    expect(displayedAppearance(saved.appearance, false)).toBe('liquid-glass');
+    expect(displayedAppearance('classic', true)).toBe('classic');
+  });
+  it('activates glass and retains the low-performance choice through unrelated preference updates', () => {
     let value = read(null);
     const setPrefs = Function('setPreferences', 'availableAppearance', `${updateCode};return setPrefs;`)((update: (previous: Preferences) => Preferences) => { value = update(value); }, availableAppearance);
-    setPrefs({ appearance: 'liquid-glass', showMixer: true });
-    expect(value).toMatchObject({ appearance: 'classic', showMixer: true, preset: 'fl' });
+    setPrefs({ appearance: 'liquid-glass', glassQuality: 'solid', showMixer: true });
+    expect(value).toMatchObject({ appearance: 'liquid-glass', glassQuality: 'solid', showMixer: true, preset: 'fl' });
     setPrefs({ snap: 8 });
-    expect(value).toMatchObject({ appearance: 'classic', showMixer: true, snap: 8 });
+    expect(value).toMatchObject({ appearance: 'liquid-glass', glassQuality: 'solid', showMixer: true, snap: 8 });
   });
   it('retains preference compatibility for a separately enabled internal build', () => {
     expect(read(JSON.stringify({ appearance: 'liquid-glass', preset: 'nbs' }), true)).toMatchObject({ appearance: 'liquid-glass', preset: 'nbs' });

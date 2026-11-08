@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { DesktopAPI } from '../src/core/types';
 
 const api: DesktopAPI = {
@@ -7,7 +7,22 @@ const api: DesktopAPI = {
   openLogsFolder: () => ipcRenderer.invoke('diagnostics:open-folder'),
   onDiagnosticRequest(callback) { const listener = () => callback(); ipcRenderer.on('diagnostics:capture', listener); return () => ipcRenderer.removeListener('diagnostics:capture', listener); },
   platform: process.platform,
+  nativeGlassSupported: () => ipcRenderer.invoke('appearance:native-glass-supported'),
+  setNativeGlass: bounds => ipcRenderer.invoke('appearance:native-glass', bounds),
+  audioModelStatus: () => ipcRenderer.invoke('audio-model:status'),
+  downloadAudioModel: request => ipcRenderer.invoke('audio-model:download', request),
+  cancelAudioModel: id => ipcRenderer.invoke('audio-model:cancel', id),
+  chooseAudioAssistInput: purpose => ipcRenderer.invoke('audio-assist:choose-input', purpose),
+  openDroppedAudio: file => { const target = webUtils.getPathForFile(file); return target ? ipcRenderer.invoke('audio-assist:open-dropped', target) : Promise.resolve(null); },
+  resolveAudioAsset: file => ipcRenderer.invoke('audio-asset:resolve', file),
+  exportAudioRegions: request => ipcRenderer.invoke('audio-asset:export-regions', request),
+  relinkAudioAsset: file => ipcRenderer.invoke('audio-asset:relink', file),
+  audioAssistStatus: (mode?: 'split' | 'chords') => ipcRenderer.invoke('audio-assist:status', mode),
+  startAudioAssist: request => ipcRenderer.invoke('audio-assist:start', request),
+  cancelAudioAssist: id => ipcRenderer.invoke('audio-assist:cancel', id),
+  onAudioAssistProgress(callback) { const listener = (_event: Electron.IpcRendererEvent, progress: import('../src/core/audio-assist').AudioAssistProgress) => callback(progress); ipcRenderer.on('audio-assist:progress', listener); return () => ipcRenderer.removeListener('audio-assist:progress', listener); },
   openFile: kind => ipcRenderer.invoke('file:open', kind),
+  openDroppedProject: file => { const target = webUtils.getPathForFile(file); return target ? ipcRenderer.invoke('file:open-dropped-project', target) : Promise.resolve(null); },
   inspectFlpSamples: (sourcePath, samples) => ipcRenderer.invoke('flp:inspect-samples', sourcePath, samples),
   saveFile: (name, bytes, path) => ipcRenderer.invoke('file:save', { name, bytes, path }),
   discoverMinecraft: () => ipcRenderer.invoke('minecraft:discover'),

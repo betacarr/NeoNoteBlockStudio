@@ -154,7 +154,9 @@ export function planRegionPaste(target: Project, clipboard: RegionClipboard, tar
       if (!preserveRoute && note.midiSource?.offSourceTrack !== undefined) { delete note.midiSource.offSourceTrack; resetRoutes++; }
     }
     for (const event of pattern.midiEvents ?? []) { event.id = freshId(); event.tick = scaled(event.tick); }
-    patterns.push(pattern); regions.push({ ...structuredClone(sourceRegion), id: freshId(), patternId: pattern.id, trackId: track.id, start: starts[index], length: scaled(sourceRegion.length, 1), offset: scaled(sourceRegion.offset) });
+    const region = { ...structuredClone(sourceRegion), id: freshId(), patternId: pattern.id, trackId: track.id, start: starts[index], length: scaled(sourceRegion.length, 1), offset: scaled(sourceRegion.offset) };
+    if (ratio !== 1 && region.chords) region.chords = region.chords.map(chord => ({ ...chord, start: chord.start * ratio, end: chord.end * ratio }));
+    patterns.push(pattern); regions.push(region);
   }
   const prospective = { ...target, tracks: allTracks, patterns: target.patterns.concat(patterns), regions: target.regions.concat(regions), instruments: target.instruments.concat(instruments), assets: target.assets.concat(assets) };
   validateProject(prospective); assertSize(prospective, true);

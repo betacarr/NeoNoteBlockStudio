@@ -30,7 +30,7 @@ export async function installElectron({ platform = process.platform, arch = proc
   if (!await valid()) {
     const url = `https://github.com/electron/electron/releases/download/v${version}/${name}`;
     const command = process.platform === 'win32' ? 'powershell.exe' : 'curl';
-    const args = process.platform === 'win32' ? ['-NoProfile', '-NonInteractive', '-File', path.resolve('scripts/download-electron.ps1'), '-ArtifactUrl', url, '-Destination', archive] : ['--fail', '--location', '--silent', '--show-error', '--retry', '2', '--max-time', '300', '--output', archive, url];
+    const args = process.platform === 'win32' ? ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve('scripts/download-electron.ps1'), '-ArtifactUrl', url, '-Destination', archive] : ['--fail', '--location', '--silent', '--show-error', '--retry', '2', '--max-time', '300', '--output', archive, url];
     console.log(`Downloading official Electron ${version} for ${platform}/${arch}…`);
     await new Promise((resolve, reject) => { const child = spawn(command, args, { stdio: 'inherit', windowsHide: true }); child.on('error', reject); child.on('exit', code => code === 0 ? resolve() : reject(new Error(`Electron download exited with ${code}`))); });
   }

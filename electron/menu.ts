@@ -14,16 +14,20 @@ export function applicationMenu(platform: string, send: (command: string) => () 
     ] } satisfies MenuItemConstructorOptions] : []),
     { label: '文件', submenu: [
       { label: '新建工程', accelerator: 'CmdOrCtrl+N', click: send('new') }, { label: '打开 / 导入…', accelerator: 'CmdOrCtrl+O', click: send('open') },
+      { label: '导入音频文件…', click: send('import-audio-region') },
       { label: '保存工程', accelerator: 'CmdOrCtrl+S', click: send('save') }, { label: '另存为…', accelerator: 'CmdOrCtrl+Shift+S', click: send('save-as') },
       { type: 'separator' }, { label: '导出…', click: send('export') },
+      { label: '导出所选音频片段为 WAV…', click: send('export-audio-regions') },
+      { label: '音频分轨…', click: send('audio-split') },
+      { label: '和弦与速度分析…', click: send('audio-assist') },
       mac ? { role: 'close', label: '关闭窗口' } : { role: 'quit', label: '退出' },
     ] },
     // Editor accelerators are handled in the renderer so custom mappings and
     // text fields share one dispatch path. Native menu clicks use the same IPC.
     { label: '编辑', submenu: [{ label: '撤销', click: send('undo') }, { label: '重做', click: send('redo') }, { type: 'separator' }, { label: '复制', click: send('copy') }, { label: '剪切', click: send('cut') }, { label: '粘贴', click: send('paste') }, { label: '独立复制', click: send('duplicate') }, { label: '在播放头拆分片段', click: send('split-region') }, { label: '全选', click: send('select-all') }] },
-    { label: '轨道', submenu: [{ label: '添加轨道', click: send('add-track') }, { label: '上移当前轨道', click: send('track-up') }, { label: '下移当前轨道', click: send('track-down') }, { type: 'separator' }, { label: '删除当前轨道', click: send('delete-track') }] },
-    { label: '视图', submenu: [{ label: '混音器', click: send('mixer') }, { label: '设置', click: send('settings') }, { role: 'togglefullscreen', label: '全屏' }, { role: 'toggleDevTools', label: '开发工具' }] },
-    { label: '播放', submenu: [{ label: '播放 / 暂停', click: send('play') }, { label: '停止并回到起点', click: send('stop') }, { label: '循环播放工程', click: send('loop') }, { type: 'separator' }, { label: '上一小节', click: send('previous-bar') }, { label: '下一小节', click: send('next-bar') }] },
+    { label: '轨道', submenu: [{ label: '添加轨道', click: send('add-track') }, { label: '添加鼓组轨道', click: send('add-drum-track') }, { label: '上移当前轨道', click: send('track-up') }, { label: '下移当前轨道', click: send('track-down') }, { type: 'separator' }, { label: '删除当前轨道', click: send('delete-track') }] },
+    { label: '视图', submenu: [{ label: '混音器', click: send('mixer') }, { label: '显示 / 隐藏和弦轨', click: send('chord-track') }, { label: '设置', click: send('settings') }, { role: 'togglefullscreen', label: '全屏' }, { role: 'toggleDevTools', label: '开发工具' }] },
+    { label: '播放', submenu: [{ label: '播放 / 暂停', click: send('play') }, { label: '停止并回到起点', click: send('stop') }, { label: '循环播放工程', click: send('loop') }, { label: '打开 / 关闭节拍器', click: send('metronome') }, { type: 'separator' }, { label: '上一小节', click: send('previous-bar') }, { label: '下一小节', click: send('next-bar') }] },
     { label: '帮助', submenu: [{ label: '操作与工程提示', click: send('help') }, { type: 'separator' },
       { label: '导出诊断包…', click: diagnostics?.exportDiagnostics ?? send('diagnostics') },
       { label: '打开日志文件夹', click: diagnostics?.openLogsFolder ?? send('logs-folder') }] },

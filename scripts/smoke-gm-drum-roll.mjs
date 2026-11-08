@@ -1,0 +1,66 @@
+import { _electron as electron } from 'playwright';
+import { build } from 'esbuild';
+import { mkdir,mkdtemp,readFile,writeFile,stat } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import assert from 'node:assert/strict';
+import { parseMidi } from 'midi-file';
+
+// Start with the real built-in song and then a real blank New Project. No
+// injected project, preset, track or note is used to reach the drum workflow.
+const base=path.resolve('.local/gm-drum-roll-smoke');await mkdir(base,{recursive:true});
+const root=await mkdtemp(path.join(base,'run-')),profile=path.join(root,'profile');await mkdir(profile);
+const helper=path.join(root,'helper.mjs');
+await build({stdin:{contents:"export{openNbsx,saveNbsx}from'./src/core/container.ts';export{createProject,newNote,uid,flattenNotes,renderNoteEvents}from'./src/core/project.ts';export{wavFromChannels}from'./src/audio/engine.ts';",resolveDir:process.cwd()},outfile:helper,bundle:true,platform:'node',format:'esm'});
+const{openNbsx,saveNbsx,createProject,newNote,uid,flattenNotes,renderNoteEvents,wavFromChannels}=await import(pathToFileURL(helper).href);
+const report={status:'running',root,profile,cases:[],rendererErrors:[],limitations:['Isolated development desktop app/profile; no user project or existing window touched.','Audio is actual Web Audio PCM output before hardware, not subjective listening.','Save/open dialogs use isolated test file paths; all musical edits use normal UI.']};
+const env={...process.env,NBSX_TEST_USER_DATA:profile};delete env.ELECTRON_RUN_AS_NODE;delete env.NBSX_DEV_URL;
+let desktop,page;
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const check=(name,details={})=>{report.cases.push({name,status:'passed',...details});console.log(name);};
+async function menu(group,item){await page.getByRole('menuitem',{name:group,exact:true}).click();await page.getByRole('menu',{name:group,exact:true}).getByRole('menuitem',{name:item}).click();}
+async function save(name){const file=path.join(root,name);await desktop.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},file);await menu('文件','另存为…');for(let i=0;i<200;i++){if(await stat(file).then(s=>s.size>44).catch(()=>false))break;await sleep(50);}await page.waitForFunction(()=>document.querySelector('.status-message')?.textContent.includes('已保存'));return{file,project:openNbsx(new Uint8Array(await readFile(file)))};}
+async function open(file,name){await desktop.evaluate(({dialog},filePath)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});},file);await menu('文件','打开 / 导入…');await page.waitForFunction(name=>document.title.includes(name),name);}
+const manager=()=>page.getByRole('dialog',{name:'鼓组映射预设',exact:true});
+async function setNumber(name,value){const field=page.getByRole('spinbutton',{name,exact:true});await field.fill(String(value));await field.press('Tab');}
+async function audio(name){
+  // Warm the real output node, stop, then follow its replacement for the take.
+  await page.getByRole('button',{name:'播放',exact:true}).first().click();await page.getByRole('button',{name:'暂停',exact:true}).waitFor();await page.waitForFunction(()=>!!window.__drumMaster);await menu('播放','停止并回到起点');
+  await page.evaluate(()=>{const master=window.__drumMaster,context=master.context,node=context.createScriptProcessor(4096,2,2),silent=context.createGain();silent.gain.value=0;const chunks=[[],[]];node.onaudioprocess=e=>{for(let ch=0;ch<2;ch++)chunks[ch].push(e.inputBuffer.getChannelData(ch).slice());};Reflect.apply(window.__drumNativeConnect,master,[node]);Reflect.apply(window.__drumNativeConnect,node,[silent]);Reflect.apply(window.__drumNativeConnect,silent,[context.destination]);window.__drumCapture={master,context,node,silent,chunks};window.__drumOnMaster=next=>{if(next!==window.__drumCapture.master&&next.context===context){try{window.__drumCapture.master.disconnect(node);}catch{}Reflect.apply(window.__drumNativeConnect,next,[node]);window.__drumCapture.master=next;}};});
+  await page.getByRole('button',{name:'播放',exact:true}).first().click();await sleep(1300);
+  const captured=await page.evaluate(()=>{window.__drumOnMaster=undefined;const{master,context,node,silent,chunks}=window.__drumCapture;master.disconnect(node);node.disconnect();silent.disconnect();node.onaudioprocess=null;return{sampleRate:context.sampleRate,channels:chunks.map(parts=>{const data=new Float32Array(parts.reduce((n,p)=>n+p.length,0));let at=0;for(const p of parts){data.set(p,at);at+=p.length;}let text='';const bytes=new Uint8Array(data.buffer);for(let i=0;i<bytes.length;i+=32768)text+=String.fromCharCode(...bytes.subarray(i,i+32768));return btoa(text);})};});
+  const channels=captured.channels.map(encoded=>{const b=Buffer.from(encoded,'base64');return new Float32Array(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));});const stats=channels.map(data=>{let energy=0,peak=0;for(const v of data){energy+=v*v;peak=Math.max(peak,Math.abs(v));}return{frames:data.length,rms:Math.sqrt(energy/data.length),peak};});assert(stats.some(ch=>ch.frames>0&&ch.rms>1e-5));await writeFile(path.join(root,name+'.wav'),wavFromChannels(channels,captured.sampleRate));await menu('播放','停止并回到起点');return stats;
+}
+async function geometry(){const canvas=page.locator('.center-workspace').getByTestId('piano-roll').locator('canvas');const box=await canvas.boundingBox();assert(box);const header=Number(await canvas.getAttribute('data-keyboard-width')),row=Number(await canvas.getAttribute('data-row-height')),scroll=Number(await canvas.getAttribute('data-scroll-y'));return{canvas,box,header,y:midi=>42+(127-midi)*row-scroll+row/2};}
+async function verifyDrumHeaders(expected){
+  const g=await geometry();assert.equal(g.header,204);const rows=page.getByTestId('drum-row-header');
+  const actual=await rows.evaluateAll(elements=>elements.map(e=>({midi:Number(e.dataset.midi),mapped:e.dataset.mapped,text:e.textContent})));
+  assert(actual.length>0);for(let i=1;i<actual.length;i++)assert(actual[i].midi<actual[i-1].midi,'GM source rows must preserve numeric high-to-low pitch order');
+  for(const[midi,label]of expected){const found=actual.find(r=>r.midi===midi);assert(found,`MIDI ${midi} should be visible`);assert(found.text.includes(label));assert(found.text.includes(String(midi)));assert.equal(found.mapped,'true');}
+  return actual;
+}
+async function exportMidi(name){const file=path.join(root,name+'.mid');await page.getByRole('button',{name:'导出',exact:true}).click();const modal=page.getByRole('dialog',{name:'导出',exact:true});await modal.getByRole('button',{name:/^MID/}).click();await desktop.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},file);await modal.getByRole('button',{name:'导出文件…',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.status-message')?.textContent.includes('已导出'));if(await modal.count())await page.keyboard.press('Escape');const midi=parseMidi(new Uint8Array(await readFile(file)));const notes=midi.tracks.flatMap(events=>events.filter(e=>e.type==='noteOn'&&e.velocity>0));assert(notes.length);assert(notes.every(e=>e.channel!==9),'UI drum rows must not force rendered MIDI to channel 10');return notes;}
+try{
+  desktop=await electron.launch({args:['.','--mute-audio',`--user-data-dir=${profile}`],env,timeout:30000});page=await desktop.firstWindow();page.setDefaultTimeout(20000);page.on('pageerror',error=>report.rendererErrors.push(error.message));assert.equal(await desktop.evaluate(({app})=>app.getPath('userData')),profile);
+  await page.addInitScript(()=>{const connect=AudioNode.prototype.connect;window.__drumNativeConnect=connect;AudioNode.prototype.connect=function(...args){const result=Reflect.apply(connect,this,args);if(args[0] instanceof AudioDestinationNode){window.__drumMaster=this;window.__drumOnMaster?.(this);}return result;};});await page.reload();await page.waitForFunction(()=>document.querySelectorAll('.sample-dot.loaded').length>=16);report.loadedScripts=await page.evaluate(()=>[...document.scripts].map(s=>s.src).filter(Boolean));
+  await menu('文件','新建工程');await page.waitForFunction(()=>document.querySelectorAll('[data-testid=region]').length===1);assert.equal((await geometry()).header,58);assert.equal(await page.getByTestId('drum-row-header').count(),0);await page.screenshot({path:path.join(root,'ordinary-piano.png')});
+  await page.getByRole('button',{name:'添加鼓组轨道',exact:true}).click();await manager().waitFor();assert.equal(Number(await manager().getByTestId('drum-mapping-piano').locator('canvas').getAttribute('data-keyboard-width')),58);await manager().getByRole('button',{name:'应用修改',exact:true}).click();
+  const headers=await verifyDrumHeaders([[36,'底鼓'],[38,'军鼓'],[42,'闭镲'],[46,'开镲']]);
+  await page.screenshot({path:path.join(root,'gm-empty-rows.png')});
+  const g=await geometry();assert(g.y(36)>42&&g.y(36)<g.box.height-78);assert(g.y(38)>42&&g.y(38)<g.box.height-78);
+  await g.canvas.click({position:{x:g.header+5,y:g.y(36)}});await setNumber('音符开始拍',0);assert(!(await page.locator('.inspector').textContent()).includes('超出原版音域'),'Drum trigger 36 must not be described as an out-of-range sounding pitch');
+  const drawn=await save('gm-drawn.nbsx');const drumTrack=drawn.project.tracks.find(t=>t.drumPresetId),region=drawn.project.regions.find(r=>r.trackId===drumTrack.id);assert.equal(drawn.project.patterns.find(p=>p.id===region.patternId).notes[0].midi,36);
+  // Drag the real source event vertically from kick 36 to snare 38.
+  const drag=await geometry();await page.mouse.move(drag.box.x+drag.header+5,drag.box.y+drag.y(36));await page.mouse.down();await page.mouse.move(drag.box.x+drag.header+5,drag.box.y+drag.y(38),{steps:8});await page.mouse.up();
+  const moved=await save('gm-dragged.nbsx'),source=moved.project.patterns.find(p=>p.id===region.patternId).notes;assert.equal(source.length,1);assert.equal(source[0].midi,38);assert.equal(await page.getByRole('spinbutton',{name:'音符 MIDI 音高',exact:true}).inputValue(),'38');
+  assert.deepEqual(moved.project.drumPresets[0].mappings.map(m=>m.trigger).sort((a,b)=>a-b),[36,38,42,46]);assert(renderNoteEvents(moved.project).notes.some(n=>n.effectiveInstrument==='snare'&&n.midi===66));
+  const stats=await audio('gm-source-playback');const midi=await exportMidi('gm-rendered');assert(midi.every(n=>n.noteNumber===66));
+  await open(moved.file,moved.project.name);const reopened=await save('gm-reopened.nbsx');assert.deepEqual(reopened.project.drumPresets,moved.project.drumPresets);assert.deepEqual(reopened.project.patterns,moved.project.patterns);await page.locator(`[data-testid="region"][data-region-id="${region.id}"]`).click();await page.screenshot({path:path.join(root,'gm-source-dragged.png')});
+  check('real add drum UI, GM Chinese labeled rows, mapping state, pitch order, source 36→38 drag, playback, save/reopen and rendered MIDI',{headers,stats,midiChannels:midi.map(n=>n.channel)});
+  // An independent legacy QA project is allowed only for the compatibility case.
+  const legacy=createProject('Legacy trigger 60 QA');legacy.tracks[0].drumPresetId=uid();legacy.tracks[0].midiChannel=2;legacy.drumPresets=[{id:legacy.tracks[0].drumPresetId,name:'Legacy custom 60',mappings:[{id:uid(),trigger:60,notes:[{id:uid(),instrumentId:'bell',midi:66,offsetBeats:.03125,durationBeats:.25,velocity:.7}]}]}];legacy.patterns[0].notes=[newNote(0,60,240)];const legacyFile=path.join(root,'legacy-60.nbsx');await writeFile(legacyFile,saveNbsx(legacy));await open(legacyFile,legacy.name);await verifyDrumHeaders([[60,'高音邦戈鼓']]);
+  const retained=await save('legacy-retained.nbsx');assert.deepEqual(retained.project.drumPresets,legacy.drumPresets);assert.deepEqual(retained.project.patterns,legacy.patterns);assert.equal(retained.project.drumPresets[0].mappings[0].trigger,60);const legacyMidi=await exportMidi('legacy-rendered');assert(legacyMidi.every(n=>n.noteNumber===66));await page.screenshot({path:path.join(root,'legacy-trigger-60.png')});
+  await page.getByTestId('edit-drum-preset').click();await manager().waitFor();assert.equal(Number(await manager().getByTestId('drum-mapping-piano').locator('canvas').getAttribute('data-keyboard-width')),58);await page.screenshot({path:path.join(root,'internal-actual-piano.png')});await manager().getByRole('button',{name:'取消',exact:true}).click();check('legacy trigger 60 labeled as GM high bongo without migration; inner actual-note roll remains piano',{midiChannels:legacyMidi.map(n=>n.channel)});
+  assert.deepEqual(report.rendererErrors,[]);report.status='passed';
+}catch(error){report.status='failed';report.error=error.stack??String(error);if(page){report.title=await page.title().catch(()=>undefined);report.dialogs=await page.getByRole('dialog').allTextContents().catch(()=>[]);await page.screenshot({path:path.join(root,'failure.png')}).catch(()=>{});}console.error(report.error);process.exitCode=1;}
+finally{if(desktop){await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().forEach(w=>w.destroy())).catch(()=>{});await desktop.close().catch(()=>{});}report.finishedAt=new Date().toISOString();await writeFile(path.join(root,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({status:report.status,report:path.join(root,'report.json')}));}

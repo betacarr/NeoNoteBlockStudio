@@ -1,0 +1,20 @@
+NoteBlockStudio Liquid Glass material adaptation
+
+Upstream: https://github.com/OpenNBS/NoteBlockStudio
+Release: v3.12.0-beta.6 (experimental)
+Pinned commit: 5f57b1ac2f9d0e09730f5f048a866cb0a3fb3602
+Introduced by: 5a45f2a9853faa07a1d1613810900160b03ea75f
+Copyright (c) 2026 OpenNBS
+License: MIT (complete license in LICENSE)
+
+The continuous-corner distance, normal and two-band/edge-lip refraction
+equations and menu material parameters are ported to src/ui/glass-material.ts.
+Original GML/GLSL files are retained in upstream/ for reference, not executed.
+LiquidGlassTheme.tsx encodes signed optical displacement into an SVG map,
+applied to Chromium's live DOM backdrop. Foreground text/icons are unfiltered.
+CSS supplies tint, directional highlights, rim and shadow. This is a bounded
+web adaptation, not the full GameMaker renderer: RGB chromatic dispersion,
+adaptive per-pixel tint and its surface pool/Gaussian shader are not ported.
+No desktop capture, OS recording permission, native library or new dependency.
+Existing web-layer lifecycle integrates shuding/liquid-glass (MIT), whose
+separate notice and license are retained in third_party/liquid-glass/.

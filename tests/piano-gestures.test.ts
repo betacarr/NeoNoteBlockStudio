@@ -1,12 +1,13 @@
+import { NoteDeletionFeedback, deletionFeedbackCandidates } from '../src/ui/note-deletion-feedback';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { describe, expect, it, vi } from 'vitest';
 import { clamp, createProject, newNote } from '../src/core/project';
-import { noteName } from '../src/core/instruments';
+import { INSTRUMENTS, inNoteBlockRange, noteBlockMidiRange, noteName } from '../src/core/instruments';
 import { createMeterMap } from '../src/core/meter';
 import { constrainNoteMovement, dragNotes, dragPlacedNote, noteResizeHandleWidth, planRegionTrim, regionSourceRanges } from '../src/core/editor-interaction';
 import { noteAt, notesAlongStroke } from '../src/ui/piano-hit-test';
-import { clampPianoZoom, planPianoView, planPianoRowZoom } from '../src/ui/piano-view';
+import { clampPianoZoom, planPianoView, planPianoRowZoom, pianoRowHeaderWidth, pianoGridTick, pianoGridX, visibleDrumRows } from '../src/ui/piano-view';
 import { PianoNoteIndex, type PianoNoteQuery, type PianoNoteQueryStats } from '../src/ui/piano-note-index';
 import { previewPianoNotes } from '../src/ui/piano-preview';
 import { velocityBounds, constrainVelocityDelta, changeNoteVelocities } from '../src/core/note-velocity';
@@ -14,7 +15,7 @@ import { velocityBounds, constrainVelocityDelta, changeNoteVelocities } from '..
 // Execute the real component's returned callbacks on inert refs/hooks. These are
 // component-callback unit tests, not physical pointer/keyboard or browser tests.
 const source = readFileSync(new URL('../src/ui/PianoRoll.tsx', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
-const start = source.indexOf('const KEYBOARD =');
+const start = source.indexOf('const TIMELINE =');
 if (start < 0) throw new Error('PianoRoll component constants were not found');
 const componentCode = transformSync(source.slice(start).replace('export function PianoRoll(', 'function PianoRoll('), { loader: 'tsx', target: 'es2022', jsx: 'transform', jsxFactory: 'element' }).code;
 type RollProps = Parameters<typeof import('../src/ui/PianoRoll').PianoRoll>[0];
@@ -22,7 +23,7 @@ type InertElement = { type: unknown; props: Record<string, any> };
 type EffectSlot = { deps?: unknown[]; cleanup?: () => void };
 type PaintCommand = { kind: 'body' | 'rectangle'; args: number[]; style: string };
 
-function pianoFixture(options: { notes?: RollProps['pattern']['notes']; selected?: string[]; viewKey?: string; length?: number; paint?: boolean; size?: { width: number; height: number } } = {}) {
+function pianoFixture(options: { drumRows?: RollProps['drumRows']; notes?: RollProps['pattern']['notes']; selected?: string[]; viewKey?: string; length?: number; paint?: boolean; size?: { width: number; height: number } } = {}) {
   const project = createProject(), pattern = project.patterns[0], region = project.regions[0];
   const dimensions = options.size ?? { width: 800, height: 400 };
   pattern.length = region.length = options.length ?? 1920;
@@ -72,7 +73,7 @@ function pianoFixture(options: { notes?: RollProps['pattern']['notes']; selected
   // Explicit inert React-event flush boundary: settle queued parent props and
   // layout effects before the handler continues, without claiming a DOM mount.
   const flushBoundary = vi.fn((update: () => void) => { update(); render(); });
-  const dependencies = { useRef, useState, useEffect, useLayoutEffect: useEffect, useId: () => 'piano-unit-canvas', element, clamp, newNote, noteName, constrainNoteMovement, dragNotes, dragPlacedNote, noteResizeHandleWidth, planRegionTrim, regionSourceRanges, noteAt, notesAlongStroke, clampPianoZoom, planPianoView, planPianoRowZoom,
+  const dependencies = { NoteDeletionFeedback, deletionFeedbackCandidates, React: { Fragment: Symbol('inert-fragment') }, useRef, useState, useEffect, useLayoutEffect: useEffect, useId: () => 'piano-unit-canvas', element, clamp, newNote, INSTRUMENTS, inNoteBlockRange, noteBlockMidiRange, noteName, constrainNoteMovement, dragNotes, dragPlacedNote, noteResizeHandleWidth, planRegionTrim, regionSourceRanges, noteAt, notesAlongStroke, clampPianoZoom, planPianoView, planPianoRowZoom, pianoRowHeaderWidth, pianoGridTick, pianoGridX, visibleDrumRows,
     PianoNoteIndex: ObservedNoteIndex, previewPianoNotes, velocityBounds, constrainVelocityDelta, changeNoteVelocities, flushSync: flushBoundary,
     EditorScrollbar: () => undefined, ResizeObserver: ResizeObserverStub, window: { devicePixelRatio: 1, addEventListener: vi.fn(), removeEventListener: vi.fn() },
     requestAnimationFrame: (callback: FrameRequestCallback) => { const id = ++frame; frames.set(id, callback); return id; }, cancelAnimationFrame: (id: number) => frames.delete(id) };
@@ -80,7 +81,7 @@ function pianoFixture(options: { notes?: RollProps['pattern']['notes']; selected
   const onSelect = vi.fn((ids: Set<string>) => { props = { ...props, selected: new Set(ids) }; dirty = true; });
   const onEdit = vi.fn((_label: string, change: (notes: typeof pattern.notes) => typeof pattern.notes) => { props = { ...props, pattern: { ...props.pattern, notes: change(structuredClone(props.pattern.notes)) } }; dirty = true; });
   const onZoom = vi.fn((zoom: number) => { if (zoom !== props.zoom) { props = { ...props, zoom }; dirty = true; } });
-  let props: RollProps = { pattern, region, viewKey: options.viewKey, track: project.tracks[0], ppq: 480, selected: new Set(options.selected ?? ['b']), tool: 'draw', snap: 16, noteLength: 16, zoom: 96, playhead: -1, meter: createMeterMap(project), origin: 0, preset: 'fl', onSelect, onEdit,
+  let props: RollProps = { drumRows: options.drumRows, pattern, region, viewKey: options.viewKey, track: project.tracks[0], ppq: 480, selected: new Set(options.selected ?? ['b']), tool: 'draw', snap: 16, noteLength: 16, zoom: 96, playhead: -1, meter: createMeterMap(project), origin: 0, preset: 'fl', onSelect, onEdit,
     onZoom, onAudition: vi.fn(), onFocus: vi.fn(), onSeek: vi.fn(), onTrimRegion: vi.fn() };
   const elements = (node: InertElement): InertElement[] => [node, ...(node.props.children ?? []).flat(Infinity).filter((child: any) => child && typeof child === 'object').flatMap(elements)];
   let tree: InertElement;
@@ -93,9 +94,9 @@ function pianoFixture(options: { notes?: RollProps['pattern']['notes']; selected
   };
   const scrollbar = (orientation: 'horizontal' | 'vertical') => { render(); return elements(tree).find(node => node.props.orientation === orientation)!.props; };
   const view = () => { const horizontal = scrollbar('horizontal'), vertical = scrollbar('vertical'); return { x: horizontal.value, y: vertical.value, row: vertical.contentSize / 128, width: horizontal.viewportSize, height: vertical.viewportSize, zoom: props.zoom, scale: props.zoom / props.ppq }; };
-  const rect = (note: string | RollProps['pattern']['notes'][number]) => { const n = typeof note === 'string' ? props.pattern.notes.find(n => n.id === note)! : note, v = view(); return { x: 58 + n.tick * v.scale - v.x, y: 42 + (127 - n.midi) * v.row - v.y, width: Math.max(6, n.duration * v.scale), height: Math.max(1, v.row - 2) }; };
+  const rect = (note: string | RollProps['pattern']['notes'][number]) => { const n = typeof note === 'string' ? props.pattern.notes.find(n => n.id === note)! : note, v = view(); return { x: pianoRowHeaderWidth(!!props.drumRows) + n.tick * v.scale - v.x, y: 42 + (127 - n.midi) * v.row - v.y, width: Math.max(6, n.duration * v.scale), height: Math.max(1, v.row - 2) }; };
   const point = (note = 'a') => { const r = rect(note); return { x: r.x + Math.min(6, r.width / 3), y: r.y + r.height / 2 }; };
-  const gridPoint = (tick: number, midi: number) => { const v = view(); return { x: 58 + tick * v.scale - v.x, y: 42 + (127 - midi + .45) * v.row - v.y }; };
+  const gridPoint = (tick: number, midi: number) => { const v = view(); return { x: pianoRowHeaderWidth(!!props.drumRows) + tick * v.scale - v.x, y: 42 + (127 - midi + .45) * v.row - v.y }; };
   const velocityPoint = (value: number, note = 'a') => ({ x: rect(note).x + 2, y: dimensions.height - 10 - value * (78 - 22) });
   const movePoints = () => { const from = point(), v = view(); return { from, to: { x: from.x + 240 * v.scale, y: from.y + v.row } }; };
   const event = (x: number, y: number, extra: Record<string, unknown> = {}) => ({ clientX: x, clientY: y, pointerId: 7, button: 0, ctrlKey: false, metaKey: false, shiftKey: false, currentTarget: canvas, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra });
@@ -104,6 +105,8 @@ function pianoFixture(options: { notes?: RollProps['pattern']['notes']; selected
   render();
   return { originalNotes, onSelect, onEdit, onZoom, event, at, point, gridPoint, velocityPoint, movePoints, rect, view, scrollbar, dispatch, render, captures, frames, indexWork, paints, canvas, flushBoundary,
     lastPaint: () => paints.at(-1) ?? [], props: () => props,
+    menu: () => { render(); return elements(tree).find(node => node.props.role === 'menu'); },
+    menuItem: (text: string) => { render(); return elements(tree).find(node => node.props.role === 'menuitem' && node.props.children?.flat(Infinity).includes(text)); },
     wheelZoom: (x: number, deltaY: number) => { const handle = canvas.addEventListener.mock.calls.find(call => call[0] === 'wheel')?.[1]; if (!handle) throw new Error('Actual wheel listener missing'); handle({ clientX: x, deltaY, ctrlKey: true, metaKey: false, preventDefault() {}, stopPropagation() {} }); render(); },
     wheelRows: (y: number, deltaY: number, meta = false) => { const handle = canvas.addEventListener.mock.calls.find(call => call[0] === 'wheel')?.[1]; if (!handle) throw new Error('Actual wheel listener missing'); handle({ clientY: y, deltaY, shiftKey: true, ctrlKey: !meta, metaKey: meta, preventDefault() {}, stopPropagation() {} }); render(); },
     scroll: (orientation: 'horizontal' | 'vertical', value: number) => { scrollbar(orientation).onChange(value); render(); },
@@ -619,5 +622,140 @@ describe('PianoRoll relative multi-note velocity callbacks (no physical input)',
     // construction and the final whole-source transaction are separate phases.
     expect(velocityReads).toBeLessThan(500); expect(state.onEdit).not.toHaveBeenCalled(); expect(state.props().pattern.notes).toBe(notes);
     state.dispatch('onKeyDown', state.at(from, { key: 'Escape' })); expect(state.onEdit).not.toHaveBeenCalled();
+  });
+});
+
+describe('drum source rows use the real gesture callbacks with the wider header', () => {
+  function drums() {
+    return pianoFixture({ notes: [{...newNote(240,36,240),id:'a'},{...newNote(480,38,240),id:'b'}], selected: [], paint:true,
+      drumRows:[{midi:36,label:'底鼓',mapped:true},{midi:38,label:'军鼓',mapped:true}] });
+  }
+  it('uses the full 204px header for audition without creating an event', () => {
+    const state=drums(), point=state.point('a');
+    expect(state.render().props['data-keyboard-width']).toBe(204);
+    expect(state.view().width).toBe(800-204);
+    state.dispatch('onPointerDown',state.event(100,point.y));
+    state.dispatch('onPointerUp',state.event(100,point.y));
+    expect(state.props().onAudition).toHaveBeenCalledWith(36);
+    expect(state.onEdit).not.toHaveBeenCalled();
+  });
+  it('draws and moves using source MIDI numbers rather than drum list indices', () => {
+    const state=drums(), point=state.gridPoint(840,37);
+    state.dispatch('onPointerDown',state.at(point)); state.dispatch('onPointerUp',state.at(point));
+    expect(state.props().pattern.notes.at(-1)).toMatchObject({tick:840,midi:37});
+    const from=state.point('a'), v=state.view(), to={x:from.x+240*v.scale,y:from.y-2*v.row};
+    state.dispatch('onPointerDown',state.at(from)); state.dispatch('onPointerMove',state.at(to));state.dispatch('onPointerUp',state.at(to));
+    expect(state.props().pattern.notes.find(note=>note.id==='a')).toMatchObject({tick:480,midi:38});
+  });
+  it('preserves the time under a wheel zoom anchor after the 204px row header', () => {
+    const state=drums(), point=state.gridPoint(840,37), before=state.view();
+    const tick=(point.x-204+before.x)/before.scale;
+    state.wheelZoom(point.x,-120); const after=state.view();
+    expect((point.x-204+after.x)/after.scale).toBeCloseTo(tick,8);
+    expect(state.onEdit).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Logic piano mouse semantics', () => {
+  it('right click selects the target and opens a menu without erasing, even with the eraser tool', () => {
+    const state = pianoFixture(); state.update({ preset: 'logic', tool: 'erase' });
+    const event = state.at(state.point('a'), { button: 2 });
+    state.dispatch('onPointerDown', event); state.dispatch('onPointerUp', event);
+    expect(state.onEdit).not.toHaveBeenCalled();
+    state.dispatch('onContextMenu', event);
+    expect([...state.props().selected]).toEqual(['a']);
+    expect(state.menu()?.props['aria-label']).toBe('音符编辑菜单');
+    expect(state.props().pattern.notes).toEqual(state.originalNotes);
+    expect(state.onEdit).not.toHaveBeenCalled();
+    state.menuItem('删除所选音符')!.props.onClick();
+    expect(state.onEdit).toHaveBeenCalledOnce();
+    expect(state.props().pattern.notes).toEqual([state.originalNotes[1]]);
+    expect(state.props().selected.size).toBe(0);
+    expect(state.canvas.focus).toHaveBeenCalled();
+  });
+
+  it.each(['fl', 'nbs'] as const)('%s keeps right-button erase and does not show a context menu', preset => {
+    const state = pianoFixture(); state.update({ preset });
+    const point = state.point('a');
+    state.dispatch('onPointerDown', state.at(point, { button: 2 }));
+    state.dispatch('onPointerUp', state.at(point, { button: 2 }));
+    state.dispatch('onContextMenu', state.at(point, { button: 2 }));
+    expect(state.menu()).toBeUndefined();
+    expect(state.onEdit).toHaveBeenCalledOnce();
+    expect(state.props().pattern.notes).toEqual([state.originalNotes[1]]);
+  });
+
+  it('the context duplicate is independent and preserves the original notes', () => {
+    const state = pianoFixture({ selected: ['a', 'b'] }); state.update({ preset: 'logic' });
+    state.dispatch('onContextMenu', state.at(state.point('a'), { button: 2 }));
+    state.menuItem('独立复制所选音符')!.props.onClick();
+    const notes = state.props().pattern.notes;
+    expect(state.onEdit).toHaveBeenCalledOnce();
+    expect(notes.slice(0, 2)).toEqual(state.originalNotes);
+    expect(notes.slice(2).map(note => [note.tick, note.midi])).toEqual([[720, 84], [960, 83]]);
+    expect(new Set(notes.map(note => note.id)).size).toBe(4);
+    expect(state.props().selected).toEqual(new Set(notes.slice(2).map(note => note.id)));
+  });
+
+  it('Shift+F10 opens the same menu without forwarding a destructive editor command', () => {
+    const state = pianoFixture(); state.update({ preset: 'logic' });
+    const event = state.event(0, 0, { key: 'F10', shiftKey: true });
+    state.dispatch('onKeyDown', event);
+    expect(event.preventDefault).toHaveBeenCalled(); expect(event.stopPropagation).toHaveBeenCalled();
+    expect(state.menu()?.props.role).toBe('menu'); expect(state.onEdit).not.toHaveBeenCalled();
+  });
+
+  it('a captured context action cannot edit a different document or newly locked track', () => {
+    const state = pianoFixture(); state.update({ preset: 'logic' });
+    state.dispatch('onContextMenu', state.at(state.point('a'), { button: 2 }));
+    const remove = state.menuItem('删除所选音符')!.props.onClick;
+    const replacement = [{ ...newNote(0, 66), id: 'other-document' }];
+    state.update({ pattern: { ...state.props().pattern, notes: replacement } });
+    remove();
+    expect(state.props().pattern.notes).toEqual(replacement); expect(state.onEdit).not.toHaveBeenCalled();
+    state.dispatch('onContextMenu', state.at(state.gridPoint(0, 66), { button: 2 }));
+    state.update({ track: { ...state.props().track, locked: true } });
+    expect(state.menuItem('删除所选音符')?.props.disabled).toBe(true);
+  });
+
+  it('Alt drag previews a separate copy, keeps originals, and commits a single edit with stable new IDs', () => {
+    const state = pianoFixture({ selected: ['a', 'b'], paint: true }); state.update({ preset: 'logic' });
+    const { from, to } = state.movePoints();
+    state.dispatch('onPointerDown', state.at(from, { altKey: true }));
+    state.dispatch('onPointerMove', state.at(to, { altKey: true }));
+    expect(state.onEdit).not.toHaveBeenCalled();
+    expect(state.props().pattern.notes).toEqual(state.originalNotes);
+    expect(state.lastPaint().filter(command => command.kind === 'body')).toHaveLength(4);
+    expect(state.canvas.style.cursor).toBe('copy');
+    state.dispatch('onPointerUp', state.at(to, { altKey: true }));
+    expect(state.onEdit).toHaveBeenCalledOnce(); expect(state.onEdit.mock.calls[0][0]).toBe('拖动复制音符');
+    const notes = state.props().pattern.notes;
+    expect(notes.slice(0, 2)).toEqual(state.originalNotes);
+    expect(notes.slice(2).map(note => [note.tick, note.midi])).toEqual([[480, 83], [720, 82]]);
+    expect(new Set(notes.map(note => note.id)).size).toBe(4);
+    expect(state.props().selected).toEqual(new Set(notes.slice(2).map(note => note.id)));
+  });
+
+  it.each(['Escape', 'onBlur', 'onPointerCancel'] as const)('%s cancels Alt copy and restores the prior selection without history', cancel => {
+    const state = pianoFixture(); state.update({ preset: 'logic' }); const { from, to } = state.movePoints();
+    state.dispatch('onPointerDown', state.at(from, { altKey: true }));
+    state.dispatch('onPointerMove', state.at(to, { altKey: true }));
+    state.dispatch(cancel === 'Escape' ? 'onKeyDown' : cancel, state.at(to, { key: 'Escape' }));
+    state.dispatch('onPointerUp', state.at(to, { altKey: true }));
+    expect(state.props().pattern.notes).toEqual(state.originalNotes); expect([...state.props().selected]).toEqual(['b']);
+    expect(state.onEdit).not.toHaveBeenCalled();
+  });
+
+  it('Alt click without a drag creates no hidden duplicate, and FL Alt drag keeps its move behavior', () => {
+    const state = pianoFixture(); state.update({ preset: 'logic' }); const from = state.point();
+    state.dispatch('onPointerDown', state.at(from, { altKey: true })); state.dispatch('onPointerUp', state.at(from, { altKey: true }));
+    expect(state.onEdit).not.toHaveBeenCalled(); expect(state.props().pattern.notes).toEqual(state.originalNotes);
+    state.update({ preset: 'fl' }); const movement = state.movePoints();
+    state.dispatch('onPointerDown', state.at(movement.from, { altKey: true }));
+    state.dispatch('onPointerMove', state.at(movement.to, { altKey: true }));
+    state.dispatch('onPointerUp', state.at(movement.to, { altKey: true }));
+    expect(state.props().pattern.notes).toHaveLength(2);
+    expect(state.onEdit.mock.calls[0][0]).toBe('移动音符');
   });
 });

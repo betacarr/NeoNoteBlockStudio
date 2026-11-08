@@ -1,3 +1,4 @@
+import { noteOnlyAppHarnessBoundaries } from './helpers/app-integration-boundaries';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import { produce } from 'immer';
@@ -103,7 +104,7 @@ function appFixture() {
     const dependencies: any = { project, region, pattern, track, selectedNotes, numberEditOwner, editorDocumentKey: 4, useMemo: (create: () => unknown) => create() };
     const context = Function(...Object.keys(dependencies), contextCode + '\nreturn {numberGeneration,numberContext,noteRangeContext};')(...Object.values(dependencies));
     liveNumberContext.current = context.numberContext;
-    const scope: any = { ...dependencies, ...context, projectRef, noteRangePreview, liveNumberContext, numberDrafts, produce, applyNoteEdit, changeSelectedNotes, history, future, savedSnapshot,
+    const scope: any = { ...noteOnlyAppHarnessBoundaries(), ...dependencies, ...context, projectRef, noteRangePreview, liveNumberContext, numberDrafts, produce, applyNoteEdit, changeSelectedNotes, history, future, savedSnapshot,
       engine, setMessage, finishHeld, playbackMode: 'realtime', stop: vi.fn(), setProject: vi.fn(), setDirty: (value: boolean) => { state.dirty = value; }, setRevision: vi.fn(), restoreSelection: vi.fn(),
       flushActiveNumberInput: () => flush(), selectionSnapshot: (value = projectRef.current) => normalizeEditorSelection(value, { trackId: track.id, regionId: region.id, noteIds: [...selectedNotes], focus: 'piano' }),
       firstNote: pattern.notes.find(note => selectedNotes.has(note.id)), CommitRangeInput: 'actual-range-marker', element };

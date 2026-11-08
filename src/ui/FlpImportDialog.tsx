@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { INSTRUMENTS } from '../core/instruments';
-import { flpChannelChoiceError, type FlpChannelChoice, type FlpImportChannel, type FlpImportPlan } from '../core/flp-import';
+import { flpChannelChoiceError, flpChannelSupportsNotes, type FlpChannelChoice, type FlpImportChannel, type FlpImportPlan } from '../core/flp-import';
 import { CommitNumberInput, flushActiveNumberInput } from './CommitNumberInput';
 
 export interface FlpImportDialogProps {
@@ -17,10 +17,10 @@ interface Review {
   acknowledged: boolean;
 }
 const initialReview = (plan: FlpImportPlan): Review => ({ plan,
-  choices: plan.channels.map(channel => ({ id: channel.id, instrumentId: channel.instrumentId, baselineMidi: channel.baselineMidi, confirmed: false, selected: channel.kind === 0 && channel.selected })),
+  choices: plan.channels.map(channel => ({ id: channel.id, instrumentId: channel.instrumentId, baselineMidi: channel.baselineMidi, confirmed: false, selected: flpChannelSupportsNotes(channel) && channel.selected })),
   changed: new Set(), pending: new Set(), acknowledged: false,
 });
-const channelKind = (kind: number) => kind === 0 ? '采样器' : kind === 2 ? '插件（不支持）' : kind === 4 ? '音频片段（不支持）' : kind === 5 ? '自动化（不支持）' : '不支持的声道类型';
+const channelKind = (kind: number) => kind === 0 ? '采样器' : kind === 2 ? '插件 MIDI 音符' : kind === 4 ? '音频片段（不支持）' : kind === 5 ? '自动化（不支持）' : '其他 MIDI 音符通道';
 
 /** Review note conversion only; no source FLP or samples are modified here. */
 export function FlpImportDialog({ plan, onCancel, onImport }: FlpImportDialogProps) {
@@ -61,11 +61,11 @@ export function FlpImportDialog({ plan, onCancel, onImport }: FlpImportDialogPro
   const skipped = plan.channels.filter(channel => !selectedIds.has(channel.id));
   // Keep row parents stable while editing, so selecting a previously skipped
   // channel cannot unmount its numeric field or collapse its native details.
-  const primaryChannels = plan.channels.filter(channel => channel.kind === 0 && channel.selected);
+  const primaryChannels = plan.channels.filter(channel => flpChannelSupportsNotes(channel) && channel.selected);
   const otherChannels = plan.channels.filter(channel => !primaryChannels.includes(channel));
   const renderChannel = (channel: FlpImportChannel) => {
-    const choice = current.choices.find(choice => choice.id === channel.id)!, supported = channel.kind === 0, disabled = !supported || !choice.selected;
-    const verified = channel.verified && choice.instrumentId === channel.instrumentId && choice.baselineMidi === channel.baselineMidi && !current.changed.has(channel.id);
+    const choice = current.choices.find(choice => choice.id === channel.id)!, supported = flpChannelSupportsNotes(channel), disabled = !supported || !choice.selected;
+    const verified = channel.kind === 0 && channel.verified && choice.instrumentId === channel.instrumentId && choice.baselineMidi === channel.baselineMidi && !current.changed.has(channel.id);
     const error = choiceError(current, choice), root = plan.source.channels[channel.id]?.root;
     return <article className="flp-import-channel" data-channel-id={channel.id} key={channel.id}>
       <div className="flp-channel-heading"><label className="checkbox"><input type="checkbox" aria-label={`导入声道 ${channel.id}`} checked={choice.selected} disabled={!supported}
@@ -86,7 +86,7 @@ export function FlpImportDialog({ plan, onCancel, onImport }: FlpImportDialogPro
           }} /></label>
       </div>}
       {supported && <><p className="field-hint">采样在 FL 根键上播放时，应对应这里的音高。66 是编辑器默认音高；每加 1 升高一个半音。</p>
-        <p className="flp-channel-status">{verified ? '原版采样已按哈希核对，音色与基准已识别。' : '采样或映射未核对，请自行确认音色与采样基准。'}</p>
+        <p className="flp-channel-status">{verified ? '原版采样已按哈希核对，音色与基准已识别。' : channel.kind === 0 ? '采样或映射未核对，请自行确认音色与采样基准。' : '仅转换此通道的 MIDI 音符；请自行填写音色与音高基准，插件声音不会转换。'}</p>
         {!verified && <label className="checkbox"><input type="checkbox" aria-label={`确认声道 ${channel.id} 映射`} checked={choice.confirmed} disabled={disabled || !choice.instrumentId}
           onChange={event => { if (!disabled) changeChoice(channel.id, { confirmed: event.currentTarget.checked }); }} />我已确认这个音色和采样基准</label>}</>}
       {channel.issues.length > 0 && <ul className="flp-import-issues">{channel.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>}
@@ -110,7 +110,7 @@ export function FlpImportDialog({ plan, onCancel, onImport }: FlpImportDialogPro
       {plan.warnings.length > 0 && <div className="flp-import-issues"><strong>转换警告（{plan.warnings.length}）</strong><ul>{plan.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
         <label className="checkbox"><input type="checkbox" aria-label="确认 FLP 转换警告" checked={current.acknowledged} onChange={event => update(before => ({ ...before, acknowledged: event.currentTarget.checked }))} />我已了解这些转换限制</label></div>}
       {current.pending.size > 0 && <p className="field-hint" role="status">请完成采样基准输入；无效数值不会被跳过。</p>}
-      {!selected.length && <p className="field-hint" role="status">请选择至少一个采样声道；播放列表范围内的有效起音会在导入时再次检查。</p>}
+      {!selected.length && <p className="field-hint" role="status">请选择至少一个音符声道；播放列表范围内的有效起音会在导入时再次检查。</p>}
       <div className="button-row end flp-import-actions"><button type="button" onClick={cancel}>取消</button><button type="button" className="primary" disabled={!ready(current)} onClick={importReviewed}>导入为可编辑工程</button></div>
     </div>
   </section></div>;

@@ -9,7 +9,7 @@ const metadata = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const mac = process.argv[2] === '--mac';
 const architectures = mac ? process.argv.slice(3) : ['x64'];
 if (mac && (!architectures.length || architectures.some(arch => !['arm64', 'x64'].includes(arch)))) throw new Error('Usage: check-release.mjs --mac arm64 [x64]');
-const root = path.resolve(mac ? `release/${metadata.version}` : process.argv[2] ?? `release/${metadata.version}`);
+const root = path.resolve(process.env.NEONBS_RELEASE_DIR || (mac ? `release/${metadata.version}` : process.argv[2] ?? `release/${metadata.version}`));
 const issues = [], archives = [], assets = [];
 const previewBank = JSON.parse(fs.readFileSync('third_party/minecraft-samples/manifest.json', 'utf8'));
 const previewFiles = new Map(previewBank.samples.map(sample => [`dist/sounds/${sample.file}`, sample]));
@@ -22,7 +22,7 @@ for (const arch of new Set(architectures)) {
   const unpacked = path.join(resources, 'app.asar.unpacked');
   const privateStrings = [process.cwd(), homedir()].filter(Boolean).flatMap(value => [value, value.replaceAll('\\', '/')]).map(value => value.toLowerCase());
   for (const name of names) {
-    if (/^(?:src|tests|scripts|docs)\/|(?:^|\/)(?:\.local|\.research|\.git)(?:\/|$)|\.map$|liquid.?glass|\.(?:nbsx|nbs|mid|midi|flp|wav|ogg|mp3|pcm|jar)$/i.test(name) && !previewFiles.has(name)) issues.push({ file: name, rule: 'unexpected-release-file' });
+    if (/^(?:src|tests|scripts|docs)\/|(?:^|\/)(?:\.local|\.research|\.git|__pycache__)(?:\/|$)|\.(?:map|nbsx|nbs|mid|midi|flp|wav|ogg|mp3|pcm|jar|ckpt|pth|pt|pyc)$/i.test(name) && !previewFiles.has(name)) issues.push({ file: name, rule: 'unexpected-release-file' });
     const nativeName = path.join(...name.split('/'));
     if (statFile(archive, nativeName).files) continue;
     let bytes;
@@ -31,7 +31,7 @@ for (const arch of new Set(architectures)) {
     if (preview && (bytes.length !== preview.bytes || createHash('sha1').update(bytes).digest('hex') !== preview.sha1 || createHash('sha256').update(bytes).digest('hex') !== preview.sha256)) issues.push({ file: name, rule: 'preview-sample-checksum' });
     const text = bytes.toString('utf8').toLowerCase();
     if (privateStrings.some(value => text.includes(value) || text.includes(value.replaceAll('\\', '\\\\')))) issues.push({ file: name, rule: 'developer-absolute-path' });
-    if (/\.(?:cjs|js|css|json|md|txt)$/.test(name) && /liquid glass|仅供内测|内测功能/.test(text)) issues.push({ file: name, rule: 'unpublished-feature-text' });
+    if (/\.(?:cjs|js|css|json|md|txt)$/.test(name) && /仅供内测|内测功能/.test(text)) issues.push({ file: name, rule: 'unpublished-feature-text' });
   }
   const packaged = JSON.parse(extractFile(archive, 'package.json').toString());
   if (packaged.version !== metadata.version || packaged.build?.productName && packaged.build.productName !== 'NeoNBS') issues.push({ file: 'package.json', rule: 'release-metadata-mismatch' });
@@ -58,6 +58,16 @@ for (const arch of new Set(architectures)) {
   }
   for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'third_party/flp2nbs/LICENSE', 'third_party/flp2nbs/NOTICE.txt', 'third_party/minecraft-samples/NOTICE.md', 'third_party/minecraft-samples/manifest.json']) if (!names.includes(file)) issues.push({ file, rule: 'missing-license' });
   for (const file of previewFiles.keys()) if (!names.includes(file)) issues.push({ file, rule: 'missing-preview-sample' });
+  for (const file of ['third_party/liquid-glass/LICENSE', 'third_party/liquid-glass/NOTICE.txt', 'third_party/noteblockstudio-glass/LICENSE', 'third_party/noteblockstudio-glass/NOTICE.txt']) {
+    if (!names.includes(file)) issues.push({ file, rule: 'missing-glass-notice' });
+  }
+  for (const file of ['audio-assist-worker.py', 'audio_neural_tempo.py', 'audio_tempo.py', 'smart-tempo-model.json', 'audio_mega.py', 'mega_roformer/__init__.py']) {
+    if (!fs.existsSync(path.join(unpacked, 'dist-electron', file))) issues.push({ file, rule: 'audio-worker-must-be-outside-asar' });
+  }
+  for (const file of ['setup-audio-assist-macos.sh', 'setup-audio-assist.ps1', 'audio-assist-requirements.txt', 'setup-smart-tempo.py', 'smart-tempo-model.json']) {
+    const packaged = path.join(resources, 'audio-runtime-tools', file);
+    if (!fs.existsSync(packaged) || !fs.readFileSync(packaged).equals(fs.readFileSync(path.join('scripts', file)))) issues.push({ file, rule: 'missing-or-modified-audio-setup-tool' });
+  }
   if (names.includes('third_party/minecraft-samples/manifest.json') && extractFile(archive, path.join('third_party', 'minecraft-samples', 'manifest.json')).toString() !== fs.readFileSync('third_party/minecraft-samples/manifest.json', 'utf8')) issues.push({ file: 'third_party/minecraft-samples/manifest.json', rule: 'preview-manifest-mismatch' });
   if (names.some(name => name.startsWith('third_party/opennbs-samples/'))) issues.push({ rule: 'obsolete-preview-bank' });
   if (!fs.existsSync(path.join(unpacked, 'dist-electron/java/studio/nbsx/audio/NbsxVorbisDecoder.class'))) issues.push({ file: 'java adapter', rule: 'missing-java-adapter' });
