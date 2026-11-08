@@ -4,11 +4,11 @@ import type { AudioEngine } from '../audio/engine';
 import { INSTRUMENTS } from '../core/instruments';
 
 /** Diagnostic failures must never interrupt editing or audio. */
-export function recordDiagnostic(input: DiagnosticInput) {
+export function recordDiagnostic(input: DiagnosticInput, requestId?: string) {
   try {
     const value = input.fields?.error;
     const safe = value === undefined ? input : { ...input, fields: { ...input.fields, error: diagnosticError(value) } };
-    void window.desktop?.recordDiagnostic?.(safe)?.catch(() => {});
+    void window.desktop?.recordDiagnostic?.(safe, requestId)?.catch(() => {});
   } catch { /* Main-process logging may be unavailable during shutdown. */ }
 }
 export function audioDiagnosticSnapshot(project: Project, engine: AudioEngine, mode: string) {

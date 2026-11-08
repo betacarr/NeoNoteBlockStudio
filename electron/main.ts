@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, utilityProcess, shell } from 'electron';
+import { DiagnosticSnapshotCapture } from "./diagnostic-capture";
 import { clearNativeGlass, nativeGlassSupported, setNativeGlass, WINDOW_BACKGROUND } from './native-glass';
 import { readFile, writeFile, mkdir, readdir, stat, rename, copyFile, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -280,10 +281,10 @@ async function loadMinecraft(root: string, index: string, version: string): Prom
 function setupHandlers() {
   handle('appearance:native-glass-supported', async () => nativeGlassSupported());
   handle('appearance:native-glass', async request => setNativeGlass(window!, request));
-  handle('diagnostics:record', async input => {
+  handle('diagnostics:record', async (input, requestId) => {
     const value = normalizeDiagnostic(input);
     const stored = !!value && RENDERER_DIAGNOSTIC_EVENTS.has(value.event) && !!diagnostics?.log(value);
-    if (stored && value?.event === 'audio.snapshot') diagnosticSnapshotWaiter?.();
+    if (stored && value?.event === 'audio.snapshot') diagnosticCapture.acknowledge(requestId);
     return stored;
   });
   handle('diagnostics:export', exportDiagnostics);
@@ -424,15 +425,10 @@ function setupHandlers() {
   });
 }
 let exportingDiagnostics = false;
-let diagnosticSnapshotWaiter: (() => void) | undefined;
+const diagnosticCapture = new DiagnosticSnapshotCapture();
 async function captureAudioDiagnosticState() {
   if (!window || window.isDestroyed() || window.webContents.isCrashed()) return false;
-  return new Promise<boolean>(resolve => {
-    const finish = (captured: boolean) => { clearTimeout(timer); diagnosticSnapshotWaiter = undefined; resolve(captured); };
-    const timer = setTimeout(() => finish(false), 300);
-    diagnosticSnapshotWaiter = () => finish(true);
-    try { window!.webContents.send('diagnostics:capture'); } catch { finish(false); }
-  });
+  return diagnosticCapture.capture(requestId => window!.webContents.send("diagnostics:capture", requestId));
 }
 async function exportDiagnostics(): Promise<DiagnosticExportResult> {
   if (!diagnostics || exportingDiagnostics) return { status: 'canceled' };

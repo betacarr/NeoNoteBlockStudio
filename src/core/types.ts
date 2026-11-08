@@ -120,10 +120,10 @@ export interface DesktopAPI {
   cancelAudioAssist?: (id: string) => Promise<boolean>;
   audioAssistStatus?: (mode?: 'split' | 'chords') => Promise<import('./audio-assist').AudioAssistStatus>;
   onAudioAssistProgress?: (callback: (progress: import('./audio-assist').AudioAssistProgress) => void) => () => void;
-  recordDiagnostic?: (input: import('./diagnostics').DiagnosticInput) => Promise<boolean>;
+  recordDiagnostic?: (input: import('./diagnostics').DiagnosticInput, requestId?: string) => Promise<boolean>;
   exportDiagnostics?: () => Promise<import('./diagnostics').DiagnosticExportResult>;
   openLogsFolder?: () => Promise<boolean>;
-  onDiagnosticRequest?: (callback: () => void) => () => void;
+  onDiagnosticRequest?: (callback: (requestId: string) => void) => () => void;
   openFile: (kind: 'project' | 'reference' | 'sample') => Promise<{ path: string; name: string; bytes: Uint8Array } | null>;
   openDroppedProject?: (file: File) => Promise<{ path: string; name: string; bytes: Uint8Array } | null>;
   inspectFlpSamples: (sourcePath: string, samples: { id: number; path: string }[]) => Promise<Record<number, { sha256: string; path: string }>>;

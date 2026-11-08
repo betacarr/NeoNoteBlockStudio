@@ -2002,7 +2002,7 @@ export function App() {
       commands.current[command]?.();
     });
     const offOpen = window.desktop?.onOpenFile(file => { void openBytesRef.current(file.name, file.bytes, file.path); });
-    const offDiagnostics = window.desktop?.onDiagnosticRequest?.(() => recordDiagnostic({ level: 'info', event: 'audio.snapshot', fields: audioDiagnosticSnapshot(projectRef.current, engine, playbackModeRef.current) }));
+    const offDiagnostics = window.desktop?.onDiagnosticRequest?.((requestId) => recordDiagnostic({ level: 'info', event: 'audio.snapshot', fields: audioDiagnosticSnapshot(projectRef.current, engine, playbackModeRef.current) }, requestId));
     void window.desktop?.rendererReady();
     return () => { canceled = true; engine.onContextState = undefined; engine.stop(); off?.(); offOpen?.(); offDiagnostics?.(); };
   }, []);

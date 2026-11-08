@@ -2,10 +2,10 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { DesktopAPI } from '../src/core/types';
 
 const api: DesktopAPI = {
-  recordDiagnostic: input => ipcRenderer.invoke('diagnostics:record', input),
+  recordDiagnostic: (input, requestId) => ipcRenderer.invoke('diagnostics:record', input, requestId),
   exportDiagnostics: () => ipcRenderer.invoke('diagnostics:export'),
   openLogsFolder: () => ipcRenderer.invoke('diagnostics:open-folder'),
-  onDiagnosticRequest(callback) { const listener = () => callback(); ipcRenderer.on('diagnostics:capture', listener); return () => ipcRenderer.removeListener('diagnostics:capture', listener); },
+  onDiagnosticRequest(callback) { const listener = (_event: Electron.IpcRendererEvent, requestId: string) => callback(requestId); ipcRenderer.on('diagnostics:capture', listener); return () => ipcRenderer.removeListener('diagnostics:capture', listener); },
   platform: process.platform,
   nativeGlassSupported: () => ipcRenderer.invoke('appearance:native-glass-supported'),
   setNativeGlass: bounds => ipcRenderer.invoke('appearance:native-glass', bounds),
