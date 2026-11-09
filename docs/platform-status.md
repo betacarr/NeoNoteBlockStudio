@@ -6,6 +6,10 @@
 
 ## macOS
 
-0.1.59 合并 Apple Silicon／Intel 两套 DMG 与 ZIP 构建，最低 macOS 13。适配分支曾在 Apple Silicon 原生及 Rosetta 环境验证；合并版本的结果另行记录，构建命令不能代替实际验收。当前采用 ad-hoc 签名，未做 Developer ID 签名和公证。详见 [macOS 安装与构建](macos.md)。
+0.1.60 仅提供 Apple Silicon（M 系列）DMG 与 ZIP，最低声明 macOS 13；本次不提供 Intel Mac 包。历史 0.1.59 曾提供双架构，不代表本次 Intel 包通过验收。采用 ad-hoc 签名，未做 Developer ID 签名和公证。详见 [macOS 安装与构建](macos.md)。
+
+## Linux
+
+本次未测试，也不提供 Linux 分发包。
 
 [下载 Windows 版](https://github.com/betacarr/NeoNoteBlockStudio/releases/latest) · [发布验证范围](verification.md)

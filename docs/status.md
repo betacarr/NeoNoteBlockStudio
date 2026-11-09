@@ -1,6 +1,8 @@
 # 当前版本与支持范围
 
-当前版本为 **NeoNBS 0.1.59**，统一 Windows x64 安装版／便携版与 macOS Apple Silicon／Intel DMG／ZIP 的版本。[下载最新版本](https://github.com/betacarr/NeoNoteBlockStudio/releases/latest)。
+当前版本为 **NeoNBS 0.1.60**，提供 Windows x64 安装版／便携版与 macOS Apple Silicon DMG／ZIP。本次不提供 Intel Mac 包，Linux 未测试。[下载最新版本](https://github.com/betacarr/NeoNoteBlockStudio/releases/latest)。
+
+新增编曲区音频片段、独立和弦分析与大分轨、智能速度及单个鼓件／子混音；音频处理需要另装可选组件及对应模型。独立铙钹提取暂不支持。
 
 现已提供本地运行日志、自动脱敏和手动导出诊断包；异常界面也可使用主程序帮助菜单。详见[日志说明](diagnostics.md)。
 

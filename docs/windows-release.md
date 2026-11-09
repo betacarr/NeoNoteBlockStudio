@@ -1,20 +1,20 @@
-# Windows 0.1.60 RC1 构建与验收
+# Windows 0.1.60 构建与验收
 
 在 Windows x64 真机或虚拟机上，用普通用户打开 PowerShell。需要 Git、x64 Node.js 24（推荐）或 26+、JDK 17（或其他支持 `javac --release 8` 的 JDK），以及能访问 npm、GitHub 和 Mojang 资源服务的网络。基础安装与试听不需要 Python、FFmpeg 或 Minecraft。建议用测试账户或虚拟机快照，方便验证旧版升级和卸载。
 
-## 从候选提交构建
+## 从发布源码构建
 
-把 `NeoNBS-0.1.60-rc1.bundle` 复制到 Windows 的测试目录，在该目录运行：
+以下步骤用于开发者复核，不是普通用户安装所必需。发布后从正式标签取得源码；发布前复核应明确使用受审提交，不要误用旧 bundle：
 
 ```powershell
-git clone --branch codex/release-0.1.60-rc1 .\NeoNBS-0.1.60-rc1.bundle .\NeoNBS-0.1.60-rc1
+git clone --branch v0.1.60 https://github.com/betacarr/NeoNoteBlockStudio.git .\NeoNBS-0.1.60
 if ($LASTEXITCODE -ne 0) { throw 'Clone failed' }
-Set-Location .\NeoNBS-0.1.60-rc1
+Set-Location .\NeoNBS-0.1.60
 node -p "process.version + ' ' + process.arch"
 javac -version
 git rev-parse HEAD
 node .\scripts\windows-release.mjs build
-if ($LASTEXITCODE -ne 0) { throw 'Candidate build failed' }
+if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 ```
 
 构建命令会检查干净的 Git 提交和发布内容，依次运行 `npm ci`、`npm test`、`npm run package:win`，并核对打包内容。输出在 `release\0.1.60`：`NeoNBS-0.1.60-x64-setup.exe`、`NeoNBS-0.1.60-x64-portable.exe`、`SHA256SUMS.txt` 和记录源码提交的 `windows-candidate-build.json`。
@@ -52,7 +52,9 @@ Start-Process -FilePath $portable -ArgumentList ('--user-data-dir="{0}"' -f $por
 
 确认能首次启动、内置音色能出声、创建工程并另存为到启动器外的目录。关闭后用同一条命令再开并打开刚才的工程。可从「帮助 → 打开日志文件夹」核对资料落在 `portable-rc1-profile`。这一步要运行实际的 `-portable.exe`，安装副本的自动报告不能代替它。
 
-## 音频与玻璃效果
+## 音频与玻璃效果（开发者隔离验收，不是日常安装目录）
+
+普通用户请使用[音频组件安装指南](audio-assist.md#后台与运行环境)，将组件装进实际使用的资料目录。下面的 `audio-rc1-profile` 只是独立测试目录，不会自动让日常启动获得音频功能。
 
 如要验收智能速度、和弦分析、分轨和自动玻璃像素检查，安装 x64 Python 3.11。下面用安装包自带的脚本，把音频组件装到一个隔离的资料目录。若没有 `py` 命令，可把 `$python` 设为实际的 x64 Python 3.11 可执行文件。使用上一节设置的 `$app`：
 

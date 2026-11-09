@@ -21,7 +21,7 @@ BPM 支持人工输入、半速／倍速、首拍对齐与单独拍点校正。�
 
 开发环境使用项目的 `.local/audio-runtime`。安装包则从应用用户数据目录下的 `audio-runtime` 加载可选组件，基础编曲、MIDI／NBS 和内置音色试听无需它。组件不修改全局 Python，处理时不上传音频。
 
-安装包的 `audio-runtime-tools` 目录中有安装脚本。先安装对应架构的 Python 3.11，然后运行适合自己系统的命令，并重开 NeoNBS：
+安装包的 `audio-runtime-tools` 目录中有安装脚本。先安装对应架构的 Python 3.11。先启动一次应用，通过「帮助 → 打开日志文件夹」找到 `logs`，其父目录才是本次启动的实际用户资料目录。关闭应用后，按下面命令安装并重开。示例路径只适用于没有旧资料目录的新安装；若沿用 `EX NoteBlock Studio` 或自定义资料目录，必须替换为刚核实的路径：
 
 ```sh
 # macOS，假设 NeoNBS 已复制到「应用程序」
@@ -31,7 +31,10 @@ bash "/Applications/NeoNBS.app/Contents/Resources/audio-runtime-tools/setup-audi
 
 ```powershell
 # Windows，在 NeoNBS 安装目录（或便携版实际展开目录）运行
-powershell -File .\resources\audio-runtime-tools\setup-audio-assist.ps1 -RuntimeDir "$env:APPDATA\NeoNBS\audio-runtime"
+$python = & py -3.11 -c 'import sys; assert sys.maxsize > 2**32; print(sys.executable)'
+if ($LASTEXITCODE -ne 0) { throw 'x64 Python 3.11 is required' }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\resources\audio-runtime-tools\setup-audio-assist.ps1 -Python "$python" -RuntimeDir "$env:APPDATA\NeoNBS\audio-runtime"
+if ($LASTEXITCODE -ne 0) { throw 'Audio runtime setup failed' }
 ```
 
 如果应用沿用旧的 `EX NoteBlock Studio` 数据目录，将命令里的数据目录改为旧名称。可从应用的「帮助 → 打开日志文件夹」定位实际数据目录，`audio-runtime` 与 `logs` 同级。macOS 脚本可用 `NEONBS_PYTHON` 指定 Python；Windows 脚本接受 `-Python`。大分轨的模型仍在应用里按需单独下载。
@@ -45,6 +48,12 @@ WAV、FLAC、OGG 等由 libsndfile 解码；需要时用本机既有 FFmpeg 解�
 音频以对齐的 44.1 kHz 立体声浮点 WAV 保存和导出，不对各轨分别归一化或静默裁剪。
 当前试听仍整轨解码到 Web Audio，按实际分轨数计算 2 GiB 缓冲预算；超限会明确报错并保留完整原文件，不等于后台或存储截断。导出也有独立的内存预算检查。
 浏览器版不能单独保存含工程旁资源的工程，请使用桌面版。
+
+## 当前分轨选择
+
+大分轨与和弦分析使用独立入口。支持声部勾选、单个鼓件和子混音；鼓件包括底鼓、小军鼓、踏钹、嗵嗵鼓及鼓其他（含铙钹残余）。独立铙钹提取暂不可用，不能把鼓其他残余写成独立铙钹。模型首次使用在应用内确认下载，默认 CPU。
+
+下面的 v2～v5、`.local` 和 `setup-audio-assist-fast.ps1` 描述的是历史源码试验，不是安装版用户的组件安装步骤；日常安装使用上方随包脚本与实际用户资料目录。
 
 ## 六轨模型状态与许可
 
@@ -79,7 +88,7 @@ Mega 使用固定提交的 MIT BS-RoFormer 实现和 `torch.load(weights_only=Tr
 
 ## v4 CPU 试用（历史）
 
-已在独立 `.local/audio-runtime-fast` 接入官方 PyTorch 2.8 原生 CPU 注意力；有基础环境后可执行 `scripts/setup-audio-assist-fast.ps1` 并重启。仅 Mega 分离选择此环境，基础分析／研究模型继续使用原环境，没有改系统 Python 或驱动。真实音乐桌面分析由 197.84 秒降至 101.52 秒，峰值工作集从 16.42 GB 降至 5.32 GB，完整导出、工程重开及取消仍通过。
+已在独立 `.local/audio-runtime-fast` 接入官方 PyTorch 2.8 原生 CPU 注意力；历史源码环境中曾执行 `scripts/setup-audio-assist-fast.ps1` 并重启（不适用于安装版用户指引）。仅 Mega 分离选择此环境，基础分析／研究模型继续使用原环境，没有改系统 Python 或驱动。真实音乐桌面分析由 197.84 秒降至 101.52 秒，峰值工作集从 16.42 GB 降至 5.32 GB，完整导出、工程重开及取消仍通过。
 
 另以 CC0 人声、鼓、贝斯、吉他、钢琴和 Saxello 录音构成八秒受控混合，六个输出与独立参考的 SI-SDR 为 17.33、17.47、20.77、17.42、15.41、14.44 dB；残余也与已知其他参考直接比较。它验证该受控输入的六声部用途，不冒充自然多轨音乐或人耳验收。最新入口、源文件许可、试听、性能比较见 [v4 实测](audio-model-performance.md)。
 

@@ -30,7 +30,7 @@
 **NeoNBS** 是独立开发的桌面音符盒编辑器，以 MIDI 导入为主要工作流，支持 Note Block Studio 的 NBS 文件互通。原生 **`.nbsx`** 工程保存片段、混音、Delay 和来源信息，让编曲过程保持可编辑。
 
 > [!NOTE]
-> **Windows x64 与 macOS 双架构使用统一版本。** 下载页列明已发布的安装包；内置 20 种默认音色，无需安装游戏即可试听。
+> **0.1.60 提供 Windows x64 与 macOS Apple Silicon 版本；本次不提供 Intel Mac 包，Linux 未测试。** 下载页列明已发布的安装包；内置 20 种默认音色，无需安装游戏即可试听。
 
 <a id="features"></a>
 
@@ -83,15 +83,14 @@
 
 | 下载 | 适合谁 |
 | --- | --- |
-| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
-| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
-| [macOS Apple Silicon DMG](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-mac-arm64.dmg) | M 系列 Mac，macOS 13+。 |
-| [macOS Intel DMG](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/NeoNBS-0.1.59-mac-x64.dmg) | Intel Mac，macOS 13+。 |
-| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.59/SHA256SUMS.txt) | 核对下载文件。 |
+| **[Windows x64 安装版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.60/NeoNBS-0.1.60-x64-setup.exe)** | 推荐。按向导安装，通过开始菜单打开 NeoNBS，可关联 NBSX 工程。 |
+| [Windows x64 便携版](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.60/NeoNBS-0.1.60-x64-portable.exe) | 直接启动，适合不需要安装向导的场景。 |
+| [macOS Apple Silicon DMG](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.60/NeoNBS-0.1.60-mac-arm64.dmg) | M 系列 Mac，macOS 13+。 |
+| [SHA-256 校验值](https://github.com/betacarr/NeoNoteBlockStudio/releases/download/v0.1.60/SHA256SUMS.txt) | 核对下载文件。 |
 
 下载安装版后运行向导，启动 NeoNBS；默认音色加载后即可导入 MIDI 并播放。需要核对特定游戏版本时，再到「设置 → 声音与资源」选择自己的 Minecraft 实例。具体步骤见 [图文上手](docs/quick-start.md)。
 
-普通启动、默认试听和 Web WAV 导出无需 Minecraft、Node.js 或 Java；原生声音校对另需匹配的本机游戏资源，部分版本还需 Java 运行环境。当前安装包未做数字签名。macOS 提供两种架构的 DMG／ZIP，安装与签名情况见 [macOS 说明](docs/macos.md)。
+普通启动、默认试听和 Web WAV 导出无需 Minecraft、Node.js 或 Java；原生声音校对另需匹配的本机游戏资源，部分版本还需 Java 运行环境。当前安装包未做数字签名。本次 macOS 提供 Apple Silicon 的 DMG／ZIP，安装与签名情况见 [macOS 说明](docs/macos.md)。
 
 <details>
 <summary><strong>从源码开发、验证与打包（可选）</strong></summary>

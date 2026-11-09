@@ -1,12 +1,12 @@
 # macOS 安装、构建与支持范围
 
-0.1.59 将 macOS 适配与官方采样、运行日志合并，提供两个独立架构的构建，要求 macOS 13 或更高版本：
+0.1.60 本次仅提供 Apple Silicon（M 系列）构建，要求 macOS 13 或更高版本：
 
-- Apple Silicon（M 系列）：`NeoNBS-0.1.59-mac-arm64.dmg`，或同名 `.zip`。
-- Intel：`NeoNBS-0.1.59-mac-x64.dmg`，或同名 `.zip`。
-- `SHA256SUMS.txt` 用于核对分发文件，`release-audit.json` 记录架构、许可与内容检查结果。
+- `NeoNBS-0.1.60-mac-arm64.dmg`，或同名 `.zip`。
+- 本次不提供 Intel Mac 包；0.1.59 的历史双架构发布与验收记录保留在 [发布验证](verification.md)。
+- `SHA256SUMS.txt` 用于核对分发文件，发布附件记录实际验收范围。
 
-构建产物位于本机仓库的 `release/0.1.59/`。制作本地分发包不会自动上传 GitHub、创建远程标签或覆盖已发布版本。实际发布状态以下载页为准，历史适配验收与合并版本验收分别记录。
+构建产物位于本机仓库的 `release/0.1.60/`。本地打包不会自动上传 GitHub、创建远程标签或覆盖已发布版本。实际发布状态以下载页为准。
 
 ## 安装
 
@@ -34,15 +34,15 @@
 ```sh
 npm ci
 npm test
-npm run package:mac
-node scripts/verify-mac-release.mjs
+npm run package:mac:arm64
+node scripts/verify-mac-release.mjs arm64
 ```
 
 `npm run package:mac:arm64` 与 `npm run package:mac:x64` 分别只生成一个架构。打包脚本按目标架构下载官方 Electron，并用官方 SHA-256 校验；原生音频桥接包按锁文件的 SHA-512 完整性校验，避免把主机架构的二进制误标成另一个版本。构建不会切换开发环境使用的 Electron。
 
-`verify-mac-release.mjs` 挂载只读 DMG，将程序复制到隔离安装目录并推出映像，核对内容与签名，再检查 ZIP 完整 CRC。随后用安装后的两种架构程序检查 Mac 窗口与 Command 操作、20 种默认音色、日志导出、工程生命周期、MIDI 与 NBS 工作流，最后重新审查分发内容。检查使用隔离资料目录。详细报告留在忽略的 `.local/` 内；`release/0.1.59/macos-verification.json` 仅含版本、源码提交、系统版本、固定检查名称和分发文件校验值，便于反馈构建结果。该命令要求两个架构都能在本机运行；Apple Silicon 上的 Intel 检查需要已安装 Rosetta。
+`verify-mac-release.mjs` 挂载只读 DMG，将程序复制到隔离安装目录并推出映像，核对内容与签名，再检查 ZIP 完整 CRC。随后用安装后的所选架构程序检查 Mac 窗口与 Command 操作、20 种默认音色、日志导出、工程生命周期、MIDI 与 NBS 工作流，最后重新审查分发内容。检查使用隔离资料目录。详细报告留在忽略的 `.local/` 内；`release/0.1.60/macos-verification-arm64.json` 仅含版本、源码提交、系统版本、固定检查名称和分发文件校验值，便于反馈构建结果。不指定架构时脚本默认检查两种架构；本次只运行 `arm64`。源码仍保留 x64 构建能力，不等于本次支持或提供 Intel 包。
 
-要检查开发中的候选包，设置 `NEONBS_RELEASE_DIR` 指向一个单独的目录，然后运行 `npm run package:mac` 和 `node scripts/verify-mac-release.mjs --candidate`。候选检查会写入独立报告，不会把未提交的源码标成已发布提交。若准备了[可选音频组件](audio-assist.md#后台与运行环境)，可同时设置 `NEONBS_AUDIO_RUNTIME_FIXTURE` 指向该环境，额外验证安装后的音频拖入、智能速度和运行后代码签名。
+要检查开发中的候选包，设置 `NEONBS_RELEASE_DIR` 指向一个单独的目录，然后运行 `npm run package:mac:arm64` 和 `node scripts/verify-mac-release.mjs --candidate arm64`。候选检查会写入独立报告，不会把未提交的源码标成已发布提交。若准备了[可选音频组件](audio-assist.md#后台与运行环境)，可同时设置 `NEONBS_AUDIO_RUNTIME_FIXTURE` 指向该环境，额外验证安装后的音频拖入、智能速度和运行后代码签名。
 
 发布检查确认 NBSX 关联、版本、最低系统要求、图标、许可证、Java 适配器、主程序／原生组件架构和代码签名，并扫描开发路径与非公开素材。DMG、ZIP 均保留文件权限与符号链接。当前配置明确采用 ad-hoc 签名；正式 Developer ID 公证发布需要另行配置证书和公证凭据。
 

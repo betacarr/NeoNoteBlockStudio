@@ -1,13 +1,16 @@
 # 发布验证
 
-## 0.1.60 RC1
+## 0.1.60
 
-- RC1 源码在 Mac 上通过 140 个测试文件中的 2343 项检查，1 项因缺少私人语料跳过；类型检查、生产构建与源码发布扫描通过。
-- 以下 Mac 安装结果来自冻结 RC1 前的本地构建，用于验证新功能；正式分发包仍应按候选提交重新构建。两个架构的 DMG／ZIP 均核对了 SHA-256、文件关联、程序架构、第三方许可和代码签名。
-- Apple Silicon 安装包通过 Finder 打开、工程保存与重开、默认音色、MIDI／NBS、原生玻璃和跨平台玻璃检查。隔离安装音频组件后，测试了本地 WAV 拖入、智能速度、独立和弦分析和单轨分离；在没有 Homebrew PATH 的启动环境中也能通过系统已有的 FFmpeg 解码 M4A。处理后代码签名仍然有效。
-- Intel 包在 Apple Silicon 上经 Rosetta 验证 Finder 打开、默认音色、工程生命周期、MIDI／NBS 和原生玻璃。更新解码器查找后，也从 Intel DMG 安装并验证 M4A 分析、智能速度和分析后的代码签名；音频组件使用的是本机 Apple Silicon Python 环境。
-- 音频分析使用短测试素材。完整曲目的耗时、长时间试听和导出，以及物理 Intel Mac 和 Windows x64 新包尚需独立验收。当前 macOS 包只有临时签名，未做 Developer ID 签名与公证。
-- Windows x64 的构建命令、安装版与便携版验收步骤见 [Windows 候选包验收](windows-release.md)。
+- 两平台应用均由 `4a839ea79900e4e1ea92707587d19d8bac371b67` 构建并验收。发布标签相对该提交仅整理文档，已核对程序、依赖与打包脚本输入完全相同；文档提交不代表重新构建。
+- Windows 最终源码测试为 2347 项通过、3 项跳过；Mac 为 2349 项通过、1 项跳过。跳过项不作为已验证功能。
+- Windows 最终安装版／便携版实际验收已通过，具体检查和文件校验值以发布附件 `windows-verification.json` 为准。
+- Apple Silicon 最终包在 macOS 27.0.1 完成正式 9 项检查：DMG 安装与 ZIP CRC、Mac 窗口和 Command 操作、默认音色、诊断、工程生命周期、MIDI、NBS、原生玻璃，以及安装后智能速度和使用后签名。全部通过，记录见 `macos-verification-arm64.json`；报告源码提交为 `4a839ea`。
+- 本次只分发 Windows x64 与 Apple Silicon；Intel 不分发。RC1 冻结前的 Intel／Rosetta 和音频试用结果不作为本次最终包验收；Linux 未测试。
+- 可选音频组件及分轨模型不随基础包安装。单个鼓件和子混音为支持的操作，独立铙钹提取暂不可用。历史短素材／开发环境的性能或推理检查不能当作最终包完整曲目、人耳质量或全部设备验收。
+- 当前机器上的软件验收不能替代真实音频设备、硬件 MIDI、各 Windows DPI／系统版本组合或全部最低系统版本的实机检查。
+- Mac 采用 ad-hoc 签名，未做 Developer ID 签名与公证；物理 Intel Mac、最低系统版本覆盖、硬件音频／MIDI及完整长曲不在本次声明范围内。
+- 安装与复核步骤见 [Windows 构建与验收](windows-release.md) 和 [macOS 说明](macos.md)。
 
 ## 0.1.59 合并版本
 
